@@ -230,3 +230,22 @@ export function useCompleteJobCardMutation() {
     },
   });
 }
+
+/**
+ * Mutation to send or retry WhatsApp notification to assigned technician
+ */
+export function useNotifyTechnicianWhatsAppMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (jobCardId: string) => {
+      const response = await apiClient.post<{ success: boolean; message: string; data?: any }>(
+        `/job-cards/${jobCardId}/notify-technician`
+      );
+      return response.data;
+    },
+    onSuccess: (_, jobCardId) => {
+      queryClient.invalidateQueries({ queryKey: ['job-card', jobCardId] });
+      queryClient.invalidateQueries({ queryKey: ['job-cards'] });
+    },
+  });
+}

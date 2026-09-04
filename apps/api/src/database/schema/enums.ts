@@ -11,6 +11,7 @@ export const userStatusEnum = pgEnum('user_status', ['ACTIVE', 'INACTIVE', 'SUSP
  */
 export const customerTypeEnum = pgEnum('customer_type', ['INDIVIDUAL', 'COMMERCIAL']);
 export const customerStatusEnum = pgEnum('customer_status', ['ACTIVE', 'INACTIVE', 'ARCHIVED']);
+export const customerLabelEnum = pgEnum('customer_label', ['GOOD', 'BAD']);
 export const addressTypeEnum = pgEnum('address_type', ['BILLING', 'SERVICE', 'BOTH']);
 
 /**

@@ -38,7 +38,7 @@ export class EmailScheduler {
           .from(services)
           .where(
             and(
-              eq(services.status, 'SCHEDULED'),
+              sql`${services.status} IN ('SCHEDULED', 'ASSIGNED')`,
               gte(services.scheduledDate, now),
               lte(services.scheduledDate, serviceWindowEnd)
             )
@@ -96,6 +96,23 @@ export class EmailScheduler {
     } finally {
       this.isRunning = false;
     }
+  }
+
+  /**
+   * Alias for test suite and manual triggers
+   */
+  public async scanAndTrigger(): Promise<{
+    status: string;
+    serviceRemindersCount: number;
+    paymentRemindersCount: number;
+    warrantyRemindersCount: number;
+    queueProcessed: number;
+  }> {
+    const res = await this.runScheduledTasks();
+    return {
+      status: 'COMPLETED',
+      ...res,
+    };
   }
 
   /**

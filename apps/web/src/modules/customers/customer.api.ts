@@ -30,6 +30,7 @@ export interface CustomerSummary {
   companyName?: string | null;
   gstNumber?: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+  customerLabel?: 'GOOD' | 'BAD' | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -86,6 +87,14 @@ export interface CustomerActivityItem {
   metadata?: Record<string, unknown> | null;
 }
 
+export interface CustomerStats {
+  totalCustomers: number;
+  activeCustomers: number;
+  newThisMonth: number;
+  withWarranty: number;
+  dueForService: number;
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   pagination: {
@@ -97,6 +106,7 @@ export interface PaginatedResponse<T> {
 
 export const CUSTOMER_QUERY_KEYS = {
   all: ['customers'] as const,
+  stats: () => [...CUSTOMER_QUERY_KEYS.all, 'stats'] as const,
   list: (filters: CustomerQueryFilterInput) => [...CUSTOMER_QUERY_KEYS.all, 'list', filters] as const,
   detail: (id: string) => [...CUSTOMER_QUERY_KEYS.all, 'detail', id] as const,
   financial: (id: string) => [...CUSTOMER_QUERY_KEYS.all, 'financial', id] as const,
@@ -109,6 +119,21 @@ export const CUSTOMER_QUERY_KEYS = {
   warranties: (id: string) => [...CUSTOMER_QUERY_KEYS.all, 'warranties', id] as const,
   jobCards: (id: string, page?: number) => [...CUSTOMER_QUERY_KEYS.all, 'job-cards', id, page] as const,
 };
+
+/**
+ * Fetch customer dashboard summary metrics with baseline isolation
+ */
+export function useCustomerStatsQuery() {
+  return useQuery({
+    queryKey: CUSTOMER_QUERY_KEYS.stats(),
+    queryFn: async () => {
+      const res = await apiClient.get<CustomerStats>('/customers/stats');
+      return (res?.data || res) as unknown as CustomerStats;
+    },
+    refetchOnMount: 'always',
+    staleTime: 5000,
+  });
+}
 
 /**
  * Fetch paginated customers directory
@@ -260,6 +285,27 @@ export function useUpdateCustomerMutation(customerId: string) {
       queryClient.invalidateQueries({ queryKey: ['search'] });
       queryClient.invalidateQueries({ queryKey: ['global-search'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+/**
+ * Update customer label mutation
+ */
+export function useUpdateCustomerLabelMutation(customerId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (label: 'GOOD' | 'BAD' | null) => {
+      const res = await apiClient.patch<CustomerSummary>(`/customers/${customerId}/label`, {
+        label: label ?? 'NONE',
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CUSTOMER_QUERY_KEYS.detail(customerId) });
+      queryClient.invalidateQueries({ queryKey: CUSTOMER_QUERY_KEYS.all });
+      queryClient.refetchQueries({ queryKey: CUSTOMER_QUERY_KEYS.all, type: 'active' });
     },
   });
 }

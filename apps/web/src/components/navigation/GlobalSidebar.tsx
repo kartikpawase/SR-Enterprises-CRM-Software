@@ -12,6 +12,8 @@ import {
   Settings,
   LogOut,
   Repeat,
+  CalendarClock,
+  PackageSearch,
 } from 'lucide-react';
 import { NAVIGATION_ITEMS } from '@crm/shared';
 import { useAuth } from '../../providers/AuthBoundary';
@@ -22,11 +24,13 @@ import { SR_ENTERPRISES_LOGO_B64 } from '../../assets/invoiceAssets';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
+  CalendarClock,
   UsersRound,
   BarChart3,
   Repeat,
   FileText,
   Wrench,
+  PackageSearch,
   UserCog,
   WalletCards,
   PieChart,

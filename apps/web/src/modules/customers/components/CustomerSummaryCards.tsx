@@ -11,11 +11,11 @@ export interface CustomerSummaryCardsProps {
 }
 
 export const CustomerSummaryCards: React.FC<CustomerSummaryCardsProps> = ({
-  totalCustomers = 632,
-  activeCustomers = 512,
-  newThisMonth = 28,
-  withWarranty = 218,
-  dueForService = 96,
+  totalCustomers = 0,
+  activeCustomers = 0,
+  newThisMonth = 0,
+  withWarranty = 0,
+  dueForService = 0,
 }) => {
   const cards = [
     {

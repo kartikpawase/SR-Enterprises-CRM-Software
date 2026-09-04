@@ -37,6 +37,8 @@ import { AnalyticsPage } from './modules/analytics/AnalyticsPage';
 import { ReportsPage } from './modules/reports/ReportsPage';
 import { NotificationsPage } from './modules/notifications/NotificationsPage';
 import { SettingsPage } from './modules/settings/SettingsPage';
+import { DuesPage } from './modules/dues/DuesPage';
+import { InventoryPage } from './modules/inventory/InventoryPage';
 import { LoginPage } from './pages/LoginPage';
 import {
   TrendingUp,
@@ -171,6 +173,16 @@ function MainAppShellRouter() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
 
+            {/* Date-Wise Dues & Scheduled Activities */}
+            <Route
+              path="/dues"
+              element={
+                <PermissionGuard moduleName="Dues">
+                  <DuesPage />
+                </PermissionGuard>
+              }
+            />
+
           {/* Customer Domain Routes */}
           <Route
             path="/customers"
@@ -276,6 +288,15 @@ function MainAppShellRouter() {
             element={
               <PermissionGuard permission="services.view" moduleName="Service Details">
                 <ServiceDetailPage />
+              </PermissionGuard>
+            }
+          />
+          {/* Inventory & Spare Parts Management */}
+          <Route
+            path="/inventory"
+            element={
+              <PermissionGuard moduleName="Inventory">
+                <InventoryPage />
               </PermissionGuard>
             }
           />

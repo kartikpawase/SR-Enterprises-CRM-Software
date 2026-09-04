@@ -14,6 +14,8 @@ import {
   auditLogs,
   users,
   payments,
+  services,
+  jobCards,
 } from '../../database/schema/index';
 import { generateBusinessNumber } from '../../database/sequences';
 import { withTransaction } from '../../database/transactions';
@@ -24,7 +26,23 @@ import { customerRepository } from '../customers/customer.repository';
 import { assetsRepository } from '../assets/assets.repository';
 import { invoicesRepository, memoryInvoices, memoryInvoiceItems } from '../invoices/invoices.repository';
 import { memoryPayments } from '../payments/payments.repository';
+import { memoryServices } from '../services/services.repository';
 import { randomUUID } from 'crypto';
+
+export function parseNextServiceDate(val: string | Date | undefined | null): Date | null {
+  if (!val) return null;
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return null;
+    return val;
+  }
+  const str = String(val).trim();
+  if (!str) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return new Date(`${str}T10:00:00.000Z`);
+  }
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
 import type {
   CreateSaleInput,
   UpdateSaleInput,
@@ -185,10 +203,36 @@ export class SalesRepository {
                 saleId: invoices.saleId,
                 invoiceNumber: invoices.invoiceNumber,
                 status: invoices.status,
+                totalAmount: invoices.totalAmount,
+                dueDate: invoices.dueDate,
               })
               .from(invoices)
               .where(inArray(invoices.saleId, saleIds))
           : [];
+
+      const invoiceIds = linkedInvoices.map((inv) => inv.id);
+      const invoicePayments =
+        invoiceIds.length > 0
+          ? await database
+              .select({
+                invoiceId: payments.invoiceId,
+                amount: payments.amount,
+                status: payments.status,
+              })
+              .from(payments)
+              .where(
+                and(
+                  inArray(payments.invoiceId, invoiceIds),
+                  eq(payments.status, 'COMPLETED')
+                )
+              )
+          : [];
+
+      const paidByInvoiceId = new Map<string, number>();
+      for (const p of invoicePayments) {
+        const current = paidByInvoiceId.get(p.invoiceId) || 0;
+        paidByInvoiceId.set(p.invoiceId, current + (parseFloat(p.amount) || 0));
+      }
 
       const linkedItems =
         saleIds.length > 0
@@ -203,7 +247,32 @@ export class SalesRepository {
               .where(inArray(saleItems.saleId, saleIds))
           : [];
 
-      const invoiceMap = new Map(linkedInvoices.map((inv) => [inv.saleId, inv]));
+      const invoiceMap = new Map<string, any>(
+        linkedInvoices.map((inv) => {
+          const paid = paidByInvoiceId.get(inv.id) || 0;
+          const total = parseFloat(inv.totalAmount || '0');
+          const outstanding = Math.max(0, total - paid);
+          const computedStatus =
+            inv.status === 'CANCELLED'
+              ? 'CANCELLED'
+              : outstanding <= 0.001 && paid > 0
+              ? 'PAID'
+              : paid > 0
+              ? 'PARTIALLY_PAID'
+              : inv.status;
+
+          return [
+            inv.saleId,
+            {
+              ...inv,
+              status: computedStatus,
+              paidAmount: paid.toFixed(2),
+              outstandingAmount: outstanding.toFixed(2),
+            },
+          ];
+        })
+      );
+
       const itemsMap = new Map<string, any[]>();
       for (const itm of linkedItems) {
         const list = itemsMap.get(itm.saleId) || [];
@@ -211,11 +280,29 @@ export class SalesRepository {
         itemsMap.set(itm.saleId, list);
       }
 
-      const enrichedData = rows.map((row) => ({
-        ...row,
-        invoice: invoiceMap.get(row.id) ?? null,
-        items: itemsMap.get(row.id) || [],
-      }));
+      const enrichedData = rows.map((row) => {
+        const inv = invoiceMap.get(row.id) ?? null;
+        const paid = inv ? parseFloat(inv.paidAmount) || 0 : 0;
+        const total = parseFloat(row.totalAmount || '0');
+        const outstanding = Math.max(0, total - paid);
+        const paymentStatus =
+          inv?.status === 'CANCELLED'
+            ? 'CANCELLED'
+            : outstanding <= 0.001 && paid > 0
+            ? 'PAID'
+            : paid > 0
+            ? 'PARTIALLY_PAID'
+            : 'PENDING';
+
+        return {
+          ...row,
+          invoice: inv,
+          paidAmount: paid.toFixed(2),
+          outstandingAmount: outstanding.toFixed(2),
+          paymentStatus,
+          items: itemsMap.get(row.id) || [],
+        };
+      });
 
       return {
         data: enrichedData,
@@ -690,10 +777,42 @@ export class SalesRepository {
         .leftJoin(products, eq(customerAssets.productId, products.id))
         .where(eq(customerAssets.customerId, sale.customerId));
 
+      const validPayments = linkedPayments.filter((p) => p.status === 'COMPLETED');
+      const paidAmount = validPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+      const totalAmountNum = parseFloat(sale.totalAmount || (invoice ? invoice.totalAmount : '0') || '0');
+      const outstandingAmount = Math.max(0, totalAmountNum - paidAmount);
+      const computedInvoiceStatus =
+        invoice?.status === 'CANCELLED'
+          ? 'CANCELLED'
+          : outstandingAmount <= 0.001 && paidAmount > 0
+          ? 'PAID'
+          : paidAmount > 0
+          ? 'PARTIALLY_PAID'
+          : invoice?.status || 'ISSUED';
+      const paymentStatus =
+        invoice?.status === 'CANCELLED'
+          ? 'CANCELLED'
+          : outstandingAmount <= 0.001 && paidAmount > 0
+          ? 'PAID'
+          : paidAmount > 0
+          ? 'PARTIALLY_PAID'
+          : 'PENDING';
+
       return {
         ...sale,
         items,
-        invoice: invoice ? { ...invoice, payments: linkedPayments } : null,
+        invoice: invoice
+          ? {
+              ...invoice,
+              status: computedInvoiceStatus,
+              paidAmount: paidAmount.toFixed(2),
+              outstandingAmount: outstandingAmount.toFixed(2),
+              payments: linkedPayments,
+            }
+          : null,
+        paidAmount: paidAmount.toFixed(2),
+        outstandingAmount: outstandingAmount.toFixed(2),
+        paymentStatus,
         payments: linkedPayments,
         assets,
       };
@@ -708,10 +827,27 @@ export class SalesRepository {
       const memPayments = memInv
         ? memoryPayments.filter((p) => p.invoiceId === memInv.id)
         : [];
+      const memValidPayments = memPayments.filter((p) => p.status === 'COMPLETED');
+      const memPaid = memValidPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+      const memTotal = parseFloat(memSale.totalAmount || (memInv ? memInv.totalAmount : '0') || '0');
+      const memOutstanding = Math.max(0, memTotal - memPaid);
+      const memPaymentStatus =
+        memOutstanding <= 0.001 && memPaid > 0 ? 'PAID' : memPaid > 0 ? 'PARTIALLY_PAID' : 'PENDING';
+
       return {
         ...memSale,
         items: memItems,
-        invoice: memInv ? { ...memInv, payments: memPayments } : null,
+        invoice: memInv
+          ? {
+              ...memInv,
+              paidAmount: memPaid.toFixed(2),
+              outstandingAmount: memOutstanding.toFixed(2),
+              payments: memPayments,
+            }
+          : null,
+        paidAmount: memPaid.toFixed(2),
+        outstandingAmount: memOutstanding.toFixed(2),
+        paymentStatus: memPaymentStatus,
         payments: memPayments,
         assets: [],
       };
@@ -817,6 +953,7 @@ export class SalesRepository {
               serviceIntervalMonths: prod.defaultServiceIntervalMonths,
               serialNumber: item.serialNumber ?? null,
               productType: prod.productType,
+              nextServiceDate: item.nextServiceDate || null,
             });
           }
 
@@ -876,6 +1013,7 @@ export class SalesRepository {
               warrantyMonths: line.warrantyMonths,
               serviceIntervalMonths: line.serviceIntervalMonths,
               serialNumber: line.serialNumber,
+              nextServiceDate: parseNextServiceDate(line.nextServiceDate),
             };
           });
 
@@ -906,7 +1044,7 @@ export class SalesRepository {
 
                 const assetType: any = line.productType === 'RO_MACHINE' ? 'RO_MACHINE' : 'SPARE_PART';
 
-                await tx
+                const [newAsset] = await tx
                   .insert(customerAssets)
                   .values({
                     assetNumber,
@@ -921,7 +1059,21 @@ export class SalesRepository {
                     serviceIntervalMonths: line.serviceIntervalMonths || 6,
                     status: 'ACTIVE',
                     notes: `Registered via Sale ${sale.saleNumber}`,
-                  });
+                  })
+                  .returning();
+
+                if (newAsset && line.nextServiceDate) {
+                  await this.registerNextServiceVisit(
+                    tx,
+                    sale,
+                    customer,
+                    newAsset,
+                    line,
+                    serialNumber,
+                    null,
+                    safeActorId || undefined
+                  );
+                }
               }
             }
 
@@ -989,6 +1141,7 @@ export class SalesRepository {
           serviceIntervalMonths: prod?.defaultServiceIntervalMonths || 6,
           serialNumber: item.serialNumber ?? null,
           productType: pType,
+          nextServiceDate: item.nextServiceDate || null,
         });
       }
 
@@ -1041,6 +1194,7 @@ export class SalesRepository {
           warrantyMonths: line.warrantyMonths,
           serviceIntervalMonths: line.serviceIntervalMonths,
           serialNumber: line.serialNumber,
+          nextServiceDate: parseNextServiceDate(line.nextServiceDate),
           createdAt: new Date(),
         };
         memorySaleItems.unshift(itemObj);
@@ -1245,6 +1399,7 @@ export class SalesRepository {
             serviceIntervalMonths: item.serviceIntervalMonths,
             serialNumber: confirmation.itemSerialNumbers?.[item.id] || item.serialNumber,
             productType: prod?.productType ?? 'RO_MACHINE',
+            nextServiceDate: item.nextServiceDate || null,
           };
         });
 
@@ -1613,6 +1768,8 @@ export class SalesRepository {
             ? line.serialNumber || `SN-${assetNumber}`
             : `${line.serialNumber || 'SN'}-${q + 1}`;
 
+        const assetType: any = line.productType === 'RO_MACHINE' ? 'RO_MACHINE' : 'SPARE_PART';
+
         // Check if asset was already created during draft sale
         const [existingAsset] = await tx
           .select()
@@ -1688,6 +1845,20 @@ export class SalesRepository {
             actorId: safeActorId,
             reason: `Activated on confirmation of Sale ${sale.saleNumber}`,
           });
+
+          // 7. Connect Next Service / Visit Date to Services & Reminders
+          if (line.nextServiceDate) {
+            await this.registerNextServiceVisit(
+              tx,
+              sale,
+              customer,
+              asset,
+              line,
+              serialNumber,
+              warranty?.id || null,
+              safeActorId || undefined
+            );
+          }
         }
       }
 
@@ -1727,6 +1898,88 @@ export class SalesRepository {
     ]);
 
     return invoice;
+  }
+
+  /**
+   * Helper to schedule or update the Next Service Date for a purchased machine asset
+   */
+  private async registerNextServiceVisit(
+    tx: any,
+    sale: any,
+    customer: any,
+    asset: any,
+    line: any,
+    serialNumber: string,
+    warrantyId: string | null,
+    safeActorId?: string
+  ) {
+    if (!line.nextServiceDate) return;
+    const parsedDate = parseNextServiceDate(line.nextServiceDate);
+    if (!parsedDate) return;
+
+    try {
+      // Avoid duplicate service records: Check if scheduled service already exists for this asset
+      const existingServices = await tx
+        .select()
+        .from(services)
+        .where(
+          and(
+            eq(services.assetId, asset.id),
+            inArray(services.status, ['SCHEDULED', 'ASSIGNED'])
+          )
+        );
+
+      if (existingServices.length > 0) {
+        await tx
+          .update(services)
+          .set({
+            scheduledDate: parsedDate,
+            warrantyId: warrantyId || existingServices[0].warrantyId,
+            updatedAt: new Date(),
+          })
+          .where(eq(services.id, existingServices[0].id));
+      } else {
+        const { sequenceNumber: srvNumber } = await generateBusinessNumber(tx, 'SERVICE', 'SRV');
+        const { sequenceNumber: jcNumber } = await generateBusinessNumber(tx, 'JOB_CARD', 'JC');
+
+        const [newService] = await tx
+          .insert(services)
+          .values({
+            serviceNumber: srvNumber,
+            customerId: customer.id,
+            assetId: asset.id,
+            warrantyId: warrantyId || null,
+            technicianId: null,
+            serviceType: 'PERIODIC_MAINTENANCE',
+            serviceLocation: 'DOORSTEP',
+            serviceClassification: warrantyId ? 'WARRANTY' : 'GENERAL',
+            scheduledDate: parsedDate,
+            scheduledTimeSlot: 'Morning (10:00 AM - 12:00 PM)',
+            status: 'SCHEDULED',
+            priority: 'NORMAL',
+            customerNotes: `Scheduled service visit for ${asset.customName || line.productNameSnapshot}`,
+            internalNotes: `Auto-scheduled from Sale ${sale.saleNumber} (Serial: ${serialNumber})`,
+            createdBy: safeActorId || null,
+          })
+          .returning();
+
+        if (newService) {
+          await tx
+            .insert(jobCards)
+            .values({
+              jobCardNumber: jcNumber,
+              serviceId: newService.id,
+              customerId: customer.id,
+              assetId: asset.id,
+              technicianId: null,
+              problemReported: `Scheduled initial periodic maintenance visit for ${asset.customName || line.productNameSnapshot}`,
+              status: 'SCHEDULED',
+            });
+        }
+      }
+    } catch (err: any) {
+      console.warn('[SalesRepository.registerNextServiceVisit] Note:', err?.message);
+    }
   }
 }
 

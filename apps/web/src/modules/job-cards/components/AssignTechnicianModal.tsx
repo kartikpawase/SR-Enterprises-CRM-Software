@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, UserCheck, AlertCircle } from 'lucide-react';
+import { X, UserCheck, AlertCircle, MessageSquare } from 'lucide-react';
 import { useAssignTechnicianMutation, type JobCardItem } from '../job-cards.api';
 import type { TechnicianItem } from '../../technicians/technicians.api';
 
@@ -129,6 +129,12 @@ export const AssignTechnicianModal: React.FC<AssignTechnicianModalProps> = ({
               placeholder="e.g. Please bring extra carbon filters and TDS meter..."
               className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
+          </div>
+
+          {/* WhatsApp Notification Indicator */}
+          <div className="p-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-[11px] text-emerald-800 flex items-center gap-2">
+            <MessageSquare className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+            <span>A WhatsApp assignment notification will be automatically dispatched to the technician.</span>
           </div>
 
           {/* Actions */}

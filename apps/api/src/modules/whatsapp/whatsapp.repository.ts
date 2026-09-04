@@ -493,6 +493,24 @@ export class WhatsAppRepository {
       })
       .where(eq(whatsappConversations.id, conversationId));
   }
+
+  /**
+   * Find outbound messages containing substring (for idempotency checks)
+   */
+  async findMessagesByContentSubstring(substring: string, database = db): Promise<WhatsAppMessage[]> {
+    try {
+      const records = await database
+        .select()
+        .from(whatsappMessages)
+        .where(ilike(whatsappMessages.content, `%${substring}%`))
+        .orderBy(desc(whatsappMessages.createdAt))
+        .limit(20);
+
+      return records as unknown as WhatsAppMessage[];
+    } catch {
+      return [];
+    }
+  }
 }
 
 export const whatsappRepository = new WhatsAppRepository();

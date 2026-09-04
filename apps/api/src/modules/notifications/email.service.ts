@@ -11,11 +11,12 @@ import {
   customers,
   customerAddresses,
   customerAssets,
+  products,
   technicians,
   emailNotifications,
 } from '../../database/schema/index';
 import { emailQueueWorker } from './email-queue.worker';
-import { phpMailerService, type TransactionalEmailPayload } from './php-mailer.service';
+import { phpMailerService, type TransactionalEmailPayload, type PhpMailerResult } from './php-mailer.service';
 
 export class EmailService {
   /**
@@ -462,8 +463,15 @@ export class EmailService {
         scheduledTimeSlot: services.scheduledTimeSlot,
         customerId: services.customerId,
         technicianName: technicians.fullName,
+        customAssetName: customerAssets.customName,
+        serialNumber: customerAssets.serialNumber,
+        productName: products.name,
+        productBrand: products.brand,
+        productModel: products.model,
       })
       .from(services)
+      .leftJoin(customerAssets, eq(services.assetId, customerAssets.id))
+      .leftJoin(products, eq(customerAssets.productId, products.id))
       .leftJoin(technicians, eq(services.technicianId, technicians.id))
       .where(eq(services.id, serviceId));
 
@@ -488,13 +496,16 @@ export class EmailService {
     const recipientEmail = customer?.email ? customer.email.trim().toLowerCase() : '';
     const recipientName = customer?.fullName || 'Valued Customer';
     const dateStr = srv.scheduledDate ? new Date(srv.scheduledDate).toISOString().split('T')[0] : '';
+    const machineName = srv.customAssetName || srv.productName || (srv.productBrand ? `${srv.productBrand} RO System` : 'RO Water Purifier');
 
     const payload = {
       serviceNumber: srv.serviceNumber,
-      serviceType: srv.serviceType,
+      serviceType: srv.serviceType ? srv.serviceType.replace(/_/g, ' ') : 'Periodic Maintenance',
       scheduledDate: dateStr,
-      timeSlot: srv.scheduledTimeSlot || 'Morning (10:00 AM - 01:00 PM)',
-      technicianName: srv.technicianName,
+      timeSlot: srv.scheduledTimeSlot || 'Morning (10:00 AM - 12:00 PM)',
+      technicianName: srv.technicianName || 'Certified Technician',
+      machineName,
+      serialNumber: srv.serialNumber || 'N/A',
       customerName: recipientName,
       customerEmail: recipientEmail,
     };
@@ -507,7 +518,7 @@ export class EmailService {
       idempotencyKey: `SERVICE_REMINDER:${srv.id}:${dateStr}`,
       recipientEmail,
       recipientName,
-      subject: `Service Reminder: Scheduled for ${dateStr}`,
+      subject: `Service Reminder: Scheduled for ${dateStr} - #${srv.serviceNumber}`,
       payload,
     });
   }
@@ -515,27 +526,53 @@ export class EmailService {
   /**
    * 5. Payment Pending Reminder Email
    */
-  async sendPaymentPendingReminder(invoiceId: string) {
-    const [inv] = await db
-      .select({
-        id: invoices.id,
-        invoiceNumber: invoices.invoiceNumber,
-        invoiceDate: invoices.invoiceDate,
-        dueDate: invoices.dueDate,
-        totalAmount: invoices.totalAmount,
-        status: invoices.status,
-        customerId: invoices.customerId,
-      })
-      .from(invoices)
-      .where(eq(invoices.id, invoiceId));
-
-    if (!inv || inv.status === 'CANCELLED' || inv.status === 'DRAFT') {
+  async sendPaymentPendingReminder(invoiceId: string): Promise<(PhpMailerResult & { notificationId?: string }) | null> {
+    if (!invoiceId || typeof invoiceId !== 'string' || invoiceId.trim() === '') {
       return null;
     }
 
-    // Fetch authoritative CURRENT customer record from database
-    let customer: any = null;
-    if (inv.customerId) {
+    const { invoicesRepository } = await import('../invoices/invoices.repository');
+    const inv = await invoicesRepository.findById(invoiceId.trim());
+
+    if (!inv) {
+      return {
+        success: false,
+        status: 'FAILED',
+        reason: 'INVOICE_NOT_FOUND',
+        error: `Invoice record '${invoiceId}' could not be found.`,
+      };
+    }
+
+    if (inv.status === 'CANCELLED' || inv.status === 'DRAFT') {
+      return {
+        success: false,
+        status: 'SKIPPED',
+        reason: 'INVOICE_NOT_ELIGIBLE',
+        error: `Invoice #${inv.invoiceNumber} is in ${inv.status} status and is not eligible for payment reminders.`,
+      };
+    }
+
+    const totalAmount = parseFloat(inv.totalAmount || '0');
+    const paidAmount = parseFloat(inv.paidAmount || '0');
+    const outstandingAmount = Math.max(0, Number((totalAmount - paidAmount).toFixed(2)));
+
+    // Do not send reminder if invoice is already settled
+    if (outstandingAmount <= 0.01) {
+      return {
+        success: false,
+        status: 'SKIPPED',
+        reason: 'INVOICE_ALREADY_PAID',
+        error: `Invoice #${inv.invoiceNumber} is already fully paid (Balance: ₹0.00). No reminder is due.`,
+      };
+    }
+
+    // Authoritative customer lookup (single source of truth)
+    let recipientEmail = (inv.customerEmail || '').trim().toLowerCase();
+    let recipientName = inv.customerName || 'Valued Customer';
+    let customerNumber = inv.customerNumber || '';
+
+    // If customer email not in invoice snapshot, check customers table directly
+    if ((!recipientEmail || !recipientEmail.includes('@')) && inv.customerId) {
       const [c] = await db
         .select({
           id: customers.id,
@@ -546,33 +583,24 @@ export class EmailService {
         })
         .from(customers)
         .where(eq(customers.id, inv.customerId));
-      customer = c;
+      if (c) {
+        if (c.email) recipientEmail = c.email.trim().toLowerCase();
+        if (c.fullName) recipientName = c.fullName;
+        if (c.customerNumber) customerNumber = c.customerNumber;
+      }
     }
 
-    // Calculate real outstanding balance from database payments
-    const paymentsList = await db
-      .select({ amount: payments.amount })
-      .from(payments)
-      .where(
-        and(
-          eq(payments.invoiceId, invoiceId),
-          eq(payments.status, 'COMPLETED')
-        )
-      );
-
-    const totalAmount = parseFloat(inv.totalAmount || '0');
-    const paidAmount = paymentsList.reduce((sum, p) => sum + parseFloat(p.amount || '0'), 0);
-    const outstandingAmount = Math.max(0, Number((totalAmount - paidAmount).toFixed(2)));
-
-    // Do not send reminder if invoice is already settled
-    if (outstandingAmount <= 0.01) {
-      return null;
-    }
-
-    const recipientEmail = customer?.email ? customer.email.trim().toLowerCase() : '';
-    const recipientName = customer?.fullName || 'Valued Customer';
     const dueDateStr = inv.dueDate ? new Date(inv.dueDate).toISOString().split('T')[0] : '';
-    const todayStr = new Date().toISOString().split('T')[0];
+
+    if (!recipientEmail || !recipientEmail.includes('@')) {
+      return {
+        success: false,
+        status: 'SKIPPED',
+        reason: 'EMAIL_SKIPPED_NO_VALID_ADDRESS',
+        error: `Customer ${recipientName} has no valid email address in the database.`,
+        recipient: recipientEmail,
+      };
+    }
 
     const payload = {
       invoiceNumber: inv.invoiceNumber,
@@ -580,22 +608,59 @@ export class EmailService {
       paidAmount,
       dueAmount: outstandingAmount,
       dueDate: dueDateStr,
-      customerNumber: customer?.customerNumber || '',
+      customerNumber,
       customerName: recipientName,
       customerEmail: recipientEmail,
-    };
-
-    return this.send({
+      eventType: 'PAYMENT_REMINDER' as const,
+      toEmail: recipientEmail,
+      toName: recipientName,
+      subject: `Payment Reminder: Invoice #${inv.invoiceNumber}`,
       customerId: inv.customerId,
-      eventType: 'PAYMENT_REMINDER',
       referenceType: 'INVOICE',
       referenceId: inv.id,
-      idempotencyKey: `PAYMENT_REMINDER:${inv.id}:${todayStr}`,
-      recipientEmail,
-      recipientName,
-      subject: `Payment Reminder: Invoice #${inv.invoiceNumber}`,
-      payload,
-    });
+    };
+
+    // Execute direct dispatch via PHPMailer to verify actual SMTP acceptance
+    const dispatchResult = await phpMailerService.dispatch(payload);
+
+    // Record notification in audit log table
+    const status = dispatchResult.success ? 'SENT' : (dispatchResult.status === 'SKIPPED' ? 'SKIPPED' : 'FAILED');
+    const sentAt = dispatchResult.success ? new Date() : null;
+    const failedAt = dispatchResult.success ? null : new Date();
+    const lastError = dispatchResult.success ? null : (dispatchResult.error || dispatchResult.reason || 'Unknown dispatch error');
+
+    try {
+      const [record] = await db
+        .insert(emailNotifications)
+        .values({
+          customerId: inv.customerId,
+          eventType: 'PAYMENT_REMINDER',
+          referenceType: 'INVOICE',
+          referenceId: inv.id,
+          idempotencyKey: `PAYMENT_REMINDER:${inv.id}:${Date.now()}`,
+          recipientEmail,
+          recipientName,
+          subject: `Payment Reminder: Invoice #${inv.invoiceNumber}`,
+          status,
+          sentAt,
+          failedAt,
+          lastError,
+          pdfAttached: false,
+          metadata: {
+            referenceType: 'INVOICE',
+            referenceId: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+          },
+        })
+        .returning();
+
+      return {
+        ...dispatchResult,
+        notificationId: record?.id,
+      };
+    } catch {
+      return dispatchResult;
+    }
   }
 
   /**

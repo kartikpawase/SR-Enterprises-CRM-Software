@@ -40,6 +40,12 @@ export interface ServiceItem {
   jobCardId: string | null;
   jobCardNumber: string | null;
   jobCardStatus: string | null;
+  totalCharges?: string | number | null;
+  paidAmount?: string;
+  outstandingAmount?: string;
+  paymentStatus?: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | null;
+  invoice?: any;
+  payments?: any[];
 }
 
 export interface ServiceDetail extends ServiceItem {
@@ -202,6 +208,10 @@ export function useCreateServiceMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['services'] });
+      queryClient.invalidateQueries({ queryKey: ['job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
     },
   });
 }
@@ -270,6 +280,10 @@ export function useCompleteServiceMutation() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['services'] });
       queryClient.invalidateQueries({ queryKey: ['service', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -290,6 +304,26 @@ export function useCancelServiceMutation() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['services'] });
       queryClient.invalidateQueries({ queryKey: ['service', variables.id] });
+    },
+  });
+}
+
+/**
+ * Mutation to manually trigger or retry WhatsApp notification to assigned technician
+ */
+export function useNotifyServiceTechnicianWhatsAppMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (serviceId: string) => {
+      const response = await apiClient.post<{ success: boolean; message: string; data?: any }>(
+        `/services/${serviceId}/notify-technician`
+      );
+      return ((response as any)?.data ?? response) as { success: boolean; message?: string; data?: any };
+    },
+    onSuccess: (_, serviceId) => {
+      queryClient.invalidateQueries({ queryKey: ['service', serviceId] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+      queryClient.invalidateQueries({ queryKey: ['job-cards'] });
     },
   });
 }

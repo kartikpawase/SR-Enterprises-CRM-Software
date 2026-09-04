@@ -117,8 +117,8 @@ describe('Machine & Product Identity Propagation Across Multiple Transactions In
       customerId: testCustomerId,
       assetId: assetB!.id,
       serviceType: 'PERIODIC_MAINTENANCE',
-      serviceLocation: 'ON_SITE',
-      serviceClassification: 'PAID',
+      serviceLocation: 'DOORSTEP',
+      serviceClassification: 'GENERAL',
       priority: 'NORMAL',
       scheduledDate: new Date(Date.now() + 86400000).toISOString(),
     });

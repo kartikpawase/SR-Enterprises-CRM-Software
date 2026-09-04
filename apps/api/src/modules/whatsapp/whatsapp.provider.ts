@@ -14,17 +14,20 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
   private phoneNumberId: string;
   private accessToken: string;
   private apiVersion: string;
+  private apiUrl: string;
   private appSecret?: string | undefined;
 
   constructor(config?: {
     phoneNumberId?: string;
     accessToken?: string;
     apiVersion?: string;
+    apiUrl?: string;
     appSecret?: string;
   }) {
-    this.phoneNumberId = config?.phoneNumberId || env.WHATSAPP_PHONE_NUMBER_ID || '';
-    this.accessToken = config?.accessToken || env.WHATSAPP_ACCESS_TOKEN || '';
-    this.apiVersion = config?.apiVersion || env.WHATSAPP_API_VERSION || 'v21.0';
+    this.phoneNumberId = (config?.phoneNumberId || env.WHATSAPP_PHONE_NUMBER_ID || '').trim();
+    this.accessToken = (config?.accessToken || env.WHATSAPP_ACCESS_TOKEN || '').trim();
+    this.apiVersion = (config?.apiVersion || env.WHATSAPP_API_VERSION || 'v21.0').trim();
+    this.apiUrl = (config?.apiUrl || env.WHATSAPP_API_URL || 'https://graph.facebook.com').replace(/\/+$/, '').trim();
     this.appSecret = config?.appSecret || env.WHATSAPP_WEBHOOK_APP_SECRET;
   }
 
@@ -32,23 +35,50 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
     return phone.replace(/[^0-9]/g, '');
   }
 
+  private isConfigValid(): boolean {
+    return Boolean(
+      this.phoneNumberId &&
+      this.accessToken &&
+      !this.phoneNumberId.includes('placeholder') &&
+      !this.accessToken.includes('placeholder')
+    );
+  }
+
+  private getMessagesEndpoint(): string {
+    if (this.apiUrl.includes('/v')) {
+      return `${this.apiUrl}/${this.phoneNumberId}/messages`;
+    }
+    return `${this.apiUrl}/${this.apiVersion}/${this.phoneNumberId}/messages`;
+  }
+
   /**
    * Send Direct Text Message via Meta Cloud API
    */
   async sendTextMessage(to: string, text: string): Promise<WhatsAppProviderSendResult> {
-    if (!this.phoneNumberId || !this.accessToken) {
+    if (!this.isConfigValid()) {
       return {
         success: false,
         status: 'FAILED',
         error: {
           code: 'PROVIDER_CONFIG_MISSING',
-          message: 'Meta WhatsApp credentials (Phone Number ID or Access Token) are not configured.',
+          message: 'WhatsApp service is not configured. Please set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN in server environment.',
         },
       };
     }
 
     const cleanTo = this.cleanPhone(to);
-    const url = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`;
+    if (!cleanTo || cleanTo.length < 10) {
+      return {
+        success: false,
+        status: 'FAILED',
+        error: {
+          code: 'INVALID_RECIPIENT_PHONE',
+          message: 'Invalid technician mobile number. Recipient phone number must be at least 10 digits.',
+        },
+      };
+    }
+
+    const url = this.getMessagesEndpoint();
 
     try {
       const response = await fetch(url, {
@@ -69,20 +99,39 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
         }),
       });
 
-      const data = (await response.json()) as any;
+      const data = (await response.json().catch(() => null)) as any;
 
       if (!response.ok) {
+        const errorDetail =
+          data?.error?.error_user_msg ||
+          data?.error?.message ||
+          data?.message ||
+          response.statusText ||
+          'WhatsApp API rejected the message';
+        const errorCode = data?.error?.code ? String(data.error.code) : 'META_API_ERROR';
+
         return {
           success: false,
           status: 'FAILED',
           error: {
-            code: data?.error?.code ? String(data.error.code) : 'META_API_ERROR',
-            message: data?.error?.message || response.statusText,
+            code: errorCode,
+            message: `WhatsApp delivery failed: ${errorDetail}`,
           },
         };
       }
 
       const providerMessageId = data?.messages?.[0]?.id;
+      if (!providerMessageId) {
+        return {
+          success: false,
+          status: 'FAILED',
+          error: {
+            code: 'NO_MESSAGE_ID',
+            message: 'WhatsApp provider did not return a valid message confirmation ID.',
+          },
+        };
+      }
+
       return {
         success: true,
         providerMessageId,
@@ -94,7 +143,7 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
         status: 'FAILED',
         error: {
           code: 'NETWORK_ERROR',
-          message: err?.message || 'Failed to reach Meta WhatsApp API endpoint',
+          message: `Failed to reach WhatsApp API endpoint: ${err?.message || 'Network error'}`,
         },
       };
     }
@@ -336,8 +385,8 @@ export class DevWhatsAppProvider implements WhatsAppProvider {
  * Provider Factory
  */
 export function getWhatsAppProvider(): WhatsAppProvider {
-  if (env.WHATSAPP_PROVIDER === 'META' && env.WHATSAPP_PHONE_NUMBER_ID && env.WHATSAPP_ACCESS_TOKEN) {
-    return new MetaWhatsAppProvider();
+  if (process.env.NODE_ENV === 'test' && (process.env.WHATSAPP_PROVIDER === 'MOCK' || env.WHATSAPP_PROVIDER === 'MOCK')) {
+    return new DevWhatsAppProvider();
   }
-  return new DevWhatsAppProvider();
+  return new MetaWhatsAppProvider();
 }

@@ -21,21 +21,51 @@ export const CreateJobCardModal: React.FC<CreateJobCardModalProps> = ({
   const [priority, setPriority] = useState<'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'>('NORMAL');
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch pending services without completed status
-  const { data: servicesData } = useServicesQuery({
-    limit: 50,
+  // Fetch all active/scheduled services across CRM
+  const { data: servicesData, isLoading: isLoadingServices, error: servicesError } = useServicesQuery({
+    limit: 200,
+    sortBy: 'scheduledDate',
+    sortOrder: 'asc',
   });
 
   const createMutation = useCreateJobCardMutation();
 
-  if (!isOpen) return null;
+  const activeTechnicians = (technicians || []).filter((t) => t.status === 'ACTIVE');
 
-  const activeTechnicians = technicians.filter((t) => t.status === 'ACTIVE');
-  const eligibleServices = (servicesData?.data || []).filter(
-    (s: any) => s.status === 'SCHEDULED' || s.status === 'ASSIGNED' || s.status === 'IN_PROGRESS'
-  );
+  // Filter eligible active and pending services
+  const eligibleServices = React.useMemo(() => {
+    const raw = servicesData?.data || [];
+    return raw.filter((s: any) => {
+      const statusUpper = String(s.status || '').toUpperCase();
+      return (
+        statusUpper === 'SCHEDULED' ||
+        statusUpper === 'ASSIGNED' ||
+        statusUpper === 'IN_PROGRESS' ||
+        statusUpper === 'OVERDUE'
+      );
+    });
+  }, [servicesData]);
 
   const selectedService: any = eligibleServices.find((s: any) => s.id === selectedServiceId);
+
+  // Auto-populate technician and problem description on service selection
+  const handleServiceChange = (serviceId: string) => {
+    setSelectedServiceId(serviceId);
+    const s = eligibleServices.find((item: any) => item.id === serviceId);
+    if (s) {
+      if (s.technicianId && !technicianId) {
+        setTechnicianId(s.technicianId);
+      }
+      if (s.priority) {
+        setPriority(s.priority);
+      }
+      if (s.customerNotes && !problemReported) {
+        setProblemReported(s.customerNotes);
+      }
+    }
+  };
+
+  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,16 +131,35 @@ export const CreateJobCardModal: React.FC<CreateJobCardModalProps> = ({
             </label>
             <select
               value={selectedServiceId}
-              onChange={(e) => setSelectedServiceId(e.target.value)}
+              onChange={(e) => handleServiceChange(e.target.value)}
               required
               className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             >
-              <option value="">-- Choose Scheduled Service Order --</option>
-              {eligibleServices.map((s: any) => (
-                <option key={s.id} value={s.id}>
-                  {s.serviceNumber} — {s.customerName} ({s.productName}) [{s.serviceType}]
-                </option>
-              ))}
+              <option value="">
+                {isLoadingServices
+                  ? '-- Loading Scheduled Services... --'
+                  : servicesError
+                    ? '-- Error Loading Scheduled Services --'
+                    : eligibleServices.length === 0
+                      ? '-- No Eligible Scheduled Services Available --'
+                      : `-- Choose Scheduled Service Order (${eligibleServices.length} available) --`}
+              </option>
+              {eligibleServices.map((s: any) => {
+                const formattedDate = s.scheduledDate
+                  ? new Date(s.scheduledDate).toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                  : 'No date';
+                const typeLabel = s.serviceType ? s.serviceType.replace(/_/g, ' ') : 'Service';
+                const serial = s.serialNumber ? ` [SN: ${s.serialNumber}]` : '';
+                return (
+                  <option key={s.id} value={s.id}>
+                    {s.customerName || 'Customer'} — {s.productName || 'RO Machine'}{serial} • {typeLabel} ({formattedDate}) — {s.serviceNumber}
+                  </option>
+                );
+              })}
             </select>
           </div>
 

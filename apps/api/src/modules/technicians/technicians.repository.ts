@@ -9,7 +9,6 @@ import {
   products,
   auditLogs,
 } from '../../database/schema/index';
-import { withTransaction } from '../../database/transactions';
 import { randomUUID } from 'crypto';
 import { memoryJobCards } from '../job-cards/job-cards.repository';
 import type {
@@ -18,14 +17,13 @@ import type {
   UpdateTechnicianInput,
 } from '@crm/validation';
 
-// Resilient memory store for offline and test modes
-export const memoryTechnicians: any[] = [
+export const INITIAL_TECHNICIANS = [
   {
-    id: 't1111111-1111-1111-1111-111111111111',
+    id: '11111111-1111-1111-1111-111111111111',
     fullName: 'Aakash Sharma',
     phone: '9820011223',
     email: 'aakash.sharma@srenterprises.com',
-    status: 'ACTIVE',
+    status: 'ACTIVE' as const,
     skills: ['RO Installation', 'Membrane Replacement', 'TDS Calibration', 'Booster Pump Repair'],
     address: 'Shop 4, Ganesh Market, Nashik, Maharashtra',
     emergencyContact: '9820099887 (Father - Ramesh)',
@@ -34,11 +32,11 @@ export const memoryTechnicians: any[] = [
     updatedAt: new Date('2026-01-10T09:00:00.000Z'),
   },
   {
-    id: 't2222222-2222-2222-2222-222222222222',
+    id: '22222222-2222-2222-2222-222222222222',
     fullName: 'Ramesh Kumar',
     phone: '9833445566',
     email: 'ramesh.kumar@srenterprises.com',
-    status: 'ACTIVE',
+    status: 'ACTIVE' as const,
     skills: ['Filter Replacement', 'Commercial RO Setup', 'Leakage Troubleshooting', 'Electrical Wiring'],
     address: 'Flat 202, Sai Residency, CIDCO, Nashik, Maharashtra',
     emergencyContact: '9833445500 (Wife - Sunita)',
@@ -47,11 +45,11 @@ export const memoryTechnicians: any[] = [
     updatedAt: new Date('2026-01-15T09:00:00.000Z'),
   },
   {
-    id: 't3333333-3333-3333-3333-333333333333',
+    id: '33333333-3333-3333-3333-333333333333',
     fullName: 'Priya Verma',
     phone: '9844556677',
     email: 'priya.verma@srenterprises.com',
-    status: 'ACTIVE',
+    status: 'ACTIVE' as const,
     skills: ['TDS Calibration', 'Filter Replacement', 'RO Installation'],
     address: 'Plot 18, Indira Nagar, Nashik, Maharashtra',
     emergencyContact: '9844556600 (Brother - Amit)',
@@ -60,11 +58,11 @@ export const memoryTechnicians: any[] = [
     updatedAt: new Date('2026-02-01T09:00:00.000Z'),
   },
   {
-    id: 't4444444-4444-4444-4444-444444444444',
+    id: '44444444-4444-4444-4444-444444444444',
     fullName: 'Suresh Patil',
     phone: '9855667788',
     email: 'suresh.patil@srenterprises.com',
-    status: 'ON_LEAVE',
+    status: 'ON_LEAVE' as const,
     skills: ['Commercial RO Setup', 'Booster Pump Repair', 'Leakage Troubleshooting'],
     address: 'House 12, Panchavati, Nashik, Maharashtra',
     emergencyContact: '9855667700 (Father - Devidas)',
@@ -73,11 +71,11 @@ export const memoryTechnicians: any[] = [
     updatedAt: new Date('2026-02-10T09:00:00.000Z'),
   },
   {
-    id: 't5555555-5555-5555-5555-555555555555',
+    id: '55555555-5555-5555-5555-555555555555',
     fullName: 'Vikas Deshmukh',
     phone: '9866778899',
     email: 'vikas.deshmukh@srenterprises.com',
-    status: 'INACTIVE',
+    status: 'INACTIVE' as const,
     skills: ['RO Installation', 'Filter Replacement'],
     address: 'Old Nashik, Near Saraf Bazar, Nashik, Maharashtra',
     emergencyContact: '9866778800 (Uncle - Sanjay)',
@@ -87,7 +85,42 @@ export const memoryTechnicians: any[] = [
   },
 ];
 
+// In-memory mirror for offline fallback
+export const memoryTechnicians: any[] = [...INITIAL_TECHNICIANS];
+
 export class TechniciansRepository {
+  private hasEnsuredInitial = false;
+
+  /**
+   * Ensure default 5 workforce technicians exist in the database
+   */
+  async ensureDefaultTechnicians(database = db) {
+    if (this.hasEnsuredInitial) return;
+    try {
+      for (const t of INITIAL_TECHNICIANS) {
+        await database
+          .insert(technicians)
+          .values({
+            id: t.id,
+            fullName: t.fullName,
+            phone: t.phone,
+            email: t.email,
+            status: t.status,
+            skills: t.skills,
+            address: t.address,
+            emergencyContact: t.emergencyContact,
+            userId: t.userId,
+            createdAt: t.createdAt,
+            updatedAt: t.updatedAt,
+          })
+          .onConflictDoNothing();
+      }
+      this.hasEnsuredInitial = true;
+    } catch (err: any) {
+      console.warn('[TechniciansRepository.ensureDefaultTechnicians] Note:', err?.message);
+    }
+  }
+
   /**
    * Find paginated technicians with active & completed job aggregations
    */
@@ -97,10 +130,13 @@ export class TechniciansRepository {
     const offset = (page - 1) * limit;
 
     try {
+      await this.ensureDefaultTechnicians(database);
+
       const conditions: any[] = [];
 
       if (filters.status && (filters.status as string) !== 'ALL') {
-        conditions.push(eq(technicians.status, filters.status as any));
+        const queryStatus = (filters.status as string) === 'SUSPENDED' ? 'INACTIVE' : filters.status;
+        conditions.push(eq(technicians.status, queryStatus as any));
       }
 
       if (filters.search?.trim()) {
@@ -153,32 +189,30 @@ export class TechniciansRepository {
 
       const total = Number(countResult[0]?.count || 0);
 
-      if (techRows.length > 0) {
-        const rows = techRows.map((t) => {
-          const activeJobs = memoryJobCards.filter(
-            (j) => j.technicianId === t.id && (j.status === 'ASSIGNED' || j.status === 'IN_PROGRESS' || j.status === 'SCHEDULED')
-          ).length;
-          const completedJobs = memoryJobCards.filter(
-            (j) => j.technicianId === t.id && j.status === 'COMPLETED'
-          ).length;
-
-          return {
-            ...t,
-            activeJobsCount: activeJobs,
-            completedJobsCount: completedJobs,
-          };
-        });
+      const rows = techRows.map((t) => {
+        const activeJobs = memoryJobCards.filter(
+          (j) => j.technicianId === t.id && (j.status === 'ASSIGNED' || j.status === 'IN_PROGRESS' || j.status === 'SCHEDULED')
+        ).length;
+        const completedJobs = memoryJobCards.filter(
+          (j) => j.technicianId === t.id && j.status === 'COMPLETED'
+        ).length;
 
         return {
-          data: rows,
-          pagination: {
-            page,
-            limit,
-            total,
-            totalPages: Math.ceil(total / limit) || 1,
-          },
+          ...t,
+          activeJobsCount: activeJobs,
+          completedJobsCount: completedJobs,
         };
-      }
+      });
+
+      return {
+        data: rows,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+      };
     } catch (err: any) {
       console.warn('[TechniciansRepository.findPaginated] DB query fallback:', err?.message);
     }
@@ -187,7 +221,8 @@ export class TechniciansRepository {
     let filtered = [...memoryTechnicians];
 
     if (filters.status && (filters.status as string) !== 'ALL') {
-      filtered = filtered.filter((t) => t.status === filters.status);
+      const queryStatus = (filters.status as string) === 'SUSPENDED' ? 'INACTIVE' : filters.status;
+      filtered = filtered.filter((t) => t.status === queryStatus);
     }
 
     if (filters.search?.trim()) {
@@ -247,6 +282,8 @@ export class TechniciansRepository {
    */
   async findById(id: string, database = db) {
     try {
+      await this.ensureDefaultTechnicians(database);
+
       const rows = await database
         .select({
           id: technicians.id,
@@ -284,10 +321,10 @@ export class TechniciansRepository {
               productName: products.name,
             })
             .from(jobCards)
-            .innerJoin(services, eq(jobCards.serviceId, services.id))
-            .innerJoin(customers, eq(jobCards.customerId, customers.id))
-            .innerJoin(customerAssets, eq(jobCards.assetId, customerAssets.id))
-            .innerJoin(products, eq(customerAssets.productId, products.id))
+            .leftJoin(services, eq(jobCards.serviceId, services.id))
+            .leftJoin(customers, eq(jobCards.customerId, customers.id))
+            .leftJoin(customerAssets, eq(jobCards.assetId, customerAssets.id))
+            .leftJoin(products, eq(customerAssets.productId, products.id))
             .where(eq(jobCards.technicianId, id))
             .orderBy(desc(jobCards.createdAt))
             .limit(10);
@@ -352,6 +389,8 @@ export class TechniciansRepository {
    */
   async getKPIs(database = db) {
     try {
+      await this.ensureDefaultTechnicians(database);
+
       const query = sql`
         SELECT
           COUNT(*)::int AS total_technicians,
@@ -366,10 +405,10 @@ export class TechniciansRepository {
 
       if (row && Number(row.total_technicians) > 0) {
         return {
-          totalTechnicians: row.total_technicians ?? 0,
-          activeTechnicians: row.active_technicians ?? 0,
-          onLeave: row.on_leave ?? 0,
-          inactiveTechnicians: row.inactive_technicians ?? 0,
+          totalTechnicians: Number(row.total_technicians) || 0,
+          activeTechnicians: Number(row.active_technicians) || 0,
+          onLeave: Number(row.on_leave) || 0,
+          inactiveTechnicians: Number(row.inactive_technicians) || 0,
         };
       }
     } catch (err: any) {
@@ -387,56 +426,57 @@ export class TechniciansRepository {
   /**
    * Create a new field technician
    */
-  async create(input: CreateTechnicianInput, actorId?: string) {
+  async create(input: CreateTechnicianInput, actorId?: string, database = db) {
     try {
-      return await withTransaction(async (tx) => {
-        // Check phone uniqueness
-        const existing = await tx
-          .select()
-          .from(technicians)
-          .where(eq(technicians.phone, input.phone))
-          .limit(1);
+      await this.ensureDefaultTechnicians(database);
 
-        if (existing[0]) {
-          throw new Error(`A technician with phone number "${input.phone}" already exists`);
+      // Check phone uniqueness
+      const existing = await database
+        .select()
+        .from(technicians)
+        .where(eq(technicians.phone, input.phone))
+        .limit(1);
+
+      if (existing[0]) {
+        throw new Error(`A technician with phone number "${input.phone}" already exists`);
+      }
+
+      const dbStatus: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE' = input.status === 'SUSPENDED' ? 'INACTIVE' : (input.status || 'ACTIVE');
+
+      const [newTech] = await database
+        .insert(technicians)
+        .values({
+          id: randomUUID(),
+          fullName: input.fullName,
+          phone: input.phone,
+          email: input.email || null,
+          address: input.address || null,
+          skills: input.skills || ['RO Installation', 'General Service'],
+          emergencyContact: input.emergencyContact || null,
+          userId: input.userId || null,
+          status: dbStatus,
+        })
+        .returning();
+
+      if (!newTech) {
+        throw new Error('Failed to create technician');
+      }
+
+      // Audit Log
+      try {
+        if (actorId) {
+          await database.insert(auditLogs).values({
+            actorId,
+            action: 'CREATE',
+            entityType: 'USER',
+            entityId: newTech.id,
+            afterState: newTech,
+          });
         }
+      } catch {}
 
-        const dbStatus: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE' = input.status === 'SUSPENDED' ? 'INACTIVE' : (input.status || 'ACTIVE');
-
-        const [newTech] = await tx
-          .insert(technicians)
-          .values({
-            fullName: input.fullName,
-            phone: input.phone,
-            email: input.email || null,
-            address: input.address || null,
-            skills: input.skills || ['RO Installation', 'General Service'],
-            emergencyContact: input.emergencyContact || null,
-            userId: input.userId || null,
-            status: dbStatus,
-          })
-          .returning();
-
-        if (!newTech) {
-          throw new Error('Failed to create technician');
-        }
-
-        // Audit Log
-        try {
-          if (actorId) {
-            await tx.insert(auditLogs).values({
-              actorId,
-              action: 'CREATE',
-              entityType: 'USER',
-              entityId: newTech.id,
-              afterState: newTech,
-            });
-          }
-        } catch {}
-
-        memoryTechnicians.unshift(newTech);
-        return newTech;
-      });
+      memoryTechnicians.unshift(newTech);
+      return newTech;
     } catch (err: any) {
       if (err.message?.includes('already exists')) throw err;
       console.warn('[TechniciansRepository.create] DB insert notice, using memory fallback:', err?.message);
@@ -469,54 +509,54 @@ export class TechniciansRepository {
   /**
    * Update technician profile or status
    */
-  async update(id: string, input: UpdateTechnicianInput, actorId?: string) {
+  async update(id: string, input: UpdateTechnicianInput, actorId?: string, database = db) {
     try {
-      return await withTransaction(async (tx) => {
-        const existing = await this.findById(id, tx as any);
-        if (!existing) {
-          throw new Error('Technician not found');
+      await this.ensureDefaultTechnicians(database);
+
+      const existing = await this.findById(id, database);
+      if (!existing) {
+        throw new Error('Technician not found');
+      }
+
+      const updateData: Record<string, any> = { updatedAt: new Date() };
+
+      if (input.fullName) updateData.fullName = input.fullName;
+      if (input.phone) updateData.phone = input.phone;
+      if (input.email !== undefined) updateData.email = input.email;
+      if (input.address !== undefined) updateData.address = input.address;
+      if (input.skills) updateData.skills = input.skills;
+      if (input.emergencyContact !== undefined) updateData.emergencyContact = input.emergencyContact;
+      if (input.status) {
+        updateData.status = (input.status as string) === 'SUSPENDED' ? 'INACTIVE' : input.status;
+      }
+      if (input.userId !== undefined) updateData.userId = input.userId;
+
+      const [updated] = await database
+        .update(technicians)
+        .set(updateData)
+        .where(eq(technicians.id, id))
+        .returning();
+
+      // Audit Log
+      try {
+        if (actorId) {
+          await database.insert(auditLogs).values({
+            actorId,
+            action: 'UPDATE',
+            entityType: 'USER',
+            entityId: id,
+            beforeState: existing,
+            afterState: updated,
+          });
         }
+      } catch {}
 
-        const updateData: Record<string, any> = { updatedAt: new Date() };
+      const memIdx = memoryTechnicians.findIndex((t) => t.id === id);
+      if (memIdx !== -1) {
+        memoryTechnicians[memIdx] = { ...memoryTechnicians[memIdx], ...updated };
+      }
 
-        if (input.fullName) updateData.fullName = input.fullName;
-        if (input.phone) updateData.phone = input.phone;
-        if (input.email !== undefined) updateData.email = input.email;
-        if (input.address !== undefined) updateData.address = input.address;
-        if (input.skills) updateData.skills = input.skills;
-        if (input.emergencyContact !== undefined) updateData.emergencyContact = input.emergencyContact;
-        if (input.status) {
-          updateData.status = (input.status as string) === 'SUSPENDED' ? 'INACTIVE' : input.status;
-        }
-        if (input.userId !== undefined) updateData.userId = input.userId;
-
-        const [updated] = await tx
-          .update(technicians)
-          .set(updateData)
-          .where(eq(technicians.id, id))
-          .returning();
-
-        // Audit Log
-        try {
-          if (actorId) {
-            await tx.insert(auditLogs).values({
-              actorId,
-              action: 'UPDATE',
-              entityType: 'USER',
-              entityId: id,
-              beforeState: existing,
-              afterState: updated,
-            });
-          }
-        } catch {}
-
-        const memIdx = memoryTechnicians.findIndex((t) => t.id === id);
-        if (memIdx !== -1) {
-          memoryTechnicians[memIdx] = { ...memoryTechnicians[memIdx], ...updated };
-        }
-
-        return updated;
-      });
+      return updated || { ...existing, ...updateData };
     } catch (err: any) {
       if (err.message?.includes('not found')) throw err;
       console.warn('[TechniciansRepository.update] DB update notice, using memory fallback:', err?.message);

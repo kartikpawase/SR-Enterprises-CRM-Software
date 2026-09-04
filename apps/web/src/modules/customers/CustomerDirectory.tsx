@@ -10,7 +10,7 @@ import { CustomerPagination } from './components/CustomerPagination';
 import { CustomerFormModal } from './components/CustomerFormModal';
 import { CustomerArchiveDialog } from './components/CustomerArchiveDialog';
 import { CustomerImportModal } from './components/CustomerImportModal';
-import { useCustomersQuery, exportCustomersApi, type CustomerSummary } from './customer.api';
+import { useCustomersQuery, useCustomerStatsQuery, exportCustomersApi, type CustomerSummary } from './customer.api';
 import { useAuth } from '../../providers/AuthBoundary';
 import { useToast } from '../../providers/ToastProvider';
 
@@ -22,6 +22,7 @@ export const CustomerDirectory: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [customerTypeFilter, setCustomerTypeFilter] = useState('ALL');
+  const [customerLabelFilter, setCustomerLabelFilter] = useState('ALL');
   const [cityFilter, setCityFilter] = useState('ALL');
 
   const [page, setPage] = useState(1);
@@ -42,12 +43,17 @@ export const CustomerDirectory: React.FC = () => {
     search: search.trim() || undefined,
     status: (statusFilter as any) || 'ALL',
     customerType: customerTypeFilter !== 'ALL' ? (customerTypeFilter as any) : undefined,
+    customerLabel: customerLabelFilter !== 'ALL' ? (customerLabelFilter as any) : undefined,
     city: cityFilter !== 'ALL' ? cityFilter : undefined,
     sortBy: 'customerNumber',
     sortOrder: 'asc',
   });
 
-  const totalCustomers = response?.pagination?.total || 0;
+  // Query aggregated customer stats with baseline isolation
+  const { data: stats } = useCustomerStatsQuery();
+
+  const totalCustomers = stats?.totalCustomers ?? response?.pagination?.total ?? 0;
+  const activeCustomers = stats?.activeCustomers ?? totalCustomers;
 
   // Transform live database records to table model
   const customerList: CustomerRecord[] = useMemo(() => {
@@ -120,6 +126,7 @@ export const CustomerDirectory: React.FC = () => {
         nextServiceDate: nextServiceFormatted,
         nextServiceDays: nextServiceDaysCalc,
         status: item.status as any,
+        customerLabel: (item as any).customerLabel || null,
         summary: {
           totalInvoices: totalInvoicesFormatted,
           outstanding: outstandingFormatted,
@@ -167,6 +174,11 @@ export const CustomerDirectory: React.FC = () => {
 
   const handleCustomerTypeChange = (val: string) => {
     setCustomerTypeFilter(val);
+    setPage(1);
+  };
+
+  const handleCustomerLabelChange = (val: string) => {
+    setCustomerLabelFilter(val);
     setPage(1);
   };
 
@@ -288,10 +300,10 @@ export const CustomerDirectory: React.FC = () => {
       {/* 3. FIVE SUMMARY CARDS ROW */}
       <CustomerSummaryCards
         totalCustomers={totalCustomers}
-        activeCustomers={totalCustomers}
-        newThisMonth={Math.min(totalCustomers, 28)}
-        withWarranty={Math.floor(totalCustomers * 0.4)}
-        dueForService={Math.floor(totalCustomers * 0.15)}
+        activeCustomers={activeCustomers}
+        newThisMonth={stats?.newThisMonth ?? 0}
+        withWarranty={stats?.withWarranty ?? 0}
+        dueForService={stats?.dueForService ?? 0}
       />
 
       {/* 4. CUSTOMER SEARCH & FILTER TOOLBAR */}
@@ -302,6 +314,8 @@ export const CustomerDirectory: React.FC = () => {
         onStatusChange={handleStatusChange}
         customerType={customerTypeFilter}
         onCustomerTypeChange={handleCustomerTypeChange}
+        customerLabel={customerLabelFilter}
+        onCustomerLabelChange={handleCustomerLabelChange}
         city={cityFilter}
         onCityChange={handleCityChange}
         onRefresh={handleRefresh}

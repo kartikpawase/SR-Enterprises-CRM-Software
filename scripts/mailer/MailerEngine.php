@@ -23,9 +23,12 @@ class MailerEngine {
     public static function loadEnvironment(): void {
         if (self::$envLoaded) return;
 
+        $projectRoot = dirname(__DIR__, 2);
         $paths = [
-            dirname(__DIR__, 2) . '/.env',
-            dirname(__DIR__, 2) . '/apps/api/.env',
+            $projectRoot . '/.env',
+            $projectRoot . '/apps/api/.env',
+            getcwd() . '/.env',
+            getcwd() . '/apps/api/.env',
         ];
 
         foreach ($paths as $path) {
@@ -40,9 +43,11 @@ class MailerEngine {
                 if (count($parts) === 2) {
                     $k = trim($parts[0]);
                     $v = trim(trim($parts[1]), '"\'');
-                    if (getenv($k) === false) {
+                    $existing = getenv($k);
+                    if (($existing === false || $existing === '') && $v !== '') {
                         putenv("$k=$v");
                         $_ENV[$k] = $v;
+                        $_SERVER[$k] = $v;
                     }
                 }
             }
@@ -60,17 +65,28 @@ class MailerEngine {
         $mail = new PHPMailer(true);
         $mail->CharSet = 'UTF-8';
         $mail->Encoding = 'base64';
-        $mail->Timeout = 15; // 15 seconds connection timeout
+        $mail->Timeout = 20; // 20 seconds connection timeout
 
-        $smtpHost = getenv('SMTP_HOST') ?: getenv('MAIL_HOST') ?: '';
-        $smtpPort = (int)(getenv('SMTP_PORT') ?: getenv('MAIL_PORT') ?: 587);
-        $smtpUser = getenv('SMTP_USER') ?: getenv('SMTP_USERNAME') ?: getenv('MAIL_USERNAME') ?: '';
-        $smtpPass = str_replace(' ', '', (getenv('SMTP_PASS') ?: getenv('SMTP_PASSWORD') ?: getenv('MAIL_PASSWORD') ?: ''));
-        $smtpSecure = strtolower(getenv('SMTP_SECURE') ?: getenv('MAIL_ENCRYPTION') ?: 'tls');
+        $smtpHost = getenv('SMTP_HOST') ?: getenv('MAIL_HOST') ?: $_ENV['SMTP_HOST'] ?? $_ENV['MAIL_HOST'] ?? $_SERVER['SMTP_HOST'] ?? $_SERVER['MAIL_HOST'] ?? 'smtp.gmail.com';
+        $smtpPort = (int)(getenv('SMTP_PORT') ?: getenv('MAIL_PORT') ?: $_ENV['SMTP_PORT'] ?? $_ENV['MAIL_PORT'] ?? $_SERVER['SMTP_PORT'] ?? $_SERVER['MAIL_PORT'] ?? 587);
+        $smtpUser = getenv('SMTP_USER') ?: getenv('SMTP_USERNAME') ?: getenv('MAIL_USERNAME') ?: $_ENV['SMTP_USER'] ?? $_ENV['SMTP_USERNAME'] ?? $_ENV['MAIL_USERNAME'] ?? $_SERVER['SMTP_USER'] ?? $_SERVER['SMTP_USERNAME'] ?? $_SERVER['MAIL_USERNAME'] ?? 'srenterprises02015@gmail.com';
+        $smtpPass = str_replace(' ', '', (getenv('SMTP_PASS') ?: getenv('SMTP_PASSWORD') ?: getenv('MAIL_PASSWORD') ?: getenv('GMAIL_APP_PASSWORD') ?: $_ENV['SMTP_PASS'] ?? $_ENV['SMTP_PASSWORD'] ?? $_ENV['MAIL_PASSWORD'] ?? $_ENV['GMAIL_APP_PASSWORD'] ?? $_SERVER['SMTP_PASS'] ?? $_SERVER['SMTP_PASSWORD'] ?? $_SERVER['MAIL_PASSWORD'] ?? $_SERVER['GMAIL_APP_PASSWORD'] ?? ''));
+        $smtpSecure = strtolower(getenv('SMTP_SECURE') ?: getenv('MAIL_ENCRYPTION') ?: $_ENV['SMTP_SECURE'] ?? $_ENV['MAIL_ENCRYPTION'] ?? $_SERVER['SMTP_SECURE'] ?? $_SERVER['MAIL_ENCRYPTION'] ?? 'tls');
         
-        $fromEmail = getenv('SMTP_FROM_EMAIL') ?: getenv('SMTP_FROM') ?: getenv('MAIL_FROM_ADDRESS') ?: 'no-reply@srenterprises.com';
+        $fromEmail = getenv('SMTP_FROM_EMAIL') ?: getenv('SMTP_FROM') ?: getenv('MAIL_FROM_ADDRESS') ?: ($smtpUser ?: 'srenterprises02015@gmail.com');
         $fromName = getenv('SMTP_FROM_NAME') ?: getenv('MAIL_FROM_NAME') ?: 'SR Enterprises';
-        $supportEmail = getenv('SUPPORT_EMAIL') ?: 'support@srenterprises.com';
+        $supportEmail = getenv('SUPPORT_EMAIL') ?: ($smtpUser ?: 'srenterprises02015@gmail.com');
+
+        // Optional server-side secure SMTP debug logging
+        if (filter_var(getenv('SMTP_DEBUG') ?: false, FILTER_VALIDATE_BOOLEAN)) {
+            $mail->SMTPDebug = SMTP::DEBUG_SERVER;
+            $mail->Debugoutput = function($str, $level) {
+                $clean = preg_replace('/(AUTH PLAIN|AUTH LOGIN|password).*$/i', '$1 [REDACTED]', $str);
+                error_log("[PHPMailer Debug Level {$level}] {$clean}");
+            };
+        } else {
+            $mail->SMTPDebug = SMTP::DEBUG_OFF;
+        }
 
         if (!empty($smtpHost) && !empty($smtpUser)) {
             $mail->isSMTP();
@@ -79,9 +95,9 @@ class MailerEngine {
             $mail->Username = $smtpUser;
             $mail->Password = $smtpPass;
             
-            if ($smtpSecure === 'ssl') {
+            if ($smtpSecure === 'ssl' || $smtpPort === 465) {
                 $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-            } elseif ($smtpSecure === 'tls' || $smtpSecure === 'starttls') {
+            } elseif ($smtpSecure === 'tls' || $smtpSecure === 'starttls' || $smtpPort === 587) {
                 $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             } else {
                 $mail->SMTPSecure = '';
@@ -90,6 +106,13 @@ class MailerEngine {
 
             $mail->Port = $smtpPort;
             $mail->SMTPKeepAlive = false;
+            $mail->SMTPOptions = [
+                'ssl' => [
+                    'verify_peer' => true,
+                    'verify_peer_name' => true,
+                    'allow_self_signed' => false,
+                ],
+            ];
         } else {
             // Local simulation / fallback mailer
             $mail->isMail();
@@ -147,8 +170,9 @@ class MailerEngine {
 
         $mailDriver = strtolower(getenv('MAIL_DRIVER') ?: '');
         $isMock = ($mailDriver === 'log' || $mailDriver === 'mock' || getenv('MOCK_MAIL') === 'true' || (!empty($payload['mock']) && $payload['mock'] === true));
-        $smtpHost = getenv('SMTP_HOST') ?: getenv('MAIL_HOST') ?: '';
-        $smtpUser = getenv('SMTP_USER') ?: getenv('SMTP_USERNAME') ?: getenv('MAIL_USERNAME') ?: '';
+        $smtpHost = getenv('SMTP_HOST') ?: getenv('MAIL_HOST') ?: $_ENV['SMTP_HOST'] ?? $_ENV['MAIL_HOST'] ?? $_SERVER['SMTP_HOST'] ?? $_SERVER['MAIL_HOST'] ?? 'smtp.gmail.com';
+        $smtpUser = getenv('SMTP_USER') ?: getenv('SMTP_USERNAME') ?: getenv('MAIL_USERNAME') ?: $_ENV['SMTP_USER'] ?? $_ENV['SMTP_USERNAME'] ?? $_ENV['MAIL_USERNAME'] ?? $_SERVER['SMTP_USER'] ?? $_SERVER['SMTP_USERNAME'] ?? $_SERVER['MAIL_USERNAME'] ?? 'srenterprises02015@gmail.com';
+        $smtpPass = str_replace(' ', '', (getenv('SMTP_PASS') ?: getenv('SMTP_PASSWORD') ?: getenv('MAIL_PASSWORD') ?: getenv('GMAIL_APP_PASSWORD') ?: $_ENV['SMTP_PASS'] ?? $_ENV['SMTP_PASSWORD'] ?? $_ENV['MAIL_PASSWORD'] ?? $_ENV['GMAIL_APP_PASSWORD'] ?? $_SERVER['SMTP_PASS'] ?? $_SERVER['SMTP_PASSWORD'] ?? $_SERVER['MAIL_PASSWORD'] ?? $_SERVER['GMAIL_APP_PASSWORD'] ?? ''));
 
         try {
             $mail->addAddress($toEmail, $toName);
@@ -193,32 +217,14 @@ class MailerEngine {
                 $mail->addAttachment($payload['attachmentPath'], $attachmentName);
             }
 
-            // Check if SMTP is configured for live internet dispatch
-            if (!empty($smtpHost) && !empty($smtpUser) && !$isMock) {
-                // Send via PHPMailer SMTP
-                $mail->send();
-                self::logOutbox($payload, $mail, 'SENT');
-
+            // If running in Mock / Log driver mode (e.g. automated test suites), log to outbox and return success
+            if ($isMock) {
+                self::logOutbox($payload, $mail, 'SENT', 'Mock Mail Driver (Local Simulation)');
                 return [
                     'success' => true,
                     'status' => 'SENT',
-                    'message' => "Email sent successfully via PHPMailer SMTP ({$smtpHost})",
-                    'messageId' => $mail->MessageID ?: ('msg-' . uniqid()),
-                    'recipient' => $toEmail,
-                    'subject' => $subject,
-                    'eventType' => $eventType,
-                    'pdfAttached' => !empty($tempPdfPath) || !empty($payload['attachmentPath']),
-                    'timestamp' => date('c'),
-                ];
-            } else {
-                // Outbox logging mode when SMTP not yet configured in .env
-                self::logOutbox($payload, $mail, 'SENT');
-
-                return [
-                    'success' => true,
-                    'status' => 'SENT',
-                    'message' => "Email rendered and saved to outbox (To send live emails to {$toEmail}, configure SMTP_HOST/SMTP_USER in .env)",
-                    'messageId' => 'outbox-' . uniqid(),
+                    'message' => 'Email rendered and saved to outbox (Mock Driver / Test Mode)',
+                    'messageId' => 'mock-' . uniqid(),
                     'recipient' => $toEmail,
                     'subject' => $subject,
                     'eventType' => $eventType,
@@ -226,9 +232,43 @@ class MailerEngine {
                     'timestamp' => date('c'),
                 ];
             }
+
+            // In live mode, verify that SMTP host, user, and password are configured
+            if (empty($smtpHost) || empty($smtpUser) || empty($smtpPass)) {
+                $unconfiguredMsg = 'Email could not be sent. SMTP is not configured in server environment. Please set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS in .env';
+                
+                self::logOutbox($payload, $mail, 'FAILED', $unconfiguredMsg);
+
+                return [
+                    'success' => false,
+                    'status' => 'FAILED',
+                    'error' => $unconfiguredMsg,
+                    'recipient' => $toEmail,
+                    'subject' => $subject,
+                    'eventType' => $eventType,
+                    'pdfAttached' => !empty($tempPdfPath) || !empty($payload['attachmentPath']),
+                    'timestamp' => date('c'),
+                ];
+            }
+
+            // Send via PHPMailer SMTP
+            $mail->send();
+            self::logOutbox($payload, $mail, 'SENT');
+
+            return [
+                'success' => true,
+                'status' => 'SENT',
+                'message' => "Email sent successfully via PHPMailer SMTP ({$smtpHost})",
+                'messageId' => $mail->MessageID ?: ('msg-' . uniqid()),
+                'recipient' => $toEmail,
+                'subject' => $subject,
+                'eventType' => $eventType,
+                'pdfAttached' => !empty($tempPdfPath) || !empty($payload['attachmentPath']),
+                'timestamp' => date('c'),
+            ];
         } catch (\Throwable $e) {
             $mailError = !empty($mail->ErrorInfo) ? $mail->ErrorInfo : $e->getMessage();
-            $errorMsg = 'PHPMailer error: ' . $mailError;
+            $errorMsg = 'PHPMailer SMTP delivery failed: ' . $mailError;
             self::logOutbox($payload, $mail, 'FAILED', $errorMsg);
 
             return [

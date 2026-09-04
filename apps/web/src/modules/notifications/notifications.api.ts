@@ -172,3 +172,50 @@ export function useUpdateNotificationPreferencesMutation() {
     },
   });
 }
+
+export function useSendAdminTestEmailMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (targetEmail?: string) => {
+      const response = await apiClient.post<{
+        success: boolean;
+        message?: string;
+        error?: string;
+        recipient?: string;
+        messageId?: string;
+      }>('/notifications/email/test', { targetEmail });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+    },
+  });
+}
+
+export function useEmailHistoryQuery(params: { page?: number; limit?: number; status?: string; search?: string } = {}) {
+  return useQuery({
+    queryKey: ['notifications', 'email-history', params],
+    queryFn: async () => {
+      const res = await apiClient.get<{
+        success: boolean;
+        data: any[];
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+      }>('/notifications/email/history', { params });
+      return res.data;
+    },
+  });
+}
+
+export function useTriggerEmailCronMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post<{ success: boolean; data?: any }>('/notifications/email/cron');
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+    },
+  });
+}
+

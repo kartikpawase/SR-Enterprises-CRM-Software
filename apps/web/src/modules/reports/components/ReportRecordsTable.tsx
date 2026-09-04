@@ -252,7 +252,7 @@ export const ReportRecordsTable: React.FC<ReportRecordsTableProps> = ({
                         {inv.customer?.fullName || inv.customerName || 'Customer'}
                       </td>
                       <td className="py-3 px-4 font-mono text-slate-500">{formatDate(inv.createdAt)}</td>
-                      <td className="py-3 px-4 font-mono text-slate-500">{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
+                      <td className="py-3 px-4 font-mono text-slate-500">{inv.status === 'PAID' || parseFloat(inv.outstandingAmount || '0') <= 0 ? '—' : (inv.dueDate ? formatDate(inv.dueDate) : '—')}</td>
                       <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
                         {formatCurrency(Number(inv.totalAmount || 0))}
                       </td>

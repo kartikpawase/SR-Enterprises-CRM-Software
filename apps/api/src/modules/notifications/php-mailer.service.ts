@@ -38,6 +38,7 @@ export interface PhpMailerResult {
   status: 'SENT' | 'FAILED' | 'SKIPPED' | 'PENDING';
   message?: string;
   messageId?: string;
+  notificationId?: string;
   recipient?: string;
   subject?: string;
   eventType?: string;
@@ -63,7 +64,7 @@ export class PhpMailerService {
   }
 
   /**
-   * Main dispatch method: Uses Node.js / Nodemailer engine with fallback to PHP CLI
+   * Main dispatch method: Uses existing PHPMailer CLI engine
    */
   public async dispatch(payload: TransactionalEmailPayload): Promise<PhpMailerResult> {
     const toEmail = (payload.toEmail || '').trim();
@@ -81,13 +82,8 @@ export class PhpMailerService {
       };
     }
 
-    // Try Node.js / Nodemailer native dispatch first
-    try {
-      return await this.dispatchViaNodeMailer(payload);
-    } catch (nodeError: any) {
-      // Fallback: Attempt PHP CLI if available
-      return this.dispatchViaPhpCli(payload, nodeError);
-    }
+    // Direct dispatch via existing PHPMailer CLI engine
+    return this.dispatchViaPhpCli(payload);
   }
 
   /**
@@ -105,7 +101,7 @@ export class PhpMailerService {
     const smtpHost = process.env.SMTP_HOST || process.env.MAIL_HOST || '';
     const smtpPort = parseInt(process.env.SMTP_PORT || process.env.MAIL_PORT || '587', 10);
     const smtpUser = process.env.SMTP_USER || process.env.SMTP_USERNAME || process.env.MAIL_USERNAME || '';
-    const smtpPass = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || process.env.MAIL_PASSWORD || '').replace(/\s+/g, '');
+    const smtpPass = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || process.env.MAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
     const smtpSecure = (process.env.SMTP_SECURE || process.env.MAIL_ENCRYPTION || '').toLowerCase() === 'ssl' || smtpPort === 465;
 
     const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_FROM || process.env.MAIL_FROM_ADDRESS || 'no-reply@srenterprises.com';
@@ -125,8 +121,24 @@ export class PhpMailerService {
 
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}@srenterprises.com`;
 
+    // If running in Mock / Log driver mode (e.g. automated test suites), log to outbox and return success
+    if (isMock) {
+      this.logOutbox(payload, 'SENT', finalSubject, 'Mock Mail Driver (Local Simulation)');
+      return {
+        success: true,
+        status: 'SENT',
+        message: 'Email rendered and saved to outbox (Mock Driver / Test Mode)',
+        messageId: `mock-${Date.now()}`,
+        recipient: toEmail,
+        subject: finalSubject,
+        eventType,
+        pdfAttached: attachments.length > 0 || Boolean(payload.attachInvoicePdf),
+        timestamp: new Date().toISOString(),
+      };
+    }
+
     // If live SMTP credentials are configured and not in mock mode, send over SMTP
-    if (smtpHost && smtpUser && !isMock) {
+    if (smtpHost && smtpUser && smtpPass) {
       const transporter = nodemailer.createTransport({
         host: smtpHost,
         port: smtpPort,
@@ -165,13 +177,14 @@ export class PhpMailerService {
         timestamp: new Date().toISOString(),
       };
     } else {
-      // Outbox archive mode for development / testing / when SMTP host is not yet set
-      this.logOutbox(payload, 'SENT', finalSubject, 'Archived to Outbox (Configure SMTP in .env for live internet delivery)');
+      const errorMsg = 'SMTP credentials not configured in server environment. Please set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS in .env';
+
+      this.logOutbox(payload, 'FAILED', finalSubject, errorMsg);
 
       return {
-        success: true,
-        status: 'SENT',
-        message: `Email rendered and saved to outbox (To send live emails to ${toEmail}, configure SMTP_HOST/SMTP_USER in .env)`,
+        success: false,
+        status: 'FAILED',
+        error: errorMsg,
         messageId,
         recipient: toEmail,
         subject: finalSubject,
@@ -183,17 +196,40 @@ export class PhpMailerService {
   }
 
   /**
-   * Fallback PHP CLI Dispatcher
+   * Primary PHP CLI Dispatcher using PHPMailer engine
    */
   private async dispatchViaPhpCli(payload: TransactionalEmailPayload, initialError?: any): Promise<PhpMailerResult> {
     return new Promise((resolve) => {
       const base64Data = Buffer.from(JSON.stringify(payload)).toString('base64');
       const args = [this.scriptPath, `--base64=${base64Data}`];
 
-      execFile('php', args, { timeout: 30000, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
-        const rawOutput = (stdout || '').trim();
+      execFile(
+        'php',
+        args,
+        {
+          timeout: 30000,
+          maxBuffer: 10 * 1024 * 1024,
+          env: { ...process.env },
+        },
+        (error, stdout, stderr) => {
+          const rawOutput = (stdout || '').trim();
 
-        if (error) {
+          if (error) {
+            try {
+              const parsed = JSON.parse(rawOutput);
+              return resolve(parsed);
+            } catch {
+              return resolve({
+                success: false,
+                status: 'FAILED',
+                error: `PHPMailer execution error: ${initialError?.message || error.message}${stderr ? ` - ${stderr.trim()}` : ''}`,
+                recipient: payload.toEmail,
+                eventType: payload.eventType,
+                timestamp: new Date().toISOString(),
+              });
+            }
+          }
+
           try {
             const parsed = JSON.parse(rawOutput);
             return resolve(parsed);
@@ -201,28 +237,14 @@ export class PhpMailerService {
             return resolve({
               success: false,
               status: 'FAILED',
-              error: `Mailer error: ${initialError?.message || error.message}${stderr ? ` - ${stderr.trim()}` : ''}`,
+              error: `PHPMailer returned unexpected output: ${rawOutput || stderr || 'Empty output'}`,
               recipient: payload.toEmail,
               eventType: payload.eventType,
               timestamp: new Date().toISOString(),
             });
           }
         }
-
-        try {
-          const parsed = JSON.parse(rawOutput);
-          return resolve(parsed);
-        } catch {
-          return resolve({
-            success: true,
-            status: 'SENT',
-            message: 'Email processed via PHPMailer CLI',
-            recipient: payload.toEmail,
-            eventType: payload.eventType,
-            timestamp: new Date().toISOString(),
-          });
-        }
-      });
+      );
     });
   }
 
@@ -362,12 +384,17 @@ export class PhpMailerService {
         bodyContent = `
           <h2 style="color: #0284C7; margin-top: 0;">📅 Upcoming Service Schedule</h2>
           <p>Dear <strong>${customerName}</strong>,</p>
-          <p>Your scheduled water purifier periodic maintenance is approaching on <strong>${data.scheduledDate || 'Soon'}</strong>.</p>
-          <div style="background-color: #F0F9FF; border-left: 4px solid #0284C7; padding: 12px 16px; margin: 20px 0; border-radius: 4px;">
-            <p style="margin: 4px 0;"><strong>Service Type:</strong> ${data.serviceType || 'Periodic Filter Replacement'}</p>
-            <p style="margin: 4px 0;"><strong>Scheduled Date:</strong> ${data.scheduledDate || 'Pending confirmation'}</p>
-            <p style="margin: 4px 0;"><strong>Time Slot:</strong> ${data.timeSlot || 'Morning (10:00 AM - 1:00 PM)'}</p>
+          <p>Your scheduled water purifier service visit is confirmed for <strong>${data.scheduledDate || 'Upcoming Date'}</strong>.</p>
+          <div style="background-color: #F0F9FF; border-left: 4px solid #0284C7; padding: 14px 18px; margin: 20px 0; border-radius: 6px;">
+            <p style="margin: 4px 0;"><strong>Service Reference:</strong> #${data.serviceNumber || 'N/A'}</p>
+            <p style="margin: 4px 0;"><strong>Service Type:</strong> ${data.serviceType || 'Periodic Maintenance'}</p>
+            <p style="margin: 4px 0;"><strong>Equipment / RO Purifier:</strong> ${data.machineName || 'Water Purifier'}</p>
+            ${data.serialNumber && data.serialNumber !== 'N/A' ? `<p style="margin: 4px 0;"><strong>Serial Number:</strong> ${data.serialNumber}</p>` : ''}
+            <p style="margin: 4px 0;"><strong>Visit Date:</strong> ${data.scheduledDate || 'Pending confirmation'}</p>
+            <p style="margin: 4px 0;"><strong>Time Slot:</strong> ${data.timeSlot || '10:00 AM - 12:00 PM'}</p>
+            <p style="margin: 4px 0;"><strong>Assigned Technician:</strong> ${data.technicianName || 'Certified Technician'}</p>
           </div>
+          <p style="color: #475569; font-size: 13px;">Our technician will contact you prior to arrival. If you need to reschedule, please contact our support desk.</p>
         `;
         break;
       }

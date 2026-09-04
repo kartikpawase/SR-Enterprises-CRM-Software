@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Wrench,
   ShieldCheck,
+  CreditCard,
 } from 'lucide-react';
 import type { JobCardPartItem } from '@crm/validation';
 
@@ -44,6 +45,10 @@ export const CompleteServiceModal: React.FC<CompleteServiceModalProps> = ({
 
   const [scheduleNextService, setScheduleNextService] = useState(true);
   const [recommendationMonths, setRecommendationMonths] = useState(3);
+  const [paymentOption, setPaymentOption] = useState<'PENDING' | 'FULL' | 'PARTIAL'>('PENDING');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CHEQUE'>('CASH');
+  const [customPaidAmount, setCustomPaidAmount] = useState<number>(0);
+  const [paymentRefNumber, setPaymentRefNumber] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
   const completeMutation = useCompleteServiceMutation();
@@ -96,6 +101,16 @@ export const CompleteServiceModal: React.FC<CompleteServiceModalProps> = ({
       return;
     }
 
+    const initialPayment =
+      grandTotal > 0 && paymentOption !== 'PENDING'
+        ? {
+            amount: paymentOption === 'FULL' ? grandTotal : Number(customPaidAmount) || 0,
+            paymentMethod,
+            referenceNumber: paymentRefNumber.trim() || undefined,
+            notes: `Recorded on service completion (${paymentOption === 'FULL' ? 'Full Settlement' : 'Partial Payment'})`,
+          }
+        : undefined;
+
     try {
       await completeMutation.mutateAsync({
         id: service.id,
@@ -110,7 +125,8 @@ export const CompleteServiceModal: React.FC<CompleteServiceModalProps> = ({
           customerRemarks,
           scheduleNextService,
           nextServiceRecommendationMonths: scheduleNextService ? recommendationMonths : null,
-        },
+          initialPayment,
+        } as any,
       });
 
       onClose();
@@ -302,6 +318,92 @@ export const CompleteServiceModal: React.FC<CompleteServiceModalProps> = ({
             <span className="text-sm font-mono text-emerald-700">₹{grandTotal.toLocaleString('en-IN')}</span>
           </div>
         </div>
+
+        {/* Payment Settlement upon Completion */}
+        {grandTotal > 0 && (
+          <div className="p-3.5 bg-emerald-50/50 rounded-xl border border-emerald-200/80 space-y-2.5 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                <CreditCard className="w-4 h-4 text-emerald-700" />
+                Payment Settlement Option
+              </span>
+              <span className="text-[11px] font-semibold text-emerald-700 font-mono">Total Due: ₹{grandTotal.toLocaleString('en-IN')}</span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setPaymentOption('PENDING')}
+                className={`py-1.5 px-2 rounded-lg font-bold text-xs border text-center transition-all ${paymentOption === 'PENDING' ? 'bg-orange-500 text-white border-orange-600 shadow-xs' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+              >
+                Payment Pending
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentOption('FULL');
+                  setCustomPaidAmount(grandTotal);
+                }}
+                className={`py-1.5 px-2 rounded-lg font-bold text-xs border text-center transition-all ${paymentOption === 'FULL' ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+              >
+                Full Payment (₹{grandTotal})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentOption('PARTIAL');
+                  if (!customPaidAmount) setCustomPaidAmount(Math.round(grandTotal / 2));
+                }}
+                className={`py-1.5 px-2 rounded-lg font-bold text-xs border text-center transition-all ${paymentOption === 'PARTIAL' ? 'bg-amber-500 text-white border-amber-600 shadow-xs' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+              >
+                Partially Paid
+              </button>
+            </div>
+
+            {paymentOption !== 'PENDING' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-emerald-200/60">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Payment Mode</label>
+                  <Select
+                    options={[
+                      { value: 'CASH', label: 'Cash' },
+                      { value: 'UPI', label: 'UPI / QR' },
+                      { value: 'CARD', label: 'Card' },
+                      { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
+                      { value: 'CHEQUE', label: 'Cheque' },
+                    ]}
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as any)}
+                  />
+                </div>
+
+                {paymentOption === 'PARTIAL' && (
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Amount Paid (₹)</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max={grandTotal}
+                      value={customPaidAmount}
+                      onChange={(e) => setCustomPaidAmount(Number(e.target.value))}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                )}
+
+                <div className={paymentOption === 'FULL' ? 'sm:col-span-2' : ''}>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Reference / UTR # (Optional)</label>
+                  <Input
+                    placeholder="e.g. UPI Ref / Receipt #"
+                    value={paymentRefNumber}
+                    onChange={(e) => setPaymentRefNumber(e.target.value)}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Technician & Customer Remarks */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

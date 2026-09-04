@@ -8,6 +8,8 @@ export interface CustomerToolbarProps {
   onStatusChange: (val: string) => void;
   customerType: string;
   onCustomerTypeChange: (val: string) => void;
+  customerLabel?: string;
+  onCustomerLabelChange?: (val: string) => void;
   city: string;
   onCityChange: (val: string) => void;
   onRefresh?: () => void;
@@ -21,6 +23,8 @@ export const CustomerToolbar: React.FC<CustomerToolbarProps> = ({
   onStatusChange,
   customerType,
   onCustomerTypeChange,
+  customerLabel,
+  onCustomerLabelChange,
   city,
   onCityChange,
   onRefresh,
@@ -74,6 +78,24 @@ export const CustomerToolbar: React.FC<CustomerToolbarProps> = ({
           </select>
           <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
+
+        {/* Customer Label Filter */}
+        {onCustomerLabelChange && (
+          <div className="relative">
+            <select
+              value={customerLabel || 'ALL'}
+              onChange={(e) => onCustomerLabelChange(e.target.value)}
+              aria-label="Filter by customer label"
+              className="h-10 pl-3.5 pr-8 bg-white rounded-xl border border-slate-200/90 text-xs sm:text-sm font-semibold text-slate-700 shadow-2xs hover:border-slate-300 focus:border-primary-600 focus:ring-2 focus:ring-primary-500/15 focus:outline-none transition-all appearance-none cursor-pointer"
+            >
+              <option value="ALL">All Labels</option>
+              <option value="GOOD">Good Customer</option>
+              <option value="BAD">Bad Customer</option>
+              <option value="NONE">No Label</option>
+            </select>
+            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+        )}
 
         {/* City Filter */}
         <div className="relative">

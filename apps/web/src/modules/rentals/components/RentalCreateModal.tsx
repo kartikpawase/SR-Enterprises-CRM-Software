@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
-import { useCustomersQuery } from '../../customers/customer.api';
+import { useCustomersQuery, useCustomerDetailQuery } from '../../customers/customer.api';
 import { useTechniciansQuery } from '../../technicians/technicians.api';
 import { useCreateRentalMutation, type CreateRentalPayload } from '../rentals.api';
 import { useToast } from '../../../providers/ToastProvider';
@@ -44,13 +44,30 @@ export const RentalCreateModal: React.FC<RentalCreateModalProps> = ({
   const toast = useToast();
   const createRentalMutation = useCreateRentalMutation();
 
-  // Queries
-  const { data: customersData, isLoading: isCustomersLoading } = useCustomersQuery({ page: 1, limit: 150 });
-  const { data: techniciansData } = useTechniciansQuery({});
-
   // Customer search & selection state
   const [customerSearch, setCustomerSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState(preselectedCustomerId || '');
+
+  // Debounce customer search input by 200ms
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(customerSearch);
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [customerSearch]);
+
+  // Queries
+  const { data: customersData, isLoading: isCustomersLoading } = useCustomersQuery({
+    page: 1,
+    limit: 100,
+    search: debouncedSearch.trim() || undefined,
+    status: 'ACTIVE',
+    sortBy: 'customerNumber',
+    sortOrder: 'asc',
+  });
+  const { data: customerDetail } = useCustomerDetailQuery(selectedCustomerId || undefined);
+  const { data: techniciansData } = useTechniciansQuery({});
 
   // Form State
   const [formData, setFormData] = useState({
@@ -95,22 +112,27 @@ export const RentalCreateModal: React.FC<RentalCreateModalProps> = ({
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Central Customers Filter
-  const customersList = customersData?.data || [];
+  const customersList = useMemo(() => customersData?.data || [], [customersData]);
   const filteredCustomers = useMemo(() => {
-    if (!customerSearch.trim()) return customersList.slice(0, 10);
+    if (!customerSearch.trim()) return customersList.slice(0, 20);
     const query = customerSearch.toLowerCase().trim();
     return customersList.filter(
       (c) =>
         c.fullName.toLowerCase().includes(query) ||
         (c.phone && c.phone.toLowerCase().includes(query)) ||
         (c.customerNumber && c.customerNumber.toLowerCase().includes(query)) ||
+        (c.companyName && c.companyName.toLowerCase().includes(query)) ||
         (c.email && c.email.toLowerCase().includes(query))
     );
   }, [customersList, customerSearch]);
 
   const selectedCustomer = useMemo(() => {
-    return customersList.find((c) => c.id === selectedCustomerId);
-  }, [customersList, selectedCustomerId]);
+    if (!selectedCustomerId) return null;
+    if (customerDetail && (customerDetail as any).id === selectedCustomerId) {
+      return customerDetail as any;
+    }
+    return customersList.find((c) => c.id === selectedCustomerId) || null;
+  }, [customersList, selectedCustomerId, customerDetail]);
 
   const selectedCustomerAddress = useMemo(() => {
     if (!selectedCustomer?.addresses || selectedCustomer.addresses.length === 0) return '';
@@ -237,8 +259,18 @@ export const RentalCreateModal: React.FC<RentalCreateModalProps> = ({
                   placeholder="Search customer by name, phone, email, or customer ID..."
                   value={customerSearch}
                   onChange={(e) => setCustomerSearch(e.target.value)}
-                  className="w-full pl-9 pr-3.5 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                  className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                 />
+                {customerSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomerSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               {/* Filtered Customer Options */}

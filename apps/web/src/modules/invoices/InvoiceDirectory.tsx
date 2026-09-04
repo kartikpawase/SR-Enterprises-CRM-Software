@@ -141,6 +141,14 @@ export const InvoiceDirectory: React.FC = () => {
       key: 'dueDate',
       header: 'Due Date',
       render: (row: InvoiceSummaryData) => {
+        const isPaid = row.status === 'PAID' || parseFloat(row.outstandingAmount || '0') <= 0;
+        if (isPaid) {
+          return (
+            <div className="text-xs font-mono text-slate-400">
+              —
+            </div>
+          );
+        }
         const isOverdue =
           row.dueDate &&
           new Date(row.dueDate) < new Date() &&

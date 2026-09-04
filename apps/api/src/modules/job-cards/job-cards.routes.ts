@@ -109,6 +109,23 @@ export const jobCardsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
+   * POST /api/v1/job-cards/:id/notify-technician
+   * Manually trigger or retry WhatsApp notification to assigned technician
+   */
+  fastify.post('/:id/notify-technician', { preHandler: [requirePermission('services.update')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = (request as any).user;
+    const result = await jobCardsService.resendTechnicianNotification(id, user);
+    return reply.send({
+      success: result.success,
+      data: result,
+      message: result.success
+        ? 'WhatsApp notification sent to technician'
+        : (result.error || 'Failed to send WhatsApp notification'),
+    });
+  });
+
+  /**
    * POST /api/v1/job-cards/:id/accept
    * Technician accepts assigned job card
    */

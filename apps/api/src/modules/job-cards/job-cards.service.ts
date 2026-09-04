@@ -69,14 +69,46 @@ export class JobCardsService {
           jobCardId: jobCard.id,
           jobCardNumber: jobCard.jobCardNumber,
           technicianId: input.technicianId,
-          customerName: (jobCard as any).customer?.fullName || 'Customer',
-          serviceType: (jobCard as any).service?.serviceType || 'Service',
+          customerName: (jobCard as any).customer?.fullName || (jobCard as any).customerName || 'Customer',
+          serviceType: (jobCard as any).service?.serviceType || (jobCard as any).serviceType || 'Service',
         });
       }
     } catch {
-      // Non-blocking notification dispatch
+      // Non-blocking in-app notification dispatch
     }
+
+    // Non-blocking WhatsApp notification dispatch to assigned technician
+    try {
+      if (jobCard && input.technicianId) {
+        const { whatsappService } = await import('../whatsapp/whatsapp.service');
+        await whatsappService.notifyTechnicianJobAssignment(jobCard.id, {
+          actorUserId: actorId,
+        });
+      }
+    } catch (err) {
+      // WhatsApp is a secondary notification channel - never roll back assignment
+      console.error('[JobCardsService] Error dispatching WhatsApp notification on assignment:', err);
+    }
+
     return jobCard;
+  }
+
+  async resendTechnicianNotification(id: string, user?: UserContext) {
+    const jobCard = await jobCardsRepository.findById(id);
+    if (!jobCard) {
+      const error = new Error('Job Card record not found');
+      (error as any).statusCode = 404;
+      (error as any).code = 'NOT_FOUND';
+      throw error;
+    }
+    this.assertJobCardAccess(jobCard, user);
+
+    const actorId = user ? (user.userId || user.id) : undefined;
+    const { whatsappService } = await import('../whatsapp/whatsapp.service');
+    return whatsappService.notifyTechnicianJobAssignment(id, {
+      forceResend: true,
+      actorUserId: actorId,
+    });
   }
 
   async performWorkflowAction(id: string, actionInput: JobCardActionInput, user?: UserContext) {

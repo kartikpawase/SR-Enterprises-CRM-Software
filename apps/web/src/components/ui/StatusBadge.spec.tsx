@@ -23,6 +23,6 @@ describe('Phase 3 — UI Design System: StatusBadge Component', () => {
   it('should apply semantic danger color for CANCELLED status', () => {
     const { container } = render(<StatusBadge status="CANCELLED" />);
     const badge = container.querySelector('span');
-    expect(badge).toHaveClass('bg-rose-50');
+    expect(badge).toHaveClass('bg-red-50');
   });
 });

@@ -93,6 +93,47 @@ export class ServicesService {
   async listTechnicians() {
     return servicesRepository.listTechnicians();
   }
+
+  async resendTechnicianNotification(serviceId: string, actorId?: string) {
+    const service = await servicesRepository.findById(serviceId);
+    if (!service) {
+      const error: any = new Error('Service record not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    const jobCardId = (service as any).jobCardId || (service as any).jobCard?.id;
+    const { whatsappService } = await import('../whatsapp/whatsapp.service');
+
+    if (jobCardId) {
+      return whatsappService.notifyTechnicianJobAssignment(jobCardId, {
+        forceResend: true,
+        actorUserId: actorId,
+      });
+    }
+
+    const { jobCardsRepository } = await import('../job-cards/job-cards.repository');
+    const linkedCards = await jobCardsRepository.findPaginated({
+      page: 1,
+      limit: 50,
+      search: service.serviceNumber,
+      status: 'ALL',
+      priority: 'ALL',
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    });
+    const match = linkedCards.data.find((jc: any) => jc.serviceId === serviceId) || linkedCards.data[0];
+    if (match) {
+      return whatsappService.notifyTechnicianJobAssignment(match.id, {
+        forceResend: true,
+        actorUserId: actorId,
+      });
+    }
+
+    return {
+      success: false,
+      error: 'No active job card found for this service to notify technician.',
+    };
+  }
 }
 
 export const servicesService = new ServicesService();

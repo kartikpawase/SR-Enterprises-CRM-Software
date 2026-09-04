@@ -119,7 +119,6 @@ describe('Production DashboardPage Component', () => {
     expect(screen.getByText("Here's what's happening with your business today.")).toBeDefined();
     expect(screen.getByPlaceholderText(/Search customers, invoices, services.../i)).toBeDefined();
     expect(screen.getByText(/Today,/i)).toBeDefined();
-    expect(screen.getByLabelText('View notifications')).toBeDefined();
     expect(screen.getByLabelText('User account menu')).toBeDefined();
   });
 

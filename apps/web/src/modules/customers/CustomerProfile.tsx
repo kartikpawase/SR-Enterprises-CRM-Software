@@ -9,6 +9,7 @@ import { CustomerActivityTimeline } from './components/CustomerActivityTimeline'
 import { CustomerRentalsSection } from './components/CustomerRentalsSection';
 import { CustomerFormModal } from './components/CustomerFormModal';
 import { CustomerArchiveDialog } from './components/CustomerArchiveDialog';
+import { CustomerLabelModal } from './components/CustomerLabelModal';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import {
   useCustomerDetailQuery,
@@ -56,6 +57,7 @@ import {
   Package,
   Trash2,
   Repeat,
+  Tag,
 } from 'lucide-react';
 
 export const CustomerProfile: React.FC = () => {
@@ -68,6 +70,7 @@ export const CustomerProfile: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
   const [isRecordPaymentModalOpen, setIsRecordPaymentModalOpen] = useState(false);
   const [selectedInvoiceIdForPayment, setSelectedInvoiceIdForPayment] = useState<string | undefined>(undefined);
   const [selectedReceiptPayment, setSelectedReceiptPayment] = useState<PaymentItem | null>(null);
@@ -380,7 +383,7 @@ export const CustomerProfile: React.FC = () => {
       : inv.status === 'PARTIALLY_PAID'
       ? 'bg-amber-50 text-amber-700 border-amber-200'
       : 'bg-rose-50 text-rose-700 border-rose-200',
-    paymentStatus: inv.status === 'PAID'
+    paymentStatus: inv.status === 'PAID' || parseFloat(inv.outstandingAmount || '0') <= 0
       ? `Paid in Full (${formatINR(inv.paidAmount)})`
       : inv.status === 'PARTIALLY_PAID'
       ? `Paid ${formatINR(inv.paidAmount)} • Due: ${formatDate(inv.dueDate)}`
@@ -440,6 +443,16 @@ export const CustomerProfile: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setIsLabelModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200/90 rounded-xl hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+            title="Change Customer Label"
+          >
+            <Tag className="w-3.5 h-3.5 text-slate-500" />
+            <span>Customer Label</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setIsEditModalOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200/90 rounded-xl hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
           >
@@ -494,8 +507,45 @@ export const CustomerProfile: React.FC = () => {
                 </span>
               </div>
 
-              <div className="text-xs font-mono text-slate-500 font-semibold">
-                {customer.customerNumber}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className="text-xs font-mono text-slate-500 font-semibold">
+                  {customer.customerNumber}
+                </span>
+
+                {/* Customer Status Label Badge */}
+                {customer.customerLabel === 'GOOD' && (
+                  <button
+                    type="button"
+                    onClick={() => setIsLabelModalOpen(true)}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-2xs hover:bg-emerald-100 transition-colors cursor-pointer"
+                    title="Click to change customer label"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                    <span>Good Customer</span>
+                  </button>
+                )}
+                {customer.customerLabel === 'BAD' && (
+                  <button
+                    type="button"
+                    onClick={() => setIsLabelModalOpen(true)}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200/90 shadow-2xs hover:bg-rose-100 transition-colors cursor-pointer"
+                    title="Click to change customer label"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+                    <span>Bad Customer</span>
+                  </button>
+                )}
+                {!customer.customerLabel && (
+                  <button
+                    type="button"
+                    onClick={() => setIsLabelModalOpen(true)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-slate-500 hover:text-slate-800 bg-slate-100/80 hover:bg-slate-200/80 border border-slate-200/70 transition-colors cursor-pointer"
+                    title="Click to assign label"
+                  >
+                    <Tag className="w-3 h-3 text-slate-400" />
+                    <span>No Label</span>
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600 pt-1 font-medium">
@@ -1325,7 +1375,9 @@ export const CustomerProfile: React.FC = () => {
                           {inv.status}
                         </span>
                       </td>
-                      <td className="py-3.5 text-slate-500 font-medium">{formatDate(inv.dueDate)}</td>
+                      <td className="py-3.5 text-slate-500 font-medium">
+                        {inv.status === 'PAID' || parseFloat(inv.outstandingAmount || '0') <= 0 ? '—' : formatDate(inv.dueDate)}
+                      </td>
                       <td className="py-3.5 text-right flex items-center justify-end gap-2">
                         {inv.status !== 'PAID' && (
                           <Button
@@ -1627,6 +1679,14 @@ export const CustomerProfile: React.FC = () => {
         isOpen={Boolean(selectedReceiptPayment)}
         payment={selectedReceiptPayment}
         onClose={() => setSelectedReceiptPayment(null)}
+      />
+
+      {/* Customer Label Classification Modal */}
+      <CustomerLabelModal
+        isOpen={isLabelModalOpen}
+        onClose={() => setIsLabelModalOpen(false)}
+        customer={customer || null}
+        onSuccess={() => refetch()}
       />
     </div>
   );

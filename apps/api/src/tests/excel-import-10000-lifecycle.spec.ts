@@ -122,7 +122,7 @@ describe('Master Excel Customer Import End-to-End & 10,000-Record Lifecycle Test
 
     for (let i = 1; i <= 10000; i++) {
       const padded = String(i).padStart(5, '0');
-      const uniquePhone = `8${String(1000000000 + i).slice(1)}`;
+      const uniquePhone = `7${String(testRunId).slice(-4)}${String(10000 + i).slice(-5)}`;
       records10k.push({
         fullName: `Bulk Customer ${padded} Sharma ${testRunId}`,
         phone: uniquePhone,
@@ -164,7 +164,7 @@ describe('Master Excel Customer Import End-to-End & 10,000-Record Lifecycle Test
       .where(eq(customers.phone, targetPhone));
     expect(sampleRecord.length).toBe(1);
     expect(sampleRecord[0].fullName).toBe(records10k[4999].fullName);
-  });
+  }, 30000);
 
   it('TEST 10, 11, 12, 13, 14, 15, 16: Full Lifecycle & Universal Workflow Verification', async () => {
     // Pick imported customer

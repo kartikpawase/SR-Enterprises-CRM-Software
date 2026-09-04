@@ -159,6 +159,7 @@ CREATE TABLE "sale_items" (
 	"warranty_months" integer DEFAULT 12 NOT NULL,
 	"service_interval_months" integer DEFAULT 6 NOT NULL,
 	"serial_number" text,
+	"next_service_date" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint

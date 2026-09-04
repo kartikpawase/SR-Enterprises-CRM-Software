@@ -80,8 +80,18 @@ export async function apiRequest<T>(
       }
     }
 
-    if (data && 'error' in data) {
-      throw new ApiClientError(data.error, response.status);
+    if (data && typeof data === 'object') {
+      if ('error' in data && data.error) {
+        const errorObj = typeof data.error === 'object' ? data.error : { message: String(data.error) };
+        throw new ApiClientError(errorObj, response.status);
+      }
+      if ('message' in data && typeof data.message === 'string' && data.message.trim() !== '') {
+        throw new ApiClientError({
+          code: 'HTTP_ERROR',
+          message: data.message,
+          requestId: response.headers.get(HTTP_HEADERS.REQUEST_ID) || 'unknown',
+        }, response.status);
+      }
     }
     throw new ApiClientError({
       code: response.status === 401 ? 'UNAUTHORIZED' : (response.status === 403 ? 'FORBIDDEN' : 'HTTP_ERROR'),

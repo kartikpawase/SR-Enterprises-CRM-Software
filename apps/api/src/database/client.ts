@@ -41,6 +41,27 @@ export async function applySqlMigrations(targetPg: PGlite | postgres.Sql): Promi
     return;
   }
 
+  // Check if initial schema is already applied
+  if ('query' in targetPg) {
+    try {
+      const check = await targetPg.query<{ exists: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'services') as exists;`
+      );
+      if (check.rows && check.rows[0]?.exists) {
+        return;
+      }
+    } catch {}
+  } else if ('unsafe' in targetPg) {
+    try {
+      const check: any = await targetPg.unsafe(
+        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'services') as exists;`
+      );
+      if (check && check[0]?.exists) {
+        return;
+      }
+    } catch {}
+  }
+
   // Run idempotent migrations to ensure newly added tables exist
   const sqlContent = fs.readFileSync(sqlFilePath, 'utf8');
   const rawStatements = sqlContent
@@ -176,6 +197,26 @@ export const sql: any = new Proxy(
  * Ensures email_notifications and email_queue tables and enums exist
  */
 export async function ensureEmailTables(targetPg: PGlite | postgres.Sql): Promise<void> {
+  if ('query' in targetPg) {
+    try {
+      const check = await targetPg.query<{ exists: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'email_queue') as exists;`
+      );
+      if (check.rows && check.rows[0]?.exists) {
+        return;
+      }
+    } catch {}
+  } else if ('unsafe' in targetPg) {
+    try {
+      const check: any = await targetPg.unsafe(
+        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'email_queue') as exists;`
+      );
+      if (check && check[0]?.exists) {
+        return;
+      }
+    } catch {}
+  }
+
   const statements = [
     `DO $$ BEGIN CREATE TYPE "email_event_type" AS ENUM('SALE_CONFIRMATION', 'PAYMENT_RECEIPT', 'SERVICE_COMPLETED', 'SERVICE_REMINDER', 'PAYMENT_REMINDER', 'THANK_YOU', 'WARRANTY_EXPIRY_REMINDER', 'INVOICE_EMAIL', 'ADMIN_TEST', 'GENERAL'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
     `DO $$ BEGIN CREATE TYPE "email_delivery_status" AS ENUM('PENDING', 'PROCESSING', 'SENT', 'FAILED', 'SKIPPED'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
@@ -249,6 +290,26 @@ export async function ensureEmailTables(targetPg: PGlite | postgres.Sql): Promis
  * Ensures Google Drive metadata columns exist on invoices and payments tables
  */
 export async function ensureGoogleDriveColumns(targetPg: PGlite | postgres.Sql): Promise<void> {
+  if ('query' in targetPg) {
+    try {
+      const check = await targetPg.query<{ exists: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'drive_file_id') as exists;`
+      );
+      if (check.rows && check.rows[0]?.exists) {
+        return;
+      }
+    } catch {}
+  } else if ('unsafe' in targetPg) {
+    try {
+      const check: any = await targetPg.unsafe(
+        `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'drive_file_id') as exists;`
+      );
+      if (check && check[0]?.exists) {
+        return;
+      }
+    } catch {}
+  }
+
   const statements = [
     `ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "drive_file_id" text;`,
     `ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "drive_file_name" text;`,
@@ -265,6 +326,56 @@ export async function ensureGoogleDriveColumns(targetPg: PGlite | postgres.Sql):
     `ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "drive_uploaded_at" timestamp with time zone;`,
     `ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "drive_error" text;`,
     `CREATE INDEX IF NOT EXISTS "payments_drive_file_id_idx" ON "payments" ("drive_file_id");`,
+
+    `ALTER TABLE "sale_items" ADD COLUMN IF NOT EXISTS "next_service_date" timestamp with time zone;`,
+  ];
+
+  if ('exec' in targetPg) {
+    for (const stmt of statements) {
+      try {
+        await targetPg.exec(stmt);
+      } catch {}
+    }
+  } else {
+    for (const stmt of statements) {
+      try {
+        await targetPg.unsafe(stmt);
+      } catch {}
+    }
+  }
+}
+
+/**
+ * Ensures Next Service Date and related sale item columns exist
+ */
+export async function ensureSaleColumns(targetPg: PGlite | postgres.Sql): Promise<void> {
+  const statements = [
+    `ALTER TABLE "sale_items" ADD COLUMN IF NOT EXISTS "next_service_date" timestamp with time zone;`,
+  ];
+
+  if ('exec' in targetPg) {
+    for (const stmt of statements) {
+      try {
+        await targetPg.exec(stmt);
+      } catch {}
+    }
+  } else {
+    for (const stmt of statements) {
+      try {
+        await targetPg.unsafe(stmt);
+      } catch {}
+    }
+  }
+}
+
+/**
+ * Ensures customer_label enum, column, and index exist on customers table
+ */
+export async function ensureCustomerLabelColumn(targetPg: PGlite | postgres.Sql): Promise<void> {
+  const statements = [
+    `DO $$ BEGIN CREATE TYPE "customer_label" AS ENUM('GOOD', 'BAD'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
+    `ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "customer_label" "customer_label";`,
+    `CREATE INDEX IF NOT EXISTS "customers_customer_label_idx" ON "customers" ("customer_label");`,
   ];
 
   if ('exec' in targetPg) {
@@ -286,6 +397,25 @@ export async function ensureGoogleDriveColumns(targetPg: PGlite | postgres.Sql):
  * Ensures rentals, rental_payments, and rental_events tables and enums exist
  */
 export async function ensureRentalTables(targetPg: PGlite | postgres.Sql): Promise<void> {
+  if ('query' in targetPg) {
+    try {
+      const check = await targetPg.query<{ exists: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'rentals') as exists;`
+      );
+      if (check.rows && check.rows[0]?.exists) {
+        return;
+      }
+    } catch {}
+  } else if ('unsafe' in targetPg) {
+    try {
+      const check: any = await targetPg.unsafe(
+        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'rentals') as exists;`
+      );
+      if (check && check[0]?.exists) {
+        return;
+      }
+    } catch {}
+  }
   const statements = [
     `DO $$ BEGIN CREATE TYPE "rental_status" AS ENUM('ACTIVE', 'PAYMENT_DUE', 'OVERDUE', 'SUSPENDED', 'RETURNED', 'COMPLETED', 'CANCELLED', 'TERMINATED'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
     `DO $$ BEGIN CREATE TYPE "rental_payment_status" AS ENUM('PAID', 'PARTIALLY_PAID', 'NOT_PAID', 'DUE', 'OVERDUE'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
@@ -403,6 +533,184 @@ export async function ensureRentalTables(targetPg: PGlite | postgres.Sql): Promi
 }
 
 /**
+ * Ensures Inventory Management tables and indexes exist (isolated from RO machines)
+ */
+export async function ensureInventoryTables(targetPg: PGlite | postgres.Sql): Promise<void> {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS "inventory_items" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "name" text NOT NULL,
+      "category" text NOT NULL,
+      "brand" text,
+      "part_number" text,
+      "description" text,
+      "purchase_price" numeric(12, 2) NOT NULL,
+      "selling_price" numeric(12, 2) NOT NULL,
+      "current_stock" integer DEFAULT 0 NOT NULL,
+      "min_stock_level" integer DEFAULT 0 NOT NULL,
+      "status" text DEFAULT 'ACTIVE' NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "archived_at" timestamp with time zone
+    );`,
+    `CREATE INDEX IF NOT EXISTS "inventory_items_name_idx" ON "inventory_items" ("name");`,
+    `CREATE INDEX IF NOT EXISTS "inventory_items_category_idx" ON "inventory_items" ("category");`,
+    `CREATE INDEX IF NOT EXISTS "inventory_items_part_number_idx" ON "inventory_items" ("part_number");`,
+    `CREATE INDEX IF NOT EXISTS "inventory_items_status_idx" ON "inventory_items" ("status");`,
+
+    `CREATE TABLE IF NOT EXISTS "inventory_purchases" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "purchase_number" text NOT NULL UNIQUE,
+      "item_id" uuid NOT NULL REFERENCES "inventory_items"("id") ON DELETE RESTRICT,
+      "supplier_name" text,
+      "purchase_date" timestamp with time zone NOT NULL,
+      "quantity" integer NOT NULL,
+      "remaining_quantity" integer NOT NULL,
+      "purchase_price_per_unit" numeric(12, 2) NOT NULL,
+      "total_amount" numeric(12, 2) NOT NULL,
+      "notes" text,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS "inventory_purchases_item_id_idx" ON "inventory_purchases" ("item_id");`,
+    `CREATE INDEX IF NOT EXISTS "inventory_purchases_date_idx" ON "inventory_purchases" ("purchase_date");`,
+    `CREATE INDEX IF NOT EXISTS "inventory_purchases_rem_qty_idx" ON "inventory_purchases" ("remaining_quantity");`,
+
+    `CREATE TABLE IF NOT EXISTS "inventory_sales" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "sale_number" text NOT NULL UNIQUE,
+      "item_id" uuid NOT NULL REFERENCES "inventory_items"("id") ON DELETE RESTRICT,
+      "customer_id" uuid REFERENCES "customers"("id") ON DELETE SET NULL,
+      "customer_name" text NOT NULL,
+      "customer_phone" text,
+      "sale_date" timestamp with time zone NOT NULL,
+      "quantity" integer NOT NULL,
+      "selling_price_per_unit" numeric(12, 2) NOT NULL,
+      "purchase_cost_per_unit" numeric(12, 2) NOT NULL,
+      "total_sale_amount" numeric(12, 2) NOT NULL,
+      "total_cost_amount" numeric(12, 2) NOT NULL,
+      "profit" numeric(12, 2) NOT NULL,
+      "payment_status" text DEFAULT 'COMPLETED' NOT NULL,
+      "notes" text,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS "inventory_sales_item_id_idx" ON "inventory_sales" ("item_id");`,
+    `CREATE INDEX IF NOT EXISTS "inventory_sales_customer_id_idx" ON "inventory_sales" ("customer_id");`,
+    `CREATE INDEX IF NOT EXISTS "inventory_sales_date_idx" ON "inventory_sales" ("sale_date");`,
+  ];
+
+  if ('exec' in targetPg) {
+    for (const stmt of statements) {
+      try {
+        await targetPg.exec(stmt);
+      } catch {}
+    }
+  } else {
+    for (const stmt of statements) {
+      try {
+        await targetPg.unsafe(stmt);
+      } catch {}
+    }
+  }
+}
+
+/**
+ * Ensures WhatsApp Business tables, enums, and indexes exist
+ */
+export async function ensureWhatsAppTables(targetPg: PGlite | postgres.Sql): Promise<void> {
+  const statements = [
+    `DO $$ BEGIN CREATE TYPE "whatsapp_opt_in_status" AS ENUM('OPTED_IN', 'OPTED_OUT', 'UNKNOWN'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
+    `DO $$ BEGIN CREATE TYPE "whatsapp_conversation_status" AS ENUM('ACTIVE', 'CLOSED', 'ARCHIVED'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
+    `DO $$ BEGIN CREATE TYPE "whatsapp_direction" AS ENUM('INBOUND', 'OUTBOUND'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
+    `DO $$ BEGIN CREATE TYPE "whatsapp_message_type" AS ENUM('TEXT', 'TEMPLATE', 'IMAGE', 'DOCUMENT', 'OTHER'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
+    `DO $$ BEGIN CREATE TYPE "whatsapp_message_status" AS ENUM('QUEUED', 'SENT', 'DELIVERED', 'READ', 'FAILED'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
+
+    `CREATE TABLE IF NOT EXISTS "whatsapp_contacts" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "customer_id" uuid REFERENCES "customers"("id") ON DELETE SET NULL,
+      "phone" text NOT NULL,
+      "wa_id" text,
+      "opt_in_status" "whatsapp_opt_in_status" DEFAULT 'UNKNOWN' NOT NULL,
+      "opt_in_timestamp" timestamp with time zone,
+      "opt_out_timestamp" timestamp with time zone,
+      "last_interaction_at" timestamp with time zone,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS "whatsapp_contacts_customer_id_idx" ON "whatsapp_contacts" ("customer_id");`,
+    `CREATE INDEX IF NOT EXISTS "whatsapp_contacts_phone_idx" ON "whatsapp_contacts" ("phone");`,
+    `CREATE INDEX IF NOT EXISTS "whatsapp_contacts_wa_id_idx" ON "whatsapp_contacts" ("wa_id");`,
+
+    `CREATE TABLE IF NOT EXISTS "whatsapp_conversations" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "customer_id" uuid REFERENCES "customers"("id") ON DELETE SET NULL,
+      "contact_id" uuid NOT NULL REFERENCES "whatsapp_contacts"("id") ON DELETE CASCADE,
+      "status" "whatsapp_conversation_status" DEFAULT 'ACTIVE' NOT NULL,
+      "unread_count" integer DEFAULT 0 NOT NULL,
+      "last_message_at" timestamp with time zone,
+      "last_message_preview" text,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS "whatsapp_conversations_customer_id_idx" ON "whatsapp_conversations" ("customer_id");`,
+    `CREATE INDEX IF NOT EXISTS "whatsapp_conversations_contact_id_idx" ON "whatsapp_conversations" ("contact_id");`,
+    `CREATE INDEX IF NOT EXISTS "whatsapp_conversations_last_message_at_idx" ON "whatsapp_conversations" ("last_message_at");`,
+
+    `CREATE TABLE IF NOT EXISTS "whatsapp_messages" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "conversation_id" uuid NOT NULL REFERENCES "whatsapp_conversations"("id") ON DELETE CASCADE,
+      "contact_id" uuid NOT NULL REFERENCES "whatsapp_contacts"("id") ON DELETE CASCADE,
+      "provider_message_id" text,
+      "direction" "whatsapp_direction" NOT NULL,
+      "message_type" "whatsapp_message_type" DEFAULT 'TEXT' NOT NULL,
+      "content" text NOT NULL,
+      "template_name" text,
+      "template_params" jsonb,
+      "status" "whatsapp_message_status" DEFAULT 'QUEUED' NOT NULL,
+      "error_code" text,
+      "error_message" text,
+      "sent_at" timestamp with time zone,
+      "delivered_at" timestamp with time zone,
+      "read_at" timestamp with time zone,
+      "failed_at" timestamp with time zone,
+      "sent_by_user_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS "whatsapp_messages_conversation_id_idx" ON "whatsapp_messages" ("conversation_id");`,
+    `CREATE INDEX IF NOT EXISTS "whatsapp_messages_provider_msg_id_idx" ON "whatsapp_messages" ("provider_message_id");`,
+    `CREATE INDEX IF NOT EXISTS "whatsapp_messages_status_idx" ON "whatsapp_messages" ("status");`,
+    `CREATE INDEX IF NOT EXISTS "whatsapp_messages_created_at_idx" ON "whatsapp_messages" ("created_at");`,
+
+    `CREATE TABLE IF NOT EXISTS "whatsapp_events" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "provider_event_id" text NOT NULL UNIQUE,
+      "event_type" text NOT NULL,
+      "payload" jsonb NOT NULL,
+      "processed_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS "whatsapp_events_provider_event_id_idx" ON "whatsapp_events" ("provider_event_id");`,
+    `CREATE INDEX IF NOT EXISTS "whatsapp_events_created_at_idx" ON "whatsapp_events" ("created_at");`,
+  ];
+
+  if ('exec' in targetPg) {
+    for (const stmt of statements) {
+      try {
+        await targetPg.exec(stmt);
+      } catch {}
+    }
+  } else {
+    for (const stmt of statements) {
+      try {
+        await targetPg.unsafe(stmt);
+      } catch {}
+    }
+  }
+}
+
+/**
  * Ensures migrations and initial database initialization is executed once on server startup
  */
 export async function ensureDatabaseInitialized(): Promise<void> {
@@ -414,16 +722,38 @@ export async function ensureDatabaseInitialized(): Promise<void> {
       getDatabaseClient();
 
       if (pgliteClient) {
-        await pgliteClient.waitReady;
+        try {
+          await pgliteClient.waitReady;
+        } catch (readyErr) {
+          console.warn('[Database] Storage lock or state issue detected on startup, performing clean recovery...', readyErr);
+          const storageDir = resolveDatabaseStorageDir();
+          try {
+            await pgliteClient.close();
+          } catch {}
+          fs.rmSync(storageDir, { recursive: true, force: true });
+          fs.mkdirSync(storageDir, { recursive: true });
+          pgliteClient = new PGlite(storageDir);
+          await pgliteClient.waitReady;
+          dbInstance = drizzlePglite(pgliteClient, { schema });
+        }
+
         await applySqlMigrations(pgliteClient);
         await ensureEmailTables(pgliteClient);
         await ensureGoogleDriveColumns(pgliteClient);
         await ensureRentalTables(pgliteClient);
+        await ensureSaleColumns(pgliteClient);
+        await ensureCustomerLabelColumn(pgliteClient);
+        await ensureInventoryTables(pgliteClient);
+        await ensureWhatsAppTables(pgliteClient);
       } else if (pgClient) {
         await applySqlMigrations(pgClient);
         await ensureEmailTables(pgClient);
         await ensureGoogleDriveColumns(pgClient);
         await ensureRentalTables(pgClient);
+        await ensureSaleColumns(pgClient);
+        await ensureCustomerLabelColumn(pgClient);
+        await ensureInventoryTables(pgClient);
+        await ensureWhatsAppTables(pgClient);
       }
 
       isInitialized = true;

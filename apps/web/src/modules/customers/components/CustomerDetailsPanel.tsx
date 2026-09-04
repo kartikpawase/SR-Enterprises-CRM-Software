@@ -68,6 +68,18 @@ export const CustomerDetailsPanel: React.FC<CustomerDetailsPanelProps> = ({
                   <span>Inactive</span>
                 </span>
               )}
+              {customer.customerLabel === 'GOOD' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/90 text-[10px] font-bold shadow-2xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                  <span>Good Customer</span>
+                </span>
+              )}
+              {customer.customerLabel === 'BAD' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200/90 text-[10px] font-bold shadow-2xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+                  <span>Bad Customer</span>
+                </span>
+              )}
             </div>
           </div>
         </div>

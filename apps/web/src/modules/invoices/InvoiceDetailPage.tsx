@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
-import { useInvoiceQuery, useCancelInvoiceMutation } from './invoices.api';
+import { useInvoiceQuery, useCancelInvoiceMutation, useSendInvoiceDueMailMutation } from './invoices.api';
 import { useInvoicePayments, type PaymentItem } from '../payments/payments.api';
 import { RecordPaymentModal } from '../payments/components/RecordPaymentModal';
 import { PaymentReceiptModal } from '../payments/components/PaymentReceiptModal';
@@ -24,6 +24,7 @@ import {
   Receipt,
   Plus,
   MessageCircle,
+  Mail,
 } from 'lucide-react';
 
 export const InvoiceDetailPage: React.FC = () => {
@@ -40,6 +41,7 @@ export const InvoiceDetailPage: React.FC = () => {
   const { data: invoice, isLoading } = useInvoiceQuery(id);
   const { data: invoicePayments } = useInvoicePayments(id || '');
   const cancelMutation = useCancelInvoiceMutation();
+  const sendDueMailMutation = useSendInvoiceDueMailMutation();
   const canCancel = hasPermission('invoices.cancel');
   const canRecordPayment = hasPermission('payments.create');
 
@@ -112,6 +114,33 @@ export const InvoiceDetailPage: React.FC = () => {
     }
   };
 
+  const handleSendEmail = async () => {
+    if (!invoice.customerEmail || !invoice.customerEmail.includes('@')) {
+      toast.error(
+        `Customer ${invoice.customerName} has no valid email address in the database.`,
+        'Email Missing'
+      );
+      return;
+    }
+
+    try {
+      const res: any = await sendDueMailMutation.mutateAsync(invoice.id);
+      if (!res || res.success === false || res.data?.success === false) {
+        toast.error(
+          res?.data?.message || res?.message || 'Unable to send email reminder. Please verify SMTP configuration.',
+          'Email Dispatch Failed'
+        );
+      } else {
+        toast.success(
+          `Payment reminder email sent successfully to ${invoice.customerEmail} via PHPMailer.`,
+          'Email Sent'
+        );
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to dispatch email. Please check SMTP configuration.', 'Email Error');
+    }
+  };
+
   const statusVariantMap: Record<string, any> = {
     ISSUED: 'warning',
     PAID: 'active',
@@ -151,6 +180,17 @@ export const InvoiceDetailPage: React.FC = () => {
                   leftIcon={<MessageCircle className="w-4 h-4" />}
                 >
                   Send via WhatsApp
+                </Button>
+              )}
+              {invoice.status !== 'CANCELLED' && (
+                <Button
+                  variant="outline"
+                  onClick={handleSendEmail}
+                  disabled={sendDueMailMutation.isPending}
+                  className="hover:bg-slate-50 text-slate-700 font-semibold"
+                  leftIcon={<Mail className="w-4 h-4 text-indigo-600" />}
+                >
+                  {sendDueMailMutation.isPending ? 'Sending Email...' : 'Send Email'}
                 </Button>
               )}
               {invoice.status !== 'CANCELLED' && invoice.status !== 'PAID' && canRecordPayment && (
@@ -253,6 +293,7 @@ export const InvoiceDetailPage: React.FC = () => {
         const discountAmountNum = parseFloat(invoice.discountAmount || '0');
         const paidAmountNum = parseFloat(invoice.paidAmount || '0');
         const outstandingNum = parseFloat(invoice.outstandingAmount || '0');
+        const hasOutstanding = outstandingNum > 0.001 && invoice.status !== 'PAID';
 
         const formattedTotalAmount = totalAmountNum.toLocaleString('en-IN', { maximumFractionDigits: 2 });
         const formattedReceivedAmount = paidAmountNum.toLocaleString('en-IN', { maximumFractionDigits: 2 });
@@ -316,19 +357,27 @@ export const InvoiceDetailPage: React.FC = () => {
                     <p className="text-[11px] font-medium text-black mt-1">Mobile: {customerPhone}</p>
                   </div>
 
-                  <div className="col-span-6 grid grid-cols-3 text-center bg-white">
+                  <div className={cn(
+                    "col-span-6 grid text-center bg-white",
+                    hasOutstanding ? "grid-cols-3" : "grid-cols-2"
+                  )}>
                     <div className="border-r border-black p-2 flex flex-col justify-center items-center">
                       <span className="text-[10px] font-bold text-black">Invoice No.</span>
                       <span className="text-[11px] font-bold font-mono text-black mt-0.5">{invoiceNo}</span>
                     </div>
-                    <div className="border-r border-black p-2 flex flex-col justify-center items-center">
+                    <div className={cn(
+                      "p-2 flex flex-col justify-center items-center",
+                      hasOutstanding && "border-r border-black"
+                    )}>
                       <span className="text-[10px] font-bold text-black">Invoice Date</span>
                       <span className="text-[11px] font-bold text-black mt-0.5">{invoiceDate}</span>
                     </div>
-                    <div className="p-2 flex flex-col justify-center items-center">
-                      <span className="text-[10px] font-bold text-black">Due Date</span>
-                      <span className="text-[11px] font-bold text-black mt-0.5">{dueDate}</span>
-                    </div>
+                    {hasOutstanding && (
+                      <div className="p-2 flex flex-col justify-center items-center">
+                        <span className="text-[10px] font-bold text-black">Due Date</span>
+                        <span className="text-[11px] font-bold text-black mt-0.5">{dueDate}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

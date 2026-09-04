@@ -31,7 +31,7 @@ export interface SalesOrderRow {
   productType: 'ro' | 'service' | 'maintenance' | 'filter';
   amount: string;
   status: 'Delivered' | 'Processing' | 'Pending' | 'Cancelled';
-  paymentMethod: 'Paid' | 'COD' | 'UPI' | 'Pending';
+  paymentMethod: 'Paid' | 'Partially Paid' | 'COD' | 'UPI' | 'Pending';
   date: string;
   time: string;
 }
@@ -200,7 +200,12 @@ export const SalesOrdersTable: React.FC<SalesOrdersTableProps> = ({
       productType: 'ro',
       amount: `₹ ${parseFloat(sale.totalAmount || '0').toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
       status: sale.status === 'COMPLETED' ? 'Delivered' : sale.status === 'CANCELLED' ? 'Cancelled' : 'Processing',
-      paymentMethod: sale.invoice?.status === 'PAID' ? 'Paid' : 'Pending',
+      paymentMethod:
+        sale.invoice?.status === 'PAID' || (sale as any).paymentStatus === 'PAID'
+          ? 'Paid'
+          : sale.invoice?.status === 'PARTIALLY_PAID' || (sale as any).paymentStatus === 'PARTIALLY_PAID'
+          ? 'Partially Paid'
+          : 'Pending',
       date: dateObj.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }),
       time: dateObj.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true }),
     };
@@ -279,7 +284,13 @@ export const SalesOrdersTable: React.FC<SalesOrdersTableProps> = ({
       case 'Paid':
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            Paid
+            Payment Complete
+          </span>
+        );
+      case 'Partially Paid':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+            Partially Paid
           </span>
         );
       case 'COD':
@@ -298,7 +309,7 @@ export const SalesOrdersTable: React.FC<SalesOrdersTableProps> = ({
       default:
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-200">
-            Pending
+            Payment Pending
           </span>
         );
     }

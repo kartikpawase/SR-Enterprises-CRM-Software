@@ -150,7 +150,7 @@ describe('SR Enterprises CRM - PHPMailer & PDF Notification System', () => {
         eventType: 'SALE_CONFIRMATION',
         referenceType: 'SALE',
         referenceId: 'sale-unit-test-101',
-        idempotencyKey: 'SALE_CONFIRMATION:sale-unit-test-101',
+        idempotencyKey: `SALE_CONFIRMATION:sale-unit-test-${Date.now()}`,
         recipientEmail: 'amit.verma@example.com',
         recipientName: 'Amit Verma',
         subject: 'Order Confirmation: Sale #SALE-2026-101',
@@ -504,6 +504,24 @@ describe('SR Enterprises CRM - PHPMailer & PDF Notification System', () => {
       expect(history.data.length).toBeGreaterThanOrEqual(2);
       expect(history.data.some((d: any) => d.eventType === 'SALE_CONFIRMATION')).toBe(true);
       expect(history.data.some((d: any) => d.eventType === 'PAYMENT_RECEIPT')).toBe(true);
+    });
+  });
+
+  describe('6. Invoices Service Send Due Mail End-to-End', () => {
+    it('returns a clean failure object when invoice record cannot be found without crashing', async () => {
+      const { invoicesService } = await import('../modules/invoices/invoices.service');
+      const res = await invoicesService.sendPaymentDueMail('00000000-0000-0000-0000-000000000000');
+      expect(res).toBeDefined();
+      expect(res.success).toBe(false);
+      expect(res.message).toContain('could not be found');
+    });
+
+    it('handles non-UUID string invoice identifiers gracefully', async () => {
+      const { invoicesService } = await import('../modules/invoices/invoices.service');
+      const res = await invoicesService.sendPaymentDueMail('INV-NON-EXISTENT-TEST');
+      expect(res).toBeDefined();
+      expect(res.success).toBe(false);
+      expect(res.message).toContain('could not be found');
     });
   });
 });

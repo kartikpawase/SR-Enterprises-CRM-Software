@@ -59,11 +59,13 @@ export interface NavigationItem {
 
 export const NAVIGATION_ITEMS: NavigationItem[] = [
   { key: 'dashboard', label: 'Dashboard', path: '/dashboard', icon: 'LayoutDashboard' },
+  { key: 'dues', label: 'Dues', path: '/dues', icon: 'CalendarClock' },
   { key: 'customers', label: 'Customers', path: '/customers', icon: 'UsersRound' },
   { key: 'sales', label: 'Sales', path: '/sales', icon: 'BarChart3' },
   { key: 'rent', label: 'Rent', path: '/rent', icon: 'Repeat' },
   { key: 'invoices', label: 'Invoices', path: '/invoices', icon: 'FileText' },
   { key: 'services', label: 'Services', path: '/services', icon: 'Wrench' },
+  { key: 'inventory', label: 'Inventory', path: '/inventory', icon: 'PackageSearch' },
   { key: 'technicians', label: 'Technicians', path: '/technicians', icon: 'UserCog' },
   { key: 'payments', label: 'Payments', path: '/payments', icon: 'WalletCards' },
   { key: 'reports', label: 'Reports', path: '/reports', icon: 'PieChart' },

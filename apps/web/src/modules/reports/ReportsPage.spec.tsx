@@ -47,6 +47,33 @@ vi.mock('../analytics/analytics.api', () => ({
   useInquiryAnalytics: () => ({ data: {}, isLoading: false }),
 }));
 
+vi.mock('../customers/customer.api', () => ({
+  useCustomersQuery: () => ({ data: { data: [] }, isLoading: false }),
+}));
+
+vi.mock('../invoices/invoices.api', () => ({
+  useInvoicesQuery: () => ({ data: { data: [] }, isLoading: false }),
+}));
+
+vi.mock('../job-cards/job-cards.api', () => ({
+  useJobCardsQuery: () => ({ data: { data: [] }, isLoading: false }),
+}));
+
+vi.mock('../technicians/technicians.api', () => ({
+  useTechniciansQuery: () => ({ data: { data: [] }, isLoading: false }),
+}));
+
+vi.mock('../sales/sales.api', () => ({
+  useSalesQuery: () => ({ data: { data: [] }, isLoading: false }),
+  useProductsQuery: () => ({ data: [], isLoading: false }),
+}));
+
+vi.mock('../warranties/warranties.api', () => ({
+  useWarrantiesQuery: () => ({ data: { data: [] }, isLoading: false }),
+}));
+
+import { ToastProvider } from '../../providers/ToastProvider';
+
 describe('Reports & Analytics Page (/reports)', () => {
   const createTestQueryClient = () =>
     new QueryClient({
@@ -61,9 +88,11 @@ describe('Reports & Analytics Page (/reports)', () => {
     const queryClient = createTestQueryClient();
     return render(
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <ReportsPage />
-        </BrowserRouter>
+        <ToastProvider>
+          <BrowserRouter>
+            <ReportsPage />
+          </BrowserRouter>
+        </ToastProvider>
       </QueryClientProvider>
     );
   };
@@ -73,7 +102,7 @@ describe('Reports & Analytics Page (/reports)', () => {
 
     expect(screen.getByRole('heading', { name: /Reports/i })).toBeDefined();
     expect(
-      screen.getByText(/Track business performance, customer activity, sales, services and revenue/i)
+      screen.getByText(/Real-time business performance/i)
     ).toBeDefined();
     expect(screen.getByRole('button', { name: /Export Report/i })).toBeDefined();
   });
@@ -85,7 +114,7 @@ describe('Reports & Analytics Page (/reports)', () => {
     expect(screen.getByText('Total Sales')).toBeDefined();
     expect(screen.getByText('Total Customers')).toBeDefined();
     expect(screen.getByText('Services Completed')).toBeDefined();
-    expect(screen.getByText('Outstanding Payments')).toBeDefined();
+    expect(screen.getByText('Outstanding Balance')).toBeDefined();
   });
 
   it('renders report control bar with report tabs and date filters', () => {
@@ -105,17 +134,17 @@ describe('Reports & Analytics Page (/reports)', () => {
     renderComponent();
 
     // Chart titles
-    expect(screen.getByText('Revenue & Sales Overview')).toBeDefined();
-    expect(screen.getByText('Performance Summary')).toBeDefined();
+    expect(screen.getByText(/Revenue & Realization Trajectory/i)).toBeDefined();
+    expect(screen.getByText('Gross Billed')).toBeDefined();
 
     // Sections
     expect(screen.getByText('Sales Performance')).toBeDefined();
     expect(screen.getByText('Customer Insights')).toBeDefined();
     expect(screen.getByText('Service Performance')).toBeDefined();
     expect(screen.getByText('Financial Overview')).toBeDefined();
-    expect(screen.getByText('Top Performing Products')).toBeDefined();
-    expect(screen.getByText('Technician Performance')).toBeDefined();
-    expect(screen.getByText('Warranty & Service Alerts')).toBeDefined();
+    expect(screen.getByText(/Product Performance & Catalog/i)).toBeDefined();
+    expect(screen.getByText(/Technician Performance & Workforce/i)).toBeDefined();
+    expect(screen.getByText(/Warranty & Service Alerts/i)).toBeDefined();
     expect(screen.getByText('Business Insights')).toBeDefined();
   });
 
@@ -126,17 +155,15 @@ describe('Reports & Analytics Page (/reports)', () => {
     fireEvent.click(exportBtn);
 
     // Modal should be open
-    expect(screen.getByText('Generate downloadable business report')).toBeDefined();
-    expect(screen.getByText('PDF Document')).toBeDefined();
-    expect(screen.getByText('CSV Data')).toBeDefined();
-    expect(screen.getByText('Excel (.xlsx)')).toBeDefined();
+    expect(screen.getByText('Export Analytics Report')).toBeDefined();
+    expect(screen.getByText('CSV Dataset')).toBeDefined();
 
     // Cancel modal
     const cancelBtn = screen.getByRole('button', { name: /Cancel/i });
     fireEvent.click(cancelBtn);
 
     // Modal should close
-    expect(screen.queryByText('Generate downloadable business report')).toBeNull();
+    expect(screen.queryByText('Export Analytics Report')).toBeNull();
   });
 
   it('filters view to Sales tab when clicked', () => {
@@ -145,7 +172,7 @@ describe('Reports & Analytics Page (/reports)', () => {
     const salesTab = screen.getAllByRole('button', { name: /Sales/i })[0]!;
     fireEvent.click(salesTab);
 
+    expect(screen.getByText('Total Sales Revenue')).toBeDefined();
     expect(screen.getByText('Sales Performance')).toBeDefined();
-    expect(screen.getByText('Top Performing Products')).toBeDefined();
   });
 });

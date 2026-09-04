@@ -17,18 +17,23 @@ import {
   Cpu,
   Receipt,
   AlertCircle,
+  MessageSquare,
+  Send,
 } from 'lucide-react';
 import {
   useJobCardDetailQuery,
   useJobCardActionMutation,
+  useNotifyTechnicianWhatsAppMutation,
 } from './job-cards.api';
 import { useTechniciansQuery } from '../technicians/technicians.api';
+import { useToast } from '../../providers/ToastProvider';
 import { AssignTechnicianModal } from './components/AssignTechnicianModal';
 import { CompleteJobCardModal } from './components/CompleteJobCardModal';
 
 export const JobCardDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const { data: jobCard, isLoading, isError, refetch } = useJobCardDetailQuery(id);
   const { data: techniciansData } = useTechniciansQuery({ limit: 100 });
@@ -36,8 +41,10 @@ export const JobCardDetailPage: React.FC = () => {
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [isCompleteOpen, setIsCompleteOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [whatsappFeedback, setWhatsappFeedback] = useState<{ type: 'success' | 'error'; message: string; directUrl?: string } | null>(null);
 
   const actionMutation = useJobCardActionMutation();
+  const notifyWhatsAppMutation = useNotifyTechnicianWhatsAppMutation();
 
   if (isLoading) {
     return (
@@ -78,6 +85,38 @@ export const JobCardDetailPage: React.FC = () => {
       refetch();
     } catch (err: any) {
       setActionError(err?.response?.data?.message || err.message || `Failed to perform ${action}`);
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    setWhatsappFeedback(null);
+    try {
+      const res = await notifyWhatsAppMutation.mutateAsync(jobCard.id);
+      const resData = (res as any)?.data || res;
+      if (res?.success) {
+        const successMsg = res.message || `WhatsApp notification sent to ${jobCard.technicianName || 'technician'}!`;
+        setWhatsappFeedback({
+          type: 'success',
+          message: successMsg,
+          directUrl: resData?.directUrl,
+        });
+        toast.success(successMsg, 'WhatsApp Sent');
+      } else {
+        const errorMsg = res?.message || resData?.error || 'Failed to send WhatsApp notification';
+        setWhatsappFeedback({
+          type: 'error',
+          message: errorMsg,
+          directUrl: resData?.directUrl,
+        });
+        toast.error(errorMsg, 'WhatsApp Error');
+      }
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'WhatsApp notification failed';
+      setWhatsappFeedback({
+        type: 'error',
+        message: errMsg,
+      });
+      toast.error(errMsg, 'WhatsApp Failed');
     }
   };
 
@@ -498,6 +537,51 @@ export const JobCardDetailPage: React.FC = () => {
                         {sk}
                       </span>
                     ))}
+                  </div>
+                )}
+
+                {/* WhatsApp Technician Notification Status & Manual Trigger */}
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500 flex items-center gap-1 font-medium">
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                    WhatsApp Alert
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSendWhatsApp}
+                    disabled={notifyWhatsAppMutation.isPending}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer border border-emerald-700 disabled:opacity-50"
+                    title="Send WhatsApp assignment notification to technician"
+                  >
+                    <Send className="w-3 h-3" />
+                    {notifyWhatsAppMutation.isPending ? 'Sending...' : 'Notify WhatsApp'}
+                  </button>
+                </div>
+
+                {whatsappFeedback && (
+                  <div
+                    className={`p-2 rounded-lg text-[11px] flex items-center justify-between gap-1.5 ${
+                      whatsappFeedback.type === 'success'
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-rose-50 text-rose-800 border border-rose-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="break-words">{whatsappFeedback.message}</span>
+                    </div>
+                    {whatsappFeedback.directUrl && (
+                      <a
+                        href={whatsappFeedback.directUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded transition-colors text-[10px] shrink-0"
+                        title="Open WhatsApp chat with technician"
+                      >
+                        <Send className="w-2.5 h-2.5" />
+                        Open WhatsApp
+                      </a>
+                    )}
                   </div>
                 )}
               </div>

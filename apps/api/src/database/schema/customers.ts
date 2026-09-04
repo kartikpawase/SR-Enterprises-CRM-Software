@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, boolean, timestamp, index } from 'drizzle-orm/pg-core';
-import { customerTypeEnum, customerStatusEnum, addressTypeEnum } from './enums';
+import { customerTypeEnum, customerStatusEnum, customerLabelEnum, addressTypeEnum } from './enums';
 import { users } from './users';
 
 /**
@@ -17,6 +17,7 @@ export const customers = pgTable(
     companyName: text('company_name'),
     gstNumber: text('gst_number'),
     status: customerStatusEnum('status').default('ACTIVE').notNull(),
+    customerLabel: customerLabelEnum('customer_label'),
     notes: text('notes'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
@@ -28,6 +29,7 @@ export const customers = pgTable(
     index('customers_phone_idx').on(table.phone),
     index('customers_email_idx').on(table.email),
     index('customers_status_idx').on(table.status),
+    index('customers_customer_label_idx').on(table.customerLabel),
     index('customers_created_at_idx').on(table.createdAt),
   ]
 );

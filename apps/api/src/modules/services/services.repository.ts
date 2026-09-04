@@ -1,4 +1,4 @@
-import { eq, and, or, ilike, sql, desc, asc } from 'drizzle-orm';
+import { eq, and, or, inArray, ilike, sql, desc, asc } from 'drizzle-orm';
 import { db } from '../../database/client';
 import {
   services,
@@ -8,6 +8,9 @@ import {
   products,
   technicians,
   warranties,
+  invoices,
+  invoiceItems,
+  payments,
   customerActivities,
   auditLogs,
 } from '../../database/schema/index';
@@ -16,6 +19,8 @@ import { withTransaction } from '../../database/transactions';
 import { randomUUID } from 'crypto';
 import { assetsRepository, memoryAssets } from '../assets/assets.repository';
 import { memoryJobCards } from '../job-cards/job-cards.repository';
+import { memoryInvoices } from '../invoices/invoices.repository';
+import { memoryPayments } from '../payments/payments.repository';
 import type {
   ServiceQueryFilter,
   CreateServiceInput,
@@ -147,9 +152,9 @@ export class ServicesRepository {
             jobCardStatus: jobCards.status,
           })
           .from(services)
-          .innerJoin(customers, eq(services.customerId, customers.id))
-          .innerJoin(customerAssets, eq(services.assetId, customerAssets.id))
-          .innerJoin(products, eq(customerAssets.productId, products.id))
+          .leftJoin(customers, eq(services.customerId, customers.id))
+          .leftJoin(customerAssets, eq(services.assetId, customerAssets.id))
+          .leftJoin(products, eq(customerAssets.productId, products.id))
           .leftJoin(technicians, eq(services.technicianId, technicians.id))
           .leftJoin(warranties, eq(services.warrantyId, warranties.id))
           .leftJoin(jobCards, eq(services.id, jobCards.serviceId))
@@ -160,17 +165,115 @@ export class ServicesRepository {
         database
           .select({ count: sql<number>`count(*)` })
           .from(services)
-          .innerJoin(customers, eq(services.customerId, customers.id))
-          .innerJoin(customerAssets, eq(services.assetId, customerAssets.id))
-          .innerJoin(products, eq(customerAssets.productId, products.id))
+          .leftJoin(customers, eq(services.customerId, customers.id))
+          .leftJoin(customerAssets, eq(services.assetId, customerAssets.id))
+          .leftJoin(products, eq(customerAssets.productId, products.id))
           .leftJoin(technicians, eq(services.technicianId, technicians.id))
           .where(whereClause),
       ]);
 
       const total = Number(countResult[0]?.count || 0);
 
+      // Fetch linked invoices for these services
+      const serviceIds = rows.map((r) => r.id);
+      const linkedInvoices =
+        serviceIds.length > 0
+          ? await database
+              .select({
+                id: invoices.id,
+                serviceId: invoices.serviceId,
+                jobCardId: invoices.jobCardId,
+                invoiceNumber: invoices.invoiceNumber,
+                status: invoices.status,
+                totalAmount: invoices.totalAmount,
+                dueDate: invoices.dueDate,
+              })
+              .from(invoices)
+              .where(
+                and(
+                  inArray(invoices.serviceId, serviceIds),
+                  sql`${invoices.status} != 'CANCELLED'`
+                )
+              )
+          : [];
+
+      const invoiceIds = linkedInvoices.map((inv) => inv.id);
+      const invoicePayments =
+        invoiceIds.length > 0
+          ? await database
+              .select({
+                invoiceId: payments.invoiceId,
+                amount: payments.amount,
+                status: payments.status,
+              })
+              .from(payments)
+              .where(
+                and(
+                  inArray(payments.invoiceId, invoiceIds),
+                  eq(payments.status, 'COMPLETED')
+                )
+              )
+          : [];
+
+      const paidByInvoiceId = new Map<string, number>();
+      for (const p of invoicePayments) {
+        const current = paidByInvoiceId.get(p.invoiceId) || 0;
+        paidByInvoiceId.set(p.invoiceId, current + (parseFloat(p.amount) || 0));
+      }
+
+      const invoiceMap = new Map<string, any>(
+        linkedInvoices.map((inv) => {
+          const paid = paidByInvoiceId.get(inv.id) || 0;
+          const total = parseFloat(inv.totalAmount || '0');
+          const outstanding = Math.max(0, total - paid);
+          const computedStatus =
+            inv.status === 'CANCELLED'
+              ? 'CANCELLED'
+              : outstanding <= 0.001 && paid > 0
+              ? 'PAID'
+              : paid > 0
+              ? 'PARTIALLY_PAID'
+              : inv.status;
+
+          return [
+            inv.serviceId,
+            {
+              ...inv,
+              status: computedStatus,
+              paidAmount: paid.toFixed(2),
+              outstandingAmount: outstanding.toFixed(2),
+            },
+          ];
+        })
+      );
+
+      const enrichedRows = rows.map((row) => {
+        const inv = invoiceMap.get(row.id) ?? null;
+        const paid = inv ? parseFloat(inv.paidAmount) || 0 : 0;
+        const total = inv
+          ? parseFloat(inv.totalAmount) || 0
+          : parseFloat(row.totalCharges || '0');
+        const outstanding = Math.max(0, total - paid);
+        const paymentStatus =
+          total <= 0
+            ? 'FREE'
+            : outstanding <= 0.001 && paid > 0
+            ? 'PAID'
+            : paid > 0
+            ? 'PARTIALLY_PAID'
+            : 'PENDING';
+
+        return {
+          ...row,
+          invoice: inv,
+          paidAmount: paid.toFixed(2),
+          outstandingAmount: outstanding.toFixed(2),
+          paymentStatus,
+        };
+      });
+
       return {
-        data: rows,
+        data: enrichedRows,
         pagination: {
           page,
           limit,
@@ -283,9 +386,9 @@ export class ServicesRepository {
           jobCardCompletedAt: jobCards.completedAt,
         })
         .from(services)
-        .innerJoin(customers, eq(services.customerId, customers.id))
-        .innerJoin(customerAssets, eq(services.assetId, customerAssets.id))
-        .innerJoin(products, eq(customerAssets.productId, products.id))
+        .leftJoin(customers, eq(services.customerId, customers.id))
+        .leftJoin(customerAssets, eq(services.assetId, customerAssets.id))
+        .leftJoin(products, eq(customerAssets.productId, products.id))
         .leftJoin(technicians, eq(services.technicianId, technicians.id))
         .leftJoin(warranties, eq(services.warrantyId, warranties.id))
         .leftJoin(jobCards, eq(services.id, jobCards.serviceId))
@@ -296,22 +399,161 @@ export class ServicesRepository {
         const mem = memoryServices.find((s) => s.id === id);
         if (!mem) return null;
         const asset = memoryAssets.find((a) => a.id === mem.assetId);
+        const memInv =
+          memoryInvoices.find((i) => i.serviceId === id || (mem.jobCardId && i.jobCardId === mem.jobCardId)) || null;
+        const memPayments = memInv
+          ? memoryPayments.filter((p) => p.invoiceId === memInv.id)
+          : [];
+        const memValid = memPayments.filter((p) => p.status === 'COMPLETED');
+        const memPaid = memValid.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+        const memTotal = memInv ? parseFloat(memInv.totalAmount || '0') : parseFloat(mem.totalCharges || '0');
+        const memOutstanding = Math.max(0, memTotal - memPaid);
+
         return {
           ...mem,
           productName: asset?.customName || asset?.productName || 'RO Machine',
           serialNumber: asset?.serialNumber || '',
+          invoice: memInv
+            ? {
+                ...memInv,
+                paidAmount: memPaid.toFixed(2),
+                outstandingAmount: memOutstanding.toFixed(2),
+                payments: memPayments,
+              }
+            : null,
+          paidAmount: memPaid.toFixed(2),
+          outstandingAmount: memOutstanding.toFixed(2),
+          paymentStatus:
+            memTotal <= 0
+              ? 'FREE'
+              : memOutstanding <= 0.001 && memPaid > 0
+              ? 'PAID'
+              : memPaid > 0
+              ? 'PARTIALLY_PAID'
+              : 'PENDING',
+          payments: memPayments,
         };
       }
 
-      return rows[0];
+      // Query linked invoice for this service
+      const [invoice] = await database
+        .select({
+          id: invoices.id,
+          invoiceNumber: invoices.invoiceNumber,
+          customerId: invoices.customerId,
+          status: invoices.status,
+          totalAmount: invoices.totalAmount,
+          subtotal: invoices.subtotal,
+          discountAmount: invoices.discountAmount,
+          taxAmount: invoices.taxAmount,
+          dueDate: invoices.dueDate,
+          createdAt: invoices.createdAt,
+        })
+        .from(invoices)
+        .where(
+          and(
+            or(
+              eq(invoices.serviceId, id),
+              rows[0].jobCardId ? eq(invoices.jobCardId, rows[0].jobCardId) : sql`false`
+            ),
+            sql`${invoices.status} != 'CANCELLED'`
+          )
+        )
+        .limit(1);
+
+      const linkedPayments = invoice
+        ? await database
+            .select({
+              id: payments.id,
+              paymentNumber: payments.paymentNumber,
+              paymentDate: payments.paymentDate,
+              amount: payments.amount,
+              paymentMethod: payments.paymentMethod,
+              referenceNumber: payments.referenceNumber,
+              status: payments.status,
+              notes: payments.notes,
+            })
+            .from(payments)
+            .where(eq(payments.invoiceId, invoice.id))
+            .orderBy(desc(payments.paymentDate))
+        : [];
+
+      const validPayments = linkedPayments.filter((p) => p.status === 'COMPLETED');
+      const paidAmount = validPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+      const totalAmountNum = invoice
+        ? parseFloat(invoice.totalAmount || '0')
+        : parseFloat(rows[0].totalCharges || '0');
+      const outstandingAmount = Math.max(0, totalAmountNum - paidAmount);
+      const computedInvoiceStatus =
+        invoice?.status === 'CANCELLED'
+          ? 'CANCELLED'
+          : outstandingAmount <= 0.001 && paidAmount > 0
+          ? 'PAID'
+          : paidAmount > 0
+          ? 'PARTIALLY_PAID'
+          : invoice?.status || 'ISSUED';
+      const paymentStatus =
+        totalAmountNum <= 0
+          ? 'FREE'
+          : outstandingAmount <= 0.001 && paidAmount > 0
+          ? 'PAID'
+          : paidAmount > 0
+          ? 'PARTIALLY_PAID'
+          : 'PENDING';
+
+      return {
+        ...rows[0],
+        invoice: invoice
+          ? {
+              ...invoice,
+              status: computedInvoiceStatus,
+              paidAmount: paidAmount.toFixed(2),
+              outstandingAmount: outstandingAmount.toFixed(2),
+              payments: linkedPayments,
+            }
+          : null,
+        paidAmount: paidAmount.toFixed(2),
+        outstandingAmount: outstandingAmount.toFixed(2),
+        paymentStatus,
+        payments: linkedPayments,
+      };
     } catch {
       const mem = memoryServices.find((s) => s.id === id);
       if (!mem) return null;
       const asset = memoryAssets.find((a) => a.id === mem.assetId);
+      const memInv =
+        memoryInvoices.find((i) => i.serviceId === id || (mem.jobCardId && i.jobCardId === mem.jobCardId)) || null;
+      const memPayments = memInv
+        ? memoryPayments.filter((p) => p.invoiceId === memInv.id)
+        : [];
+      const memValid = memPayments.filter((p) => p.status === 'COMPLETED');
+      const memPaid = memValid.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+      const memTotal = memInv ? parseFloat(memInv.totalAmount || '0') : parseFloat(mem.totalCharges || '0');
+      const memOutstanding = Math.max(0, memTotal - memPaid);
+
       return {
         ...mem,
         productName: asset?.customName || asset?.productName || 'RO Machine',
         serialNumber: asset?.serialNumber || '',
+        invoice: memInv
+          ? {
+              ...memInv,
+              paidAmount: memPaid.toFixed(2),
+              outstandingAmount: memOutstanding.toFixed(2),
+              payments: memPayments,
+            }
+          : null,
+        paidAmount: memPaid.toFixed(2),
+        outstandingAmount: memOutstanding.toFixed(2),
+        paymentStatus:
+          memTotal <= 0
+            ? 'FREE'
+            : memOutstanding <= 0.001 && memPaid > 0
+            ? 'PAID'
+            : memPaid > 0
+            ? 'PARTIALLY_PAID'
+            : 'PENDING',
+        payments: memPayments,
       };
     }
   }
@@ -344,12 +586,14 @@ export class ServicesRepository {
       for (const s of allServices) {
         if (!s.scheduledDate) continue;
         const d = new Date(s.scheduledDate);
+        if (isNaN(d.getTime())) continue;
         if (d < startDate || d > endDate) continue;
 
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const date_str = `${year}-${month}-${day}`;
+        const date_str = s.scheduledDate instanceof Date
+          ? s.scheduledDate.toISOString().split('T')[0]
+          : typeof s.scheduledDate === 'string'
+          ? s.scheduledDate.split('T')[0]
+          : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
         if (!map.has(date_str)) {
           map.set(date_str, {
@@ -504,349 +748,467 @@ export class ServicesRepository {
   }
 
   /**
-   * Create a new scheduled service with strict Customer-Asset validation
+   * Create a new scheduled service with strict Customer-Asset validation and permanent DB persistence
    */
   async createService(input: CreateServiceInput, createdById?: string) {
-    // 1. Validation & Provisioning: ensure asset belongs to customer
-    let asset = input.assetId ? await assetsRepository.findById(input.assetId) : null;
-    if (!asset || asset.customerId !== input.customerId) {
-      const custAssets = await assetsRepository.findPaginated({ page: 1, customerId: input.customerId, limit: 100 });
-      if (custAssets?.data && custAssets.data.length > 0) {
-        const matched = custAssets.data.find((a: any) => a.id === input.assetId);
-        asset = matched || custAssets.data[0];
-        input.assetId = asset.id;
-      } else {
-        // Auto-provision an active machine asset for this customer
-        const assetNumber = `AST-${new Date().getFullYear()}-${String(Date.now() % 10000).padStart(4, '0')}`;
-        try {
-          const [newAsset] = await db
-            .insert(customerAssets)
-            .values({
-              assetNumber,
-              customerId: input.customerId,
-              customName: 'Customer RO Water Purifier',
-              assetType: 'RO_MACHINE',
-              status: 'ACTIVE',
-              purchaseDate: new Date(),
-            })
-            .returning();
-          asset = newAsset;
-          input.assetId = newAsset.id;
-        } catch {
-          const [firstAsset] = await db.select().from(customerAssets).where(eq(customerAssets.customerId, input.customerId)).limit(1);
-          if (firstAsset) {
-            input.assetId = firstAsset.id;
-          }
-        }
+    // 1. Verify customer existence
+    const [customerRecord] = await db
+      .select({ id: customers.id, fullName: customers.fullName })
+      .from(customers)
+      .where(eq(customers.id, input.customerId));
+
+    if (!customerRecord) {
+      const err: any = new Error('Selected customer does not exist in the database');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    // 2. Resolve Customer Machine / Asset
+    let finalAssetId = input.assetId && input.assetId.trim() !== '' ? input.assetId.trim() : null;
+    let resolvedAsset: any = null;
+
+    if (finalAssetId) {
+      const [directAsset] = await db
+        .select()
+        .from(customerAssets)
+        .where(eq(customerAssets.id, finalAssetId));
+
+      if (directAsset && directAsset.customerId === input.customerId) {
+        resolvedAsset = directAsset;
       }
     }
 
-    try {
-      return await withTransaction(async (tx) => {
-        // 2. Generate unique service number e.g. SRV-2026-0001
-        const srvSeq = await generateBusinessNumber(tx, 'SERVICE', 'SRV');
+    // If specified asset not found or doesn't belong to customer, check customer's existing assets
+    if (!resolvedAsset) {
+      const existingCustAssets = await db
+        .select()
+        .from(customerAssets)
+        .where(eq(customerAssets.customerId, input.customerId))
+        .orderBy(desc(customerAssets.createdAt));
 
-        // 3. Insert Service record
-        const [newService] = await tx
-          .insert(services)
-          .values({
-            serviceNumber: srvSeq.sequenceNumber,
-            customerId: input.customerId,
-            assetId: input.assetId,
-            warrantyId: input.warrantyId || null,
-            technicianId: input.technicianId || null,
-            serviceType: input.serviceType,
-            serviceLocation: input.serviceLocation,
-            serviceClassification: input.serviceClassification,
-            scheduledDate: new Date(input.scheduledDate),
-            scheduledTimeSlot: input.scheduledTimeSlot || '10:00 AM - 12:00 PM',
-            status: input.technicianId ? 'ASSIGNED' : 'SCHEDULED',
-            priority: input.priority,
-            customerNotes: input.customerNotes || null,
-            internalNotes: input.internalNotes || null,
-            createdBy: createdById || null,
-          })
-          .returning();
-
-        if (!newService) {
-          throw new Error('Failed to create service record');
+      if (existingCustAssets.length > 0) {
+        resolvedAsset = existingCustAssets[0];
+        finalAssetId = resolvedAsset.id;
+      } else {
+        // Auto-provision an active machine asset for this customer with a valid product catalog link
+        let [defaultProduct] = await db.select().from(products).limit(1);
+        if (!defaultProduct) {
+          const [newProd] = await db
+            .insert(products)
+            .values({
+              name: 'Commercial RO Water Purifier 100 GPD',
+              sku: 'RO-COMM-100',
+              productType: 'RO_MACHINE',
+              brand: 'AquaPure',
+              model: 'AP-100C',
+              unitPrice: '15000.00',
+              taxRatePercent: '18.00',
+              defaultWarrantyMonths: 12,
+              defaultServiceIntervalMonths: 6,
+              isActive: true,
+            })
+            .returning();
+          defaultProduct = newProd;
         }
 
-        // 4. Generate and link initial Job Card
-        const jcSeq = await generateBusinessNumber(tx, 'JOB_CARD', 'JC');
-        const [newJobCard] = await tx
-          .insert(jobCards)
+        const assetSeq = await generateBusinessNumber(db, 'ASSET', 'AST');
+        const [autoAsset] = await db
+          .insert(customerAssets)
           .values({
-            jobCardNumber: jcSeq.sequenceNumber,
-            serviceId: newService.id,
+            assetNumber: assetSeq.sequenceNumber,
             customerId: input.customerId,
-            assetId: input.assetId,
-            technicianId: input.technicianId || null,
-            problemReported: input.customerNotes || 'Routine service maintenance request',
-            status: input.technicianId ? 'ASSIGNED' : 'SCHEDULED',
+            productId: defaultProduct.id,
+            customName: 'Customer RO Water Purifier',
+            assetType: 'RO_MACHINE',
+            status: 'ACTIVE',
+            purchaseDate: new Date(),
           })
           .returning();
 
-        // 5. Record Customer Activity
-        await tx.insert(customerActivities).values({
+        resolvedAsset = autoAsset;
+        finalAssetId = autoAsset.id;
+      }
+    }
+
+    if (!finalAssetId) {
+      const err: any = new Error('Unable to associate or provision an asset for customer');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // 3. Timezone-safe date parsing (e.g. YYYY-MM-DD -> noon UTC prevents any day rollback)
+    let parsedScheduledDate: Date;
+    if (typeof input.scheduledDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.scheduledDate.trim())) {
+      parsedScheduledDate = new Date(`${input.scheduledDate.trim()}T10:00:00.000Z`);
+    } else {
+      parsedScheduledDate = new Date(input.scheduledDate);
+    }
+
+    const technicianId = input.technicianId && input.technicianId.trim() !== '' ? input.technicianId.trim() : null;
+    const initialStatus = technicianId ? 'ASSIGNED' : 'SCHEDULED';
+
+    try {
+      // 4. Generate unique business numbers
+      const srvSeq = await generateBusinessNumber(db, 'SERVICE', 'SRV');
+      const jcSeq = await generateBusinessNumber(db, 'JOB_CARD', 'JC');
+
+      // 5. Insert Service Record permanently
+      const [newService] = await db
+        .insert(services)
+        .values({
+          serviceNumber: srvSeq.sequenceNumber,
+          customerId: input.customerId,
+          assetId: finalAssetId!,
+          warrantyId: input.warrantyId || null,
+          technicianId: technicianId,
+          serviceType: input.serviceType,
+          serviceLocation: input.serviceLocation,
+          serviceClassification: input.serviceClassification,
+          scheduledDate: parsedScheduledDate,
+          scheduledTimeSlot: input.scheduledTimeSlot || '10:00 AM - 12:00 PM',
+          status: initialStatus,
+          priority: input.priority,
+          customerNotes: input.customerNotes || null,
+          internalNotes: input.internalNotes || null,
+          createdBy: createdById || null,
+        })
+        .returning();
+
+      if (!newService) {
+        throw new Error('Database failed to return inserted service record');
+      }
+
+      // 6. Generate and link initial Job Card
+      const [newJobCard] = await db
+        .insert(jobCards)
+        .values({
+          jobCardNumber: jcSeq.sequenceNumber,
+          serviceId: newService.id,
+          customerId: input.customerId,
+          assetId: finalAssetId!,
+          technicianId: technicianId,
+          problemReported: input.customerNotes || 'Routine service maintenance request',
+          status: initialStatus,
+        })
+        .returning();
+
+      // 7. Record Customer Timeline Activity
+      try {
+        await db.insert(customerActivities).values({
           customerId: input.customerId,
           actorId: createdById || null,
           eventType: 'SERVICE_SCHEDULED',
           entityType: 'SERVICE',
           entityId: newService.id,
-          description: `Service ${srvSeq.sequenceNumber} (${input.serviceType.replace('_', ' ')}) scheduled for ${new Date(input.scheduledDate).toLocaleDateString('en-IN')}`,
+          description: `Service ${srvSeq.sequenceNumber} (${input.serviceType.replace('_', ' ')}) scheduled for ${parsedScheduledDate.toLocaleDateString('en-IN')}`,
           metadata: {
             serviceId: newService.id,
             serviceNumber: srvSeq.sequenceNumber,
             jobCardNumber: jcSeq.sequenceNumber,
           },
         });
+      } catch (actErr) {
+        console.warn('[ServicesRepository] Activity logging notice:', actErr);
+      }
 
-        // 6. Write Audit Log
-        await tx.insert(auditLogs).values({
+      // 8. Write Audit Log
+      try {
+        await db.insert(auditLogs).values({
           actorId: createdById || null,
           action: 'CREATE',
           entityType: 'SERVICE',
           entityId: newService.id,
           afterState: newService,
         });
+      } catch (auditErr) {
+        console.warn('[ServicesRepository] Audit log notice:', auditErr);
+      }
 
-        return {
-          service: newService,
-          jobCard: newJobCard,
-        };
-      });
-    } catch (err: any) {
-      if (err.statusCode || err.code === 'INVALID_ASSET_OWNERSHIP') throw err;
-
-      const rand = String(Math.floor(1000 + Math.random() * 9000));
-      const serviceNumber = `SRV-2026-${rand}`;
-      const jobCardNumber = `JC-2026-${rand}`;
-
-      const newService = {
-        id: randomUUID(),
-        serviceNumber,
-        customerId: input.customerId,
-        assetId: input.assetId,
-        warrantyId: input.warrantyId || null,
-        technicianId: input.technicianId || null,
-        serviceType: input.serviceType,
-        serviceLocation: input.serviceLocation,
-        serviceClassification: input.serviceClassification,
-        scheduledDate: new Date(input.scheduledDate),
-        scheduledTimeSlot: input.scheduledTimeSlot || '10:00 AM - 12:00 PM',
-        status: input.technicianId ? 'ASSIGNED' : 'SCHEDULED',
-        priority: input.priority,
-        customerNotes: input.customerNotes || null,
-        internalNotes: input.internalNotes || null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      const newJobCard = {
-        id: randomUUID(),
-        jobCardNumber,
-        serviceId: newService.id,
-        customerId: input.customerId,
-        assetId: input.assetId,
-        technicianId: input.technicianId || null,
-        problemReported: input.customerNotes || 'Routine service maintenance request',
-        status: input.technicianId ? 'ASSIGNED' : 'SCHEDULED',
-        partsReplaced: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      memoryServices.unshift(newService);
-      memoryJobCards.unshift(newJobCard);
+      console.log(`✅ [ServicesRepository] Service ${newService.serviceNumber} and Job Card ${newJobCard.jobCardNumber} created successfully in DB.`);
 
       return {
         service: newService,
         jobCard: newJobCard,
       };
+    } catch (err: any) {
+      console.error('[ServicesRepository.createService] Execution failed:', err);
+      throw err;
     }
   }
 
   /**
    * Update service details, reschedule, or reassign technician
    */
-  async updateService(id: string, input: UpdateServiceInput, actorId?: string) {
-    try {
-      return await withTransaction(async (tx) => {
-        const existing = await this.findById(id, tx as any);
-        if (!existing) {
-          const notFound: any = new Error('Service record not found');
-          notFound.statusCode = 404;
-          throw notFound;
-        }
-
-        const updateData: Record<string, any> = {
-          updatedAt: new Date(),
-        };
-
-        if (input.technicianId !== undefined) {
-          updateData.technicianId = input.technicianId;
-          if (input.technicianId && existing.status === 'SCHEDULED') {
-            updateData.status = 'ASSIGNED';
-          }
-        }
-        if (input.serviceType) updateData.serviceType = input.serviceType;
-        if (input.serviceLocation) updateData.serviceLocation = input.serviceLocation;
-        if (input.serviceClassification) updateData.serviceClassification = input.serviceClassification;
-        if (input.scheduledDate) updateData.scheduledDate = new Date(input.scheduledDate);
-        if (input.scheduledTimeSlot) updateData.scheduledTimeSlot = input.scheduledTimeSlot;
-        if (input.status) updateData.status = input.status;
-        if (input.priority) updateData.priority = input.priority;
-        if (input.customerNotes !== undefined) updateData.customerNotes = input.customerNotes;
-        if (input.internalNotes !== undefined) updateData.internalNotes = input.internalNotes;
-        if (input.cancelReason) {
-          updateData.cancelReason = input.cancelReason;
-          updateData.cancelledAt = new Date();
-          updateData.status = 'CANCELLED';
-        }
-
-        const [updated] = await tx
-          .update(services)
-          .set(updateData)
-          .where(eq(services.id, id))
-          .returning();
-
-        if (input.technicianId !== undefined) {
-          await tx
-            .update(jobCards)
-            .set({
-              technicianId: input.technicianId,
-              status: input.technicianId ? 'ASSIGNED' : 'SCHEDULED',
-              updatedAt: new Date(),
-            })
-            .where(eq(jobCards.serviceId, id));
-        }
-
-        await tx.insert(auditLogs).values({
-          actorId: actorId || null,
-          action: 'UPDATE',
-          entityType: 'SERVICE',
-          entityId: id,
-          beforeState: existing,
-          afterState: updated,
-        });
-
-        return updated;
-      });
-    } catch (err: any) {
-      if (err.statusCode) throw err;
-
-      const target = memoryServices.find((s) => s.id === id);
-      if (!target) {
-        const notFound: any = new Error('Service record not found');
-        notFound.statusCode = 404;
-        throw notFound;
-      }
-
-      if (input.technicianId !== undefined) {
-        target.technicianId = input.technicianId;
-        if (input.technicianId && target.status === 'SCHEDULED') target.status = 'ASSIGNED';
-      }
-      if (input.status) target.status = input.status;
-      if (input.scheduledDate) target.scheduledDate = new Date(input.scheduledDate);
-      target.updatedAt = new Date();
-
-      return target;
+  async updateService(id: string, input: UpdateServiceInput, actorId?: string, database = db) {
+    const existing = await this.findById(id, database);
+    if (!existing) {
+      const notFound: any = new Error('Service record not found');
+      notFound.statusCode = 404;
+      throw notFound;
     }
+
+    const updateData: Record<string, any> = {
+      updatedAt: new Date(),
+    };
+
+    if (input.technicianId !== undefined) {
+      updateData.technicianId = input.technicianId;
+      if (input.technicianId && existing.status === 'SCHEDULED') {
+        updateData.status = 'ASSIGNED';
+      }
+    }
+    if (input.serviceType) updateData.serviceType = input.serviceType;
+    if (input.serviceLocation) updateData.serviceLocation = input.serviceLocation;
+    if (input.serviceClassification) updateData.serviceClassification = input.serviceClassification;
+    if (input.scheduledDate) updateData.scheduledDate = new Date(input.scheduledDate);
+    if (input.scheduledTimeSlot) updateData.scheduledTimeSlot = input.scheduledTimeSlot;
+    if (input.status) updateData.status = input.status;
+    if (input.priority) updateData.priority = input.priority;
+    if (input.customerNotes !== undefined) updateData.customerNotes = input.customerNotes;
+    if (input.internalNotes !== undefined) updateData.internalNotes = input.internalNotes;
+    if (input.cancelReason) {
+      updateData.cancelReason = input.cancelReason;
+      updateData.cancelledAt = new Date();
+      updateData.status = 'CANCELLED';
+    }
+
+    const [updated] = await database
+      .update(services)
+      .set(updateData)
+      .where(eq(services.id, id))
+      .returning();
+
+    if (input.technicianId !== undefined || input.status !== undefined) {
+      const jcUpdate: Record<string, any> = { updatedAt: new Date() };
+      if (input.technicianId !== undefined) {
+        jcUpdate.technicianId = input.technicianId;
+      }
+      if (input.status !== undefined) {
+        jcUpdate.status = input.status;
+      }
+      try {
+        await database
+          .update(jobCards)
+          .set(jcUpdate)
+          .where(eq(jobCards.serviceId, id));
+      } catch (jcErr) {
+        console.warn('[ServicesRepository] Job card update notice:', jcErr);
+      }
+    }
+
+    try {
+      await database.insert(auditLogs).values({
+        actorId: actorId || null,
+        action: 'UPDATE',
+        entityType: 'SERVICE',
+        entityId: id,
+        beforeState: existing,
+        afterState: updated,
+      });
+    } catch {}
+
+    return updated;
   }
 
   /**
    * Cancel service with reason
    */
-  async cancelService(id: string, cancelReason: string, actorId?: string) {
+  async cancelService(id: string, cancelReason: string, actorId?: string, database = db) {
     return this.updateService(
       id,
       {
         status: 'CANCELLED',
         cancelReason,
       },
-      actorId
+      actorId,
+      database
     );
   }
 
   /**
    * Complete Service & finalize Job Card
    */
-  async completeService(id: string, input: CompleteServiceInput, actorId?: string) {
-    try {
-      return await withTransaction(async (tx) => {
-        const existing = await this.findById(id, tx as any);
-        if (!existing) {
-          const notFound: any = new Error('Service record not found');
-          notFound.statusCode = 404;
-          throw notFound;
-        }
-
-        const now = new Date();
-
-        const [completedService] = await tx
-          .update(services)
-          .set({
-            status: 'COMPLETED',
-            completedAt: now,
-            updatedAt: now,
-          })
-          .where(eq(services.id, id))
-          .returning();
-
-        const [updatedJobCard] = await tx
-          .update(jobCards)
-          .set({
-            workPerformed: input.workPerformed,
-            diagnosis: input.diagnosis || existing.diagnosis,
-            partsReplaced: input.partsReplaced || [],
-            laborCharges: String(input.laborCharges || 0),
-            partsCharges: String(input.partsCharges || 0),
-            totalCharges: String(input.totalCharges || 0),
-            technicianNotes: input.technicianNotes || null,
-            customerRemarks: input.customerRemarks || null,
-            nextServiceRecommendationMonths: input.nextServiceRecommendationMonths || null,
-            status: 'COMPLETED',
-            completedAt: now,
-            updatedAt: now,
-          })
-          .where(eq(jobCards.serviceId, id))
-          .returning();
-
-        return {
-          service: completedService,
-          jobCard: updatedJobCard,
-        };
-      });
-    } catch (err: any) {
-      if (err.statusCode) throw err;
-
-      const targetSrv = memoryServices.find((s) => s.id === id);
-      if (!targetSrv) {
-        const notFound: any = new Error('Service record not found');
-        notFound.statusCode = 404;
-        throw notFound;
-      }
-
-      const now = new Date();
-      targetSrv.status = 'COMPLETED';
-      targetSrv.completedAt = now;
-      targetSrv.updatedAt = now;
-
-      const targetJc = memoryJobCards.find((j) => j.serviceId === id);
-      if (targetJc) {
-        targetJc.status = 'COMPLETED';
-        targetJc.workPerformed = input.workPerformed;
-        targetJc.partsReplaced = input.partsReplaced || [];
-        targetJc.completedAt = now;
-        targetJc.updatedAt = now;
-      }
-
-      return {
-        service: targetSrv,
-        jobCard: targetJc,
-      };
+  async completeService(id: string, input: CompleteServiceInput, actorId?: string, database = db) {
+    const existing = await this.findById(id, database);
+    if (!existing) {
+      const notFound: any = new Error('Service record not found');
+      notFound.statusCode = 404;
+      throw notFound;
     }
+
+    const now = new Date();
+
+    const [completedService] = await database
+      .update(services)
+      .set({
+        status: 'COMPLETED',
+        completedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(services.id, id))
+      .returning();
+
+    const [updatedJobCard] = await database
+      .update(jobCards)
+      .set({
+        workPerformed: input.workPerformed,
+        diagnosis: input.diagnosis || existing.diagnosis,
+        partsReplaced: input.partsReplaced || [],
+        laborCharges: String(input.laborCharges || 0),
+        partsCharges: String(input.partsCharges || 0),
+        totalCharges: String(input.totalCharges || 0),
+        technicianNotes: input.technicianNotes || null,
+        customerRemarks: input.customerRemarks || null,
+        nextServiceRecommendationMonths: input.nextServiceRecommendationMonths || null,
+        status: 'COMPLETED',
+        completedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(jobCards.serviceId, id))
+      .returning();
+
+    try {
+      await database.insert(customerActivities).values({
+        customerId: existing.customerId,
+        actorId: actorId || null,
+        eventType: 'SERVICE_COMPLETED',
+        entityType: 'SERVICE',
+        entityId: id,
+        description: `Service ${existing.serviceNumber} completed successfully`,
+        metadata: {
+          serviceId: id,
+          serviceNumber: existing.serviceNumber,
+          totalCharges: input.totalCharges || 0,
+        },
+      });
+    } catch {}
+
+    let serviceInvoice: any = null;
+    const totalChargesNum = parseFloat(String(input.totalCharges || 0));
+    if (totalChargesNum > 0) {
+      try {
+        const [existingInvoice] = await database
+          .select()
+          .from(invoices)
+          .where(
+            and(
+              or(
+                eq(invoices.serviceId, id),
+                existing.jobCardId ? eq(invoices.jobCardId, existing.jobCardId) : sql`false`
+              ),
+              sql`${invoices.status} != 'CANCELLED'`
+            )
+          )
+          .limit(1);
+
+        if (existingInvoice) {
+          serviceInvoice = existingInvoice;
+        } else {
+          const invSeq = await generateBusinessNumber(database, 'INVOICE', 'INV');
+          const invoiceNumber = invSeq.sequenceNumber;
+          const subtotalNum = (Number(input.laborCharges) || 0) + (Number(input.partsCharges) || 0);
+          const taxAmountNum = Math.max(0, totalChargesNum - subtotalNum);
+
+          const now = new Date();
+          const due = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+
+          const [newInvoice] = await database
+            .insert(invoices)
+            .values({
+              invoiceNumber,
+              customerId: existing.customerId,
+              serviceId: id,
+              jobCardId: existing.jobCardId || updatedJobCard?.id || null,
+              invoiceDate: now,
+              dueDate: due,
+              subtotal: String(subtotalNum.toFixed(2)),
+              discountAmount: '0.00',
+              taxAmount: String(taxAmountNum.toFixed(2)),
+              totalAmount: String(totalChargesNum.toFixed(2)),
+              status: 'ISSUED',
+              createdBy: actorId || null,
+            })
+            .returning();
+
+          serviceInvoice = newInvoice;
+
+          if (newInvoice) {
+            const itemsToInsert: any[] = [];
+            if ((Number(input.laborCharges) || 0) > 0) {
+              itemsToInsert.push({
+                invoiceId: newInvoice.id,
+                itemType: 'SERVICE',
+                nameSnapshot: 'Labor & Service Charges',
+                quantity: 1,
+                unitPriceSnapshot: String(input.laborCharges),
+                taxRatePercent: 18,
+                taxAmount: '0.00',
+                lineTotal: String(input.laborCharges),
+              });
+            }
+            if (input.partsReplaced && Array.isArray(input.partsReplaced) && input.partsReplaced.length > 0) {
+              for (const part of input.partsReplaced) {
+                const qty = Number(part.quantity || 1);
+                const unitPrice = parseFloat(String(part.cost || 0));
+                const total = (qty * unitPrice).toFixed(2);
+                itemsToInsert.push({
+                  invoiceId: newInvoice.id,
+                  itemType: 'SPARE_PART',
+                  nameSnapshot: part.partName || 'Replacement Part',
+                  quantity: qty,
+                  unitPriceSnapshot: String(unitPrice),
+                  taxRatePercent: 18,
+                  taxAmount: '0.00',
+                  lineTotal: total,
+                });
+              }
+            } else if ((Number(input.partsCharges) || 0) > 0) {
+              itemsToInsert.push({
+                invoiceId: newInvoice.id,
+                itemType: 'SPARE_PART',
+                nameSnapshot: 'Spare Parts Charges',
+                quantity: 1,
+                unitPriceSnapshot: String(input.partsCharges),
+                taxRatePercent: 18,
+                taxAmount: '0.00',
+                lineTotal: String(input.partsCharges),
+              });
+            }
+
+            if (itemsToInsert.length > 0) {
+              await database.insert(invoiceItems).values(itemsToInsert);
+            }
+          }
+        }
+      } catch (invErr) {
+        console.warn('[ServicesRepository.completeService] Service invoice auto-creation notice:', invErr);
+      }
+    }
+
+    if ((input as any).initialPayment && serviceInvoice && (input as any).initialPayment.amount > 0) {
+      try {
+        const { paymentsRepository } = await import('../payments/payments.repository');
+        await paymentsRepository.recordPayment(
+          {
+            invoiceId: serviceInvoice.id,
+            amount: (input as any).initialPayment.amount,
+            paymentMethod: (input as any).initialPayment.paymentMethod || 'CASH',
+            referenceNumber: (input as any).initialPayment.referenceNumber,
+            notes: (input as any).initialPayment.notes,
+          },
+          actorId,
+          database
+        );
+      } catch (payErr) {
+        console.warn('[ServicesRepository.completeService] Service initial payment notice:', payErr);
+      }
+    }
+
+    return {
+      service: completedService,
+      jobCard: updatedJobCard,
+      invoice: serviceInvoice,
+    };
   }
 
   /**
@@ -854,7 +1216,7 @@ export class ServicesRepository {
    */
   async listTechnicians(database = db) {
     try {
-      return await database
+      const rows = await database
         .select({
           id: technicians.id,
           fullName: technicians.fullName,
@@ -865,20 +1227,65 @@ export class ServicesRepository {
         .from(technicians)
         .where(eq(technicians.status, 'ACTIVE'))
         .orderBy(asc(technicians.fullName));
-    } catch {
-      return [
+
+      if (rows && rows.length > 0) {
+        return rows;
+      }
+
+      // Seed active technicians into database if none exist
+      const defaultTechs = [
         {
-          id: 'tech-001',
+          id: '11111111-1111-1111-1111-111111111111',
           fullName: 'Aakash Sharma',
           phone: '9820011223',
-          email: 'aakash.sharma@example.com',
+          email: 'aakash.sharma@srenterprises.com',
+          status: 'ACTIVE' as const,
+        },
+        {
+          id: '22222222-2222-2222-2222-222222222222',
+          fullName: 'Ramesh Kumar',
+          phone: '9833445566',
+          email: 'ramesh.kumar@srenterprises.com',
+          status: 'ACTIVE' as const,
+        },
+        {
+          id: '33333333-3333-3333-3333-333333333333',
+          fullName: 'Priya Verma',
+          phone: '9844556677',
+          email: 'priya.verma@srenterprises.com',
+          status: 'ACTIVE' as const,
+        },
+      ];
+
+      for (const t of defaultTechs) {
+        try {
+          await database.insert(technicians).values(t).onConflictDoNothing();
+        } catch {}
+      }
+
+      return defaultTechs;
+    } catch (err) {
+      console.warn('[ServicesRepository.listTechnicians] DB query notice:', err);
+      return [
+        {
+          id: '11111111-1111-1111-1111-111111111111',
+          fullName: 'Aakash Sharma',
+          phone: '9820011223',
+          email: 'aakash.sharma@srenterprises.com',
           status: 'ACTIVE',
         },
         {
-          id: 'tech-002',
-          fullName: 'Vikram Singh',
-          phone: '9820033445',
-          email: 'vikram.singh@example.com',
+          id: '22222222-2222-2222-2222-222222222222',
+          fullName: 'Ramesh Kumar',
+          phone: '9833445566',
+          email: 'ramesh.kumar@srenterprises.com',
+          status: 'ACTIVE',
+        },
+        {
+          id: '33333333-3333-3333-3333-333333333333',
+          fullName: 'Priya Verma',
+          phone: '9844556677',
+          email: 'priya.verma@srenterprises.com',
           status: 'ACTIVE',
         },
       ];

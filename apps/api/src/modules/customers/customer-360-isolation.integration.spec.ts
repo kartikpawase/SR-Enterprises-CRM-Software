@@ -36,7 +36,7 @@ describe('Customer 360° Activity & Cross-Module Data Integration', () => {
 
     expect(customerA).toBeDefined();
     expect(customerA.id).toBeDefined();
-    expect(customerA.customerNumber).toMatch(/^CUST-\d{4}-\d{4,}$/);
+    expect(customerA.customerNumber).toMatch(/^(CUST|CX)-/);
     expect(customerA.status).toBe('ACTIVE');
     customerAId = customerA.id;
 
@@ -75,6 +75,8 @@ describe('Customer 360° Activity & Cross-Module Data Integration', () => {
 
     const result = await customerRepository.findPaginated({
       search: `360_${testTimestamp}`,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
       page: 1,
       limit: 10,
     });

@@ -32,6 +32,9 @@ export class EmailQueueWorker {
   public async enqueue(input: EnqueueEmailJobInput): Promise<{
     notificationId: string;
     queueId: string;
+    jobId?: string;
+    recipientEmail?: string;
+    idempotencyKey?: string;
     isDuplicate: boolean;
     status: string;
   }> {
@@ -82,6 +85,9 @@ export class EmailQueueWorker {
         return {
           notificationId: existing.id,
           queueId: '',
+          jobId: existing.id,
+          recipientEmail: existing.recipientEmail || input.recipientEmail,
+          idempotencyKey,
           isDuplicate: true,
           status: existing.status,
         };
@@ -92,6 +98,9 @@ export class EmailQueueWorker {
         return {
           notificationId: memExisting.id,
           queueId: '',
+          jobId: memExisting.id,
+          recipientEmail: memExisting.recipientEmail || input.recipientEmail,
+          idempotencyKey,
           isDuplicate: true,
           status: memExisting.status,
         };
@@ -227,6 +236,9 @@ export class EmailQueueWorker {
     return {
       notificationId,
       queueId,
+      jobId: notificationId,
+      recipientEmail: input.recipientEmail,
+      idempotencyKey,
       isDuplicate: false,
       status: initialStatus,
     };

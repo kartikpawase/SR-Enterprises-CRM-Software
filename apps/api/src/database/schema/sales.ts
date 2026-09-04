@@ -60,6 +60,7 @@ export const saleItems = pgTable(
     warrantyMonths: integer('warranty_months').default(12).notNull(),
     serviceIntervalMonths: integer('service_interval_months').default(6).notNull(),
     serialNumber: text('serial_number'),
+    nextServiceDate: timestamp('next_service_date', { withTimezone: true, mode: 'date' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [

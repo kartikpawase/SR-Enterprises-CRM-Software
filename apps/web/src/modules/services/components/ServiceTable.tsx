@@ -13,8 +13,11 @@ import {
   UserCheck,
   ShieldCheck,
   Clock,
+  MessageSquare,
+  Send,
 } from 'lucide-react';
-import type { ServiceItem } from '../services.api';
+import { useNotifyServiceTechnicianWhatsAppMutation, type ServiceItem } from '../services.api';
+import { useToast } from '../../../providers/ToastProvider';
 
 export interface ServiceTableProps {
   services: ServiceItem[];
@@ -80,6 +83,8 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
   onOpenQuickAssign,
 }) => {
   const navigate = useNavigate();
+  const toast = useToast();
+  const notifyWhatsAppMutation = useNotifyServiceTechnicianWhatsAppMutation();
 
   const priorityColors: Record<string, string> = {
     URGENT: 'bg-rose-100 text-rose-800 border-rose-200',
@@ -166,24 +171,51 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
     },
     {
       key: 'classification',
-      header: 'Classification',
-      render: (row: ServiceItem) => (
-        <div>
-          {row.serviceClassification === 'WARRANTY' ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-              <ShieldCheck className="w-3 h-3" />
-              Warranty Free
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              General Service
-            </span>
-          )}
-          <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
-            {row.serviceType.replace(/_/g, ' ')}
+      header: 'Classification & Payment',
+      render: (row: ServiceItem) => {
+        const isPaid = (row as any).paymentStatus === 'PAID' || (row as any).invoice?.status === 'PAID';
+        const isPartial = (row as any).paymentStatus === 'PARTIALLY_PAID' || (row as any).invoice?.status === 'PARTIALLY_PAID';
+        const isPending = (row as any).paymentStatus === 'PENDING' || (row.status === 'COMPLETED' && Number(row.totalCharges || 0) > 0 && !isPaid && !isPartial);
+
+        return (
+          <div>
+            {row.serviceClassification === 'WARRANTY' ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                <ShieldCheck className="w-3 h-3" />
+                Warranty Free
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                General Service
+              </span>
+            )}
+
+            {isPaid ? (
+              <div className="mt-0.5">
+                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Payment Complete
+                </span>
+              </div>
+            ) : isPartial ? (
+              <div className="mt-0.5">
+                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                  Partially Paid
+                </span>
+              </div>
+            ) : isPending ? (
+              <div className="mt-0.5">
+                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
+                  Payment Pending
+                </span>
+              </div>
+            ) : null}
+
+            <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+              {row.serviceType.replace(/_/g, ' ')}
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'scheduledDate',
@@ -214,19 +246,45 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
       render: (row: ServiceItem) => (
         <div>
           {row.technicianName ? (
-            <div className="flex items-center gap-1.5">
-              <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] border border-slate-200 shrink-0">
-                {row.technicianName.charAt(0)}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] border border-slate-200 shrink-0">
+                  {row.technicianName.charAt(0)}
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-900">{row.technicianName}</div>
+                  <div className="text-[10px] text-slate-400 font-mono">{row.technicianPhone}</div>
+                </div>
               </div>
-              <div>
-                <div className="text-xs font-medium text-slate-900">{row.technicianName}</div>
-                <div className="text-[10px] text-slate-400 font-mono">{row.technicianPhone}</div>
-              </div>
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const res = await notifyWhatsAppMutation.mutateAsync(row.id);
+                    if (res?.success) {
+                      toast.success(res?.message || `Notified ${row.technicianName} on WhatsApp`, 'WhatsApp Sent');
+                    } else {
+                      toast.error(res?.message || (res as any)?.data?.error || 'Failed to dispatch WhatsApp message', 'WhatsApp Error');
+                    }
+                  } catch (err: any) {
+                    toast.error(
+                      err?.response?.data?.message || err?.message || 'Failed to dispatch WhatsApp message',
+                      'WhatsApp Error'
+                    );
+                  }
+                }}
+                disabled={notifyWhatsAppMutation.isPending}
+                className="p-1 text-emerald-700 hover:bg-emerald-50 bg-emerald-50/60 rounded-md border border-emerald-200 transition-colors cursor-pointer disabled:opacity-50"
+                title={`Send WhatsApp notification to ${row.technicianName}`}
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+              </button>
             </div>
           ) : (
             <button
               onClick={() => onOpenQuickAssign(row)}
-              className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-semibold bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 transition-colors"
+              className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-semibold bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 transition-colors cursor-pointer"
             >
               <UserCheck className="w-3 h-3" />
               Assign Tech

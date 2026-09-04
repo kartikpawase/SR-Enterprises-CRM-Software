@@ -162,6 +162,24 @@ export const servicesRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
+   * POST /api/v1/services/:id/notify-technician
+   * Manually trigger or retry WhatsApp notification to assigned technician
+   */
+  fastify.post('/:id/notify-technician', { preHandler: [requirePermission('services.update')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = (request as any).user;
+    const actorId = user?.userId || user?.id;
+    const result = await servicesService.resendTechnicianNotification(id, actorId);
+    return reply.send({
+      success: result.success,
+      data: result,
+      message: result.success
+        ? 'WhatsApp notification sent to technician'
+        : (result.error || 'Failed to send WhatsApp notification'),
+    });
+  });
+
+  /**
    * POST /api/v1/services/:id/complete
    * Complete Service & save Job Card diagnostic details + replaced parts
    */

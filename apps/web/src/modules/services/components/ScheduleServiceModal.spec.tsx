@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from '../../../providers/ToastProvider';
 import { ScheduleServiceModal } from './ScheduleServiceModal';
+
+const mockMutateAsync = vi.fn();
 
 vi.mock('../../customers/customer.api', () => ({
   useCustomersQuery: () => ({
@@ -62,22 +65,28 @@ vi.mock('../services.api', () => ({
     data: [{ id: 'tech-1', name: 'Ramesh Patel', phone: '9898989898' }],
   }),
   useCreateServiceMutation: () => ({
-    mutateAsync: vi.fn(),
+    mutateAsync: mockMutateAsync,
     isPending: false,
   }),
 }));
 
-describe('ScheduleServiceModal Customer Search Bar', () => {
+describe('ScheduleServiceModal', () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
 
-  it('renders customer search bar and filters customer dropdown options in real-time', () => {
-    render(
+  const renderModal = (props = { isOpen: true, onClose: vi.fn() }) => {
+    return render(
       <QueryClientProvider client={queryClient}>
-        <ScheduleServiceModal isOpen={true} onClose={() => {}} />
+        <ToastProvider>
+          <ScheduleServiceModal {...props} />
+        </ToastProvider>
       </QueryClientProvider>
     );
+  };
+
+  it('renders customer search bar and filters customer dropdown options in real-time', () => {
+    renderModal();
 
     // Verify search bar input is rendered
     const searchInput = screen.getByPlaceholderText(/Search customer by name, phone number, customer #, or company/i);
@@ -102,5 +111,44 @@ describe('ScheduleServiceModal Customer Search Bar', () => {
     // Both customers should be visible again
     expect(screen.getByText(/Anil Kumar Sharma/i)).toBeInTheDocument();
     expect(screen.getByText(/Sunil Verma/i)).toBeInTheDocument();
+  });
+
+  it('submits valid service visit payload and invokes onClose', async () => {
+    const onClose = vi.fn();
+    mockMutateAsync.mockResolvedValueOnce({
+      service: { id: 'srv-1', serviceNumber: 'SRV-2026-0001' },
+      jobCard: { id: 'jc-1', jobCardNumber: 'JC-2026-0001' },
+    });
+
+    renderModal({ isOpen: true, onClose });
+
+    // Select customer
+    const customerSelect = screen.getByDisplayValue(/Choose Customer/i);
+    fireEvent.change(customerSelect, { target: { value: 'cust-1' } });
+
+    // Click submit
+    const submitBtn = screen.getByRole('button', { name: /Confirm & Schedule/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customerId: 'cust-1',
+          serviceType: 'PERIODIC_MAINTENANCE',
+          serviceLocation: 'DOORSTEP',
+        })
+      );
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  it('displays validation error and stops loading if customer is not selected', async () => {
+    renderModal();
+
+    const submitBtn = screen.getByRole('button', { name: /Confirm & Schedule/i });
+    fireEvent.click(submitBtn);
+
+    expect(await screen.findByText(/Please select a customer/i)).toBeInTheDocument();
+    expect(submitBtn).not.toBeDisabled();
   });
 });

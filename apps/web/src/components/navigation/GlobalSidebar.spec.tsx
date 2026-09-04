@@ -60,11 +60,13 @@ describe('Master GlobalSidebar Component', () => {
 
     const expectedItems = [
       'Dashboard',
+      'Dues',
       'Customers',
       'Sales',
       'Rent',
       'Invoices',
       'Services',
+      'Inventory',
       'Technicians',
       'Payments',
       'Reports',

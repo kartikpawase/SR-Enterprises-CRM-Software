@@ -92,6 +92,11 @@ export const CreateCustomerSchema = z
     gstin: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? null : val), z.string().nullable().optional()),
     gstNumber: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? null : val), z.string().nullable().optional()),
     notes: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? null : val), z.string().nullable().optional()),
+    customerLabel: z
+      .enum(['GOOD', 'BAD', 'NONE'])
+      .optional()
+      .nullable()
+      .transform((val) => (val === 'NONE' || !val ? null : (val as 'GOOD' | 'BAD'))),
     addressLine1: z.string().optional(),
     addressLine2: z.string().optional().nullable(),
     city: z.string().optional(),
@@ -139,6 +144,18 @@ export const CreateCustomerSchema = z
   });
 export type CreateCustomerInput = z.infer<typeof CreateCustomerSchema>;
 
+export const CustomerLabelSchema = z.enum(['GOOD', 'BAD']);
+export type CustomerLabel = z.infer<typeof CustomerLabelSchema>;
+
+export const UpdateCustomerLabelSchema = z.object({
+  label: z
+    .enum(['GOOD', 'BAD', 'NONE'])
+    .nullable()
+    .optional()
+    .transform((val) => (val === 'NONE' || !val ? null : (val as 'GOOD' | 'BAD'))),
+});
+export type UpdateCustomerLabelInput = z.infer<typeof UpdateCustomerLabelSchema>;
+
 export const UpdateCustomerSchema = z
   .object({
     fullName: z.string().optional(),
@@ -161,6 +178,11 @@ export const UpdateCustomerSchema = z
     gstNumber: z.string().optional().nullable(),
     notes: z.string().optional().nullable(),
     status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
+    customerLabel: z
+      .enum(['GOOD', 'BAD', 'NONE'])
+      .optional()
+      .nullable()
+      .transform((val) => (val === 'NONE' ? null : (val as 'GOOD' | 'BAD' | null))),
     addresses: z.array(CustomerAddressSchema).optional(),
   });
 export type UpdateCustomerInput = z.infer<typeof UpdateCustomerSchema>;
@@ -174,6 +196,10 @@ export const CustomerQueryFilterSchema = PaginationQuerySchema.extend({
     .transform((val) => (val === 'ALL' || !val ? undefined : val)),
   status: z
     .enum(['ACTIVE', 'INACTIVE', 'ARCHIVED', 'ALL'])
+    .optional()
+    .transform((val) => (val === 'ALL' || !val ? undefined : val)),
+  customerLabel: z
+    .enum(['GOOD', 'BAD', 'NONE', 'ALL'])
     .optional()
     .transform((val) => (val === 'ALL' || !val ? undefined : val)),
   city: z
@@ -330,6 +356,7 @@ export const SaleItemInputSchema = z.object({
   serialNumber: z.string().optional().nullable(),
   warrantyPeriodMonths: z.coerce.number().int().min(0).optional().nullable(),
   warrantyMonths: z.coerce.number().int().min(0).optional().nullable(),
+  nextServiceDate: z.string().optional().nullable(),
 });
 export type SaleItemInput = z.infer<typeof SaleItemInputSchema>;
 
@@ -591,16 +618,16 @@ export type ReminderQueryFilter = z.infer<typeof ReminderQueryFilterSchema>;
 export const CreateServiceSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
   assetId: z.string().optional().nullable(),
-  warrantyId: z.string().uuid().optional().nullable(),
+  warrantyId: z.string().uuid('Invalid warranty ID').optional().nullable(),
   serviceType: z.enum(['INSTALLATION', 'REPAIR', 'PERIODIC_MAINTENANCE', 'EMERGENCY', 'SPARE_REPLACEMENT']),
   serviceLocation: z.enum(['DOORSTEP', 'IN_SHOP']).default('DOORSTEP'),
   serviceClassification: z.enum(['GENERAL', 'WARRANTY']).default('GENERAL'),
-  scheduledDate: z.string(),
+  scheduledDate: z.string().min(1, 'Scheduled visit date is required'),
   scheduledTimeSlot: z.string().optional().nullable(),
   priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).default('NORMAL'),
   customerNotes: z.string().optional().nullable(),
   internalNotes: z.string().optional().nullable(),
-  technicianId: z.string().uuid().optional().nullable(),
+  technicianId: z.string().uuid('Invalid technician ID').optional().nullable(),
 });
 export type CreateServiceInput = z.infer<typeof CreateServiceSchema>;
 
@@ -789,7 +816,7 @@ export const UpdateTechnicianSchema = CreateTechnicianSchema.partial();
 export type UpdateTechnicianInput = z.infer<typeof UpdateTechnicianSchema>;
 
 export const TechnicianQueryFilterSchema = PaginationQuerySchema.extend({
-  status: z.enum(['ACTIVE', 'ON_LEAVE', 'INACTIVE', 'SUSPENDED']).optional(),
+  status: z.enum(['ACTIVE', 'ON_LEAVE', 'INACTIVE', 'SUSPENDED', 'ALL']).optional(),
   serviceArea: z.string().optional(),
 });
 export type TechnicianQueryFilter = z.infer<typeof TechnicianQueryFilterSchema>;
@@ -1134,4 +1161,125 @@ export const ServiceChargeSchema = z.object({
   isWarrantyCovered: z.boolean().default(false),
 });
 export type ServiceChargeInput = z.infer<typeof ServiceChargeSchema>;
+
+// ==========================================
+// 19. DUES & SCHEDULED ACTIVITIES SCHEMAS
+// ==========================================
+
+export const DuesQuerySchema = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+    .optional(),
+});
+export type DuesQueryInput = z.infer<typeof DuesQuerySchema>;
+
+export const DuesMonthSummaryQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+  month: z.coerce.number().int().min(1).max(12).optional(),
+});
+export type DuesMonthSummaryQueryInput = z.infer<typeof DuesMonthSummaryQuerySchema>;
+
+// ==========================================
+// 20. INVENTORY MANAGEMENT SCHEMAS
+// ==========================================
+
+export const CreateInventoryItemSchema = z.object({
+  name: z.string().min(1, 'Item name is required'),
+  category: z.string().min(1, 'Category is required').default('Filter'),
+  brand: z.string().optional().nullable(),
+  partNumber: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  purchasePrice: z.coerce.number().min(0, 'Purchase price must be >= 0'),
+  sellingPrice: z.coerce.number().min(0, 'Selling price must be >= 0'),
+  initialStock: z.coerce.number().int().min(0, 'Initial stock must be >= 0').default(0),
+  minStockLevel: z.coerce.number().int().min(0, 'Minimum stock level must be >= 0').default(0),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'DISCONTINUED']).default('ACTIVE'),
+});
+export type CreateInventoryItemInput = z.infer<typeof CreateInventoryItemSchema>;
+
+export const UpdateInventoryItemSchema = z.object({
+  name: z.string().min(1, 'Item name is required').optional(),
+  category: z.string().min(1, 'Category is required').optional(),
+  brand: z.string().optional().nullable(),
+  partNumber: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  purchasePrice: z.coerce.number().min(0, 'Purchase price must be >= 0').optional(),
+  sellingPrice: z.coerce.number().min(0, 'Selling price must be >= 0').optional(),
+  minStockLevel: z.coerce.number().int().min(0, 'Minimum stock level must be >= 0').optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'DISCONTINUED']).optional(),
+});
+export type UpdateInventoryItemInput = z.infer<typeof UpdateInventoryItemSchema>;
+
+export const InventoryItemQueryFilterSchema = z.object({
+  search: z.string().optional(),
+  category: z.string().optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'DISCONTINUED', 'ALL']).optional(),
+  lowStockOnly: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((val) => val === true || val === 'true'),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type InventoryItemQueryFilter = z.infer<typeof InventoryItemQueryFilterSchema>;
+
+export const CreateInventoryPurchaseSchema = z.object({
+  itemId: z.string().uuid('Invalid inventory item ID'),
+  supplierName: z.string().optional().nullable(),
+  purchaseDate: z.string().min(1, 'Purchase date is required'),
+  quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
+  purchasePricePerUnit: z.coerce.number().min(0, 'Purchase cost per unit must be >= 0'),
+  notes: z.string().optional().nullable(),
+});
+export type CreateInventoryPurchaseInput = z.infer<typeof CreateInventoryPurchaseSchema>;
+
+export const InventoryPurchaseQueryFilterSchema = z.object({
+  itemId: z.string().uuid().optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type InventoryPurchaseQueryFilter = z.infer<typeof InventoryPurchaseQueryFilterSchema>;
+
+export const CreateInventorySaleSchema = z.object({
+  itemId: z.string().uuid('Invalid inventory item ID'),
+  customerId: z.string().uuid('Invalid customer ID').optional().nullable(),
+  customerName: z.string().min(1, 'Customer name is required'),
+  customerPhone: z.string().optional().nullable(),
+  saleDate: z.string().min(1, 'Sale date is required'),
+  quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
+  sellingPricePerUnit: z.coerce.number().min(0, 'Selling price per unit must be >= 0'),
+  paymentStatus: z.enum(['COMPLETED', 'PENDING']).default('COMPLETED'),
+  notes: z.string().optional().nullable(),
+});
+export type CreateInventorySaleInput = z.infer<typeof CreateInventorySaleSchema>;
+
+export const InventorySaleQueryFilterSchema = z.object({
+  itemId: z.string().uuid().optional(),
+  customerId: z.string().uuid().optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type InventorySaleQueryFilter = z.infer<typeof InventorySaleQueryFilterSchema>;
+
+export const InventoryAnalyticsFilterSchema = z.object({
+  period: z.enum(['today', 'week', 'month', 'year', 'custom']).default('month'),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+export type InventoryAnalyticsFilter = z.infer<typeof InventoryAnalyticsFilterSchema>;
+
+export const InventoryProfitLedgerFilterSchema = z.object({
+  period: z.enum(['today', 'week', 'month', 'year', 'custom']).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  itemId: z.string().uuid().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type InventoryProfitLedgerFilter = z.infer<typeof InventoryProfitLedgerFilterSchema>;
 

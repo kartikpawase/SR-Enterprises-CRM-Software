@@ -44,6 +44,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
     companyName: cust?.companyName || '',
     gstNumber: cust?.gstNumber || '',
     notes: cust?.notes || '',
+    customerLabel: (cust as any)?.customerLabel ?? null,
     addresses: cust?.addresses && cust.addresses.length > 0
       ? cust.addresses.map((a) => ({
           addressType: a.addressType || 'SERVICE',

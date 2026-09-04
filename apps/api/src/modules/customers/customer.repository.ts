@@ -24,8 +24,12 @@ import {
   whatsappMessages,
   whatsappEvents,
   rentals,
+  rentalPayments,
+  rentalEvents,
+  emailNotifications,
+  appSettings,
 } from '../../database/schema/index';
-import { eq, and, or, ilike, desc, asc, count, sum, sql, inArray, gte, lte, ne } from 'drizzle-orm';
+import { eq, and, or, ilike, desc, asc, count, sum, sql, inArray, gt, gte, lte, ne, isNull } from 'drizzle-orm';
 import { generateBusinessNumber } from '../../database/sequences';
 import { assetsRepository, memoryAssets } from '../assets/assets.repository';
 import { invoicesRepository, memoryInvoices } from '../invoices/invoices.repository';
@@ -63,6 +67,15 @@ export class CustomerRepository {
     // Filter by customer type (INDIVIDUAL, COMMERCIAL; omit when undefined or ALL)
     if (filters.customerType && (filters.customerType as string) !== 'ALL') {
       conditions.push(eq(customers.customerType, filters.customerType as any));
+    }
+
+    // Filter by customer label (GOOD, BAD, NONE; omit when undefined or ALL)
+    if (filters.customerLabel && (filters.customerLabel as string) !== 'ALL') {
+      if ((filters.customerLabel as string) === 'NONE') {
+        conditions.push(isNull(customers.customerLabel));
+      } else {
+        conditions.push(eq(customers.customerLabel, filters.customerLabel as any));
+      }
     }
 
     // Filter by city (from customerAddresses)
@@ -106,9 +119,9 @@ export class CustomerRepository {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Sorting resolution: Default to customerNumber ASC, id ASC
+    // Sorting resolution: Default to createdAt DESC, customerNumber DESC
     let orderByClauses;
-    const direction = filters.sortOrder === 'desc' ? desc : asc;
+    const direction = filters.sortOrder === 'asc' ? asc : desc;
     switch (filters.sortBy) {
       case 'fullName':
       case 'name':
@@ -125,9 +138,11 @@ export class CustomerRepository {
         break;
       case 'customerNumber':
       case 'customerId':
+        orderByClauses = [direction(customers.customerNumber), desc(customers.id)];
+        break;
       case 'id':
       default:
-        orderByClauses = [direction(customers.customerNumber), asc(customers.id)];
+        orderByClauses = [direction(customers.createdAt), direction(customers.customerNumber)];
         break;
     }
 
@@ -630,6 +645,7 @@ export class CustomerRepository {
               gstNumber: data.gstNumber && String(data.gstNumber).trim() ? String(data.gstNumber).trim().toUpperCase() : null,
               notes: data.notes && String(data.notes).trim() ? String(data.notes).trim() : null,
               status: 'ACTIVE',
+              customerLabel: (data as any).customerLabel ?? null,
               createdBy: null,
               createdAt: new Date(),
               updatedAt: new Date(),
@@ -699,6 +715,7 @@ export class CustomerRepository {
         gstNumber: data.gstNumber && String(data.gstNumber).trim() ? String(data.gstNumber).trim().toUpperCase() : null,
         notes: data.notes && String(data.notes).trim() ? String(data.notes).trim() : null,
         status: 'ACTIVE' as const,
+        customerLabel: (data as any).customerLabel ?? null,
         createdBy: null,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -814,6 +831,7 @@ export class CustomerRepository {
       if (data.gstNumber !== undefined) updateValues.gstNumber = data.gstNumber ? data.gstNumber.trim().toUpperCase() : null;
       if (data.status !== undefined) updateValues.status = data.status;
       if (data.notes !== undefined) updateValues.notes = data.notes ? data.notes.trim() : null;
+      if ((data as any).customerLabel !== undefined) updateValues.customerLabel = (data as any).customerLabel;
 
       await tx.update(customers).set(updateValues).where(eq(customers.id, id));
 
@@ -930,13 +948,22 @@ export class CustomerRepository {
    */
   async deleteCustomerCompletely(id: string, database = db) {
     return await database.transaction(async (tx) => {
-      // 1. Gather all related entity IDs first
-      const custInvoices = await tx
-        .select({ id: invoices.id })
-        .from(invoices)
-        .where(eq(invoices.customerId, id));
-      const invoiceIdList = custInvoices.map((i) => i.id);
+      // Helper to check if optional/auxiliary tables exist in database schema before querying
+      const checkTableExists = async (tableName: string): Promise<boolean> => {
+        try {
+          const res = await tx.execute(
+            sql`SELECT EXISTS (
+              SELECT 1 FROM information_schema.tables 
+              WHERE table_schema = 'public' AND table_name = ${tableName}
+            ) as exists;`
+          );
+          return Boolean(res.rows?.[0]?.exists);
+        } catch {
+          return false;
+        }
+      };
 
+      // 1. Gather all related entity IDs first
       const custSales = await tx
         .select({ id: sales.id })
         .from(sales)
@@ -952,74 +979,101 @@ export class CustomerRepository {
       const custServices = await tx
         .select({ id: services.id })
         .from(services)
-        .where(eq(services.customerId, id));
+        .where(
+          assetIdList.length > 0
+            ? or(eq(services.customerId, id), inArray(services.assetId, assetIdList))
+            : eq(services.customerId, id)
+        );
       const serviceIdList = custServices.map((s) => s.id);
+
+      const custJobCards = await tx
+        .select({ id: jobCards.id })
+        .from(jobCards)
+        .where(
+          or(
+            eq(jobCards.customerId, id),
+            serviceIdList.length > 0 ? inArray(jobCards.serviceId, serviceIdList) : sql`false`,
+            assetIdList.length > 0 ? inArray(jobCards.assetId, assetIdList) : sql`false`
+          )
+        );
+      const jobCardIdList = custJobCards.map((jc) => jc.id);
 
       const custWarranties = await tx
         .select({ id: warranties.id })
         .from(warranties)
-        .where(eq(warranties.customerId, id));
+        .where(
+          assetIdList.length > 0
+            ? or(eq(warranties.customerId, id), inArray(warranties.assetId, assetIdList))
+            : eq(warranties.customerId, id)
+        );
       const warrantyIdList = custWarranties.map((w) => w.id);
 
-      const custWaConvs = await tx
-        .select({ id: whatsappConversations.id })
-        .from(whatsappConversations)
-        .where(eq(whatsappConversations.customerId, id));
-      const waConvIdList = custWaConvs.map((c) => c.id);
+      const custInvoices = await tx
+        .select({ id: invoices.id })
+        .from(invoices)
+        .where(
+          or(
+            eq(invoices.customerId, id),
+            saleIdList.length > 0 ? inArray(invoices.saleId, saleIdList) : sql`false`,
+            serviceIdList.length > 0 ? inArray(invoices.serviceId, serviceIdList) : sql`false`,
+            jobCardIdList.length > 0 ? inArray(invoices.jobCardId, jobCardIdList) : sql`false`
+          )
+        );
+      const invoiceIdList = custInvoices.map((i) => i.id);
 
-      const custWaContacts = await tx
-        .select({ id: whatsappContacts.id })
-        .from(whatsappContacts)
-        .where(eq(whatsappContacts.customerId, id));
-      const waContactIdList = custWaContacts.map((c) => c.id);
+      const custRentals = await tx
+        .select({ id: rentals.id })
+        .from(rentals)
+        .where(eq(rentals.customerId, id));
+      const rentalIdList = custRentals.map((r) => r.id);
 
-      // 2. Delete reminders (for customer or customer's invoices)
+      // 2. Delete Rentals & Rental Payments (resolves rentals_customer_id_fkey & rental_payments_customer_id_fkey)
+      if (rentalIdList.length > 0) {
+        await tx.delete(rentalEvents).where(inArray(rentalEvents.rentalId, rentalIdList));
+      }
+      await tx.delete(rentalPayments).where(eq(rentalPayments.customerId, id));
+      if (rentalIdList.length > 0) {
+        await tx.delete(rentalPayments).where(inArray(rentalPayments.rentalId, rentalIdList));
+      }
+      await tx.delete(rentals).where(eq(rentals.customerId, id));
+
+      // 3. Delete Reminders (for customer or customer's invoices)
       await tx.delete(reminders).where(eq(reminders.customerId, id));
       if (invoiceIdList.length > 0) {
         await tx.delete(reminders).where(inArray(reminders.invoiceId, invoiceIdList));
       }
 
-      // 3. Delete WhatsApp messages, conversations, and contacts
-      if (waConvIdList.length > 0) {
-        await tx.delete(whatsappMessages).where(inArray(whatsappMessages.conversationId, waConvIdList));
-      }
-      if (waContactIdList.length > 0) {
-        await tx.delete(whatsappMessages).where(inArray(whatsappMessages.contactId, waContactIdList));
-      }
-      await tx.delete(whatsappConversations).where(eq(whatsappConversations.customerId, id));
-      await tx.delete(whatsappContacts).where(eq(whatsappContacts.customerId, id));
-
-      // 4. Delete payments (for customer or customer's invoices)
+      // 4. Delete Payments (for customer or customer's invoices)
       await tx.delete(payments).where(eq(payments.customerId, id));
       if (invoiceIdList.length > 0) {
         await tx.delete(payments).where(inArray(payments.invoiceId, invoiceIdList));
       }
 
-      // 5. Delete invoice items & invoices
+      // 5. Delete Invoice Items & Invoices
       if (invoiceIdList.length > 0) {
         await tx.delete(invoiceItems).where(inArray(invoiceItems.invoiceId, invoiceIdList));
       }
       await tx.delete(invoices).where(eq(invoices.customerId, id));
-      if (saleIdList.length > 0) {
-        await tx.delete(invoices).where(inArray(invoices.saleId, saleIdList));
+      if (invoiceIdList.length > 0) {
+        await tx.delete(invoices).where(inArray(invoices.id, invoiceIdList));
       }
 
-      // 6. Delete sale items & sales
+      // 6. Delete Sale Items & Sales
       if (saleIdList.length > 0) {
         await tx.delete(saleItems).where(inArray(saleItems.saleId, saleIdList));
       }
       await tx.delete(sales).where(eq(sales.customerId, id));
+      if (saleIdList.length > 0) {
+        await tx.delete(sales).where(inArray(sales.id, saleIdList));
+      }
 
-      // 7. Delete job cards
+      // 7. Delete Job Cards (before services and assets)
       await tx.delete(jobCards).where(eq(jobCards.customerId, id));
-      if (serviceIdList.length > 0) {
-        await tx.delete(jobCards).where(inArray(jobCards.serviceId, serviceIdList));
-      }
-      if (assetIdList.length > 0) {
-        await tx.delete(jobCards).where(inArray(jobCards.assetId, assetIdList));
+      if (jobCardIdList.length > 0) {
+        await tx.delete(jobCards).where(inArray(jobCards.id, jobCardIdList));
       }
 
-      // 8. Delete service schedules & services
+      // 8. Delete Service Schedules & Services
       await tx.delete(serviceSchedules).where(eq(serviceSchedules.customerId, id));
       if (serviceIdList.length > 0) {
         await tx.delete(serviceSchedules).where(inArray(serviceSchedules.generatedServiceId, serviceIdList));
@@ -1032,14 +1086,14 @@ export class CustomerRepository {
       }
 
       await tx.delete(services).where(eq(services.customerId, id));
+      if (serviceIdList.length > 0) {
+        await tx.delete(services).where(inArray(services.id, serviceIdList));
+      }
       if (assetIdList.length > 0) {
         await tx.delete(services).where(inArray(services.assetId, assetIdList));
       }
-      if (warrantyIdList.length > 0) {
-        await tx.delete(services).where(inArray(services.warrantyId, warrantyIdList));
-      }
 
-      // 9. Delete warranty events & warranties
+      // 9. Delete Warranty Events & Warranties
       await tx.delete(warrantyEvents).where(eq(warrantyEvents.customerId, id));
       if (warrantyIdList.length > 0) {
         await tx.delete(warrantyEvents).where(inArray(warrantyEvents.warrantyId, warrantyIdList));
@@ -1050,36 +1104,58 @@ export class CustomerRepository {
       }
 
       await tx.delete(warranties).where(eq(warranties.customerId, id));
+      if (warrantyIdList.length > 0) {
+        await tx.delete(warranties).where(inArray(warranties.id, warrantyIdList));
+      }
       if (assetIdList.length > 0) {
         await tx.delete(warranties).where(inArray(warranties.assetId, assetIdList));
       }
 
-      // 10. Delete customer assets
+      // 10. Delete Customer Assets
       await tx.delete(customerAssets).where(eq(customerAssets.customerId, id));
+      if (assetIdList.length > 0) {
+        await tx.delete(customerAssets).where(inArray(customerAssets.id, assetIdList));
+      }
 
-      // 11. Unlink inquiries from converted customer
+      // 11. Unlink Inquiries from converted customer
       await tx
         .update(inquiries)
         .set({ convertedCustomerId: null })
         .where(eq(inquiries.convertedCustomerId, id));
 
-      // 12. Delete customer activities & documents
+      // 12. Delete Customer Activities & Email Notifications
       await tx.delete(customerActivities).where(eq(customerActivities.customerId, id));
-      const attachments = await tx
-        .select({ documentId: documentAttachments.documentId })
-        .from(documentAttachments)
-        .where(eq(documentAttachments.entityId, id));
-      const docIds = attachments.map((a) => a.documentId);
-      await tx.delete(documentAttachments).where(eq(documentAttachments.entityId, id));
-      if (docIds.length > 0) {
-        await tx.delete(documents).where(inArray(documents.id, docIds));
+      await tx.delete(emailNotifications).where(eq(emailNotifications.customerId, id));
+
+      // 13. Optional Auxiliary Tables (WhatsApp & Documents - executed only if tables exist)
+      if (await checkTableExists('whatsapp_messages')) {
+        await tx.execute(sql`DELETE FROM whatsapp_messages WHERE conversation_id IN (
+          SELECT id FROM whatsapp_conversations WHERE customer_id = ${id}
+        ) OR contact_id IN (
+          SELECT id FROM whatsapp_contacts WHERE customer_id = ${id}
+        );`);
+      }
+      if (await checkTableExists('whatsapp_conversations')) {
+        await tx.execute(sql`DELETE FROM whatsapp_conversations WHERE customer_id = ${id};`);
+      }
+      if (await checkTableExists('whatsapp_contacts')) {
+        await tx.execute(sql`DELETE FROM whatsapp_contacts WHERE customer_id = ${id};`);
+      }
+      if (await checkTableExists('document_attachments')) {
+        await tx.execute(sql`DELETE FROM document_attachments WHERE entity_type = 'CUSTOMER' AND entity_id = ${id};`);
       }
 
-      // 13. Delete customer addresses
+      // 14. Delete Customer Addresses
       await tx.delete(customerAddresses).where(eq(customerAddresses.customerId, id));
 
-      // 14. Delete customer record
+      // 15. Delete Customer Record
       const deleted = await tx.delete(customers).where(eq(customers.id, id)).returning();
+
+      // Clean memory cache if present
+      const memIdx = memoryCustomers.findIndex((c) => c.id === id);
+      if (memIdx !== -1) {
+        memoryCustomers.splice(memIdx, 1);
+      }
 
       return {
         id,
@@ -1535,6 +1611,137 @@ export class CustomerRepository {
 
       return await this.findById(customerId, tx);
     });
+  }
+
+  /**
+   * Retrieves or initializes the persistent metrics baseline timestamp from app_settings
+   */
+  async getMetricsBaseline(database = db): Promise<Date> {
+    try {
+      const [existingSetting] = await database
+        .select()
+        .from(appSettings)
+        .where(eq(appSettings.category, 'CUSTOMER_METRICS_BASELINE'))
+        .limit(1);
+
+      if (existingSetting && existingSetting.value && (existingSetting.value as any).baselineDate) {
+        return new Date((existingSetting.value as any).baselineDate);
+      }
+
+      // If no baseline setting exists yet, find max createdAt among legacy customers or now
+      const [maxCust] = await database
+        .select({ maxCreatedAt: sql<Date>`max(${customers.createdAt})` })
+        .from(customers);
+
+      const baselineDate = maxCust?.maxCreatedAt ? new Date(maxCust.maxCreatedAt) : new Date();
+
+      await database
+        .insert(appSettings)
+        .values({
+          category: 'CUSTOMER_METRICS_BASELINE',
+          value: {
+            baselineDate: baselineDate.toISOString(),
+            establishedAt: new Date().toISOString(),
+            description: 'Cutoff timestamp separating legacy customers from newly created CRM activity for dashboard metrics',
+          },
+        })
+        .onConflictDoNothing();
+
+      return baselineDate;
+    } catch (err) {
+      console.warn('[CustomerRepository] Error reading metrics baseline setting:', err);
+      return new Date();
+    }
+  }
+
+  /**
+   * Calculates real-time customer dashboard metrics with strict legacy data isolation
+   */
+  async getCustomerDashboardStats(database = db) {
+    const baselineDate = await this.getMetricsBaseline(database);
+    const now = new Date();
+
+    // Start & End of current calendar month
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+    try {
+      // 1. Total & Active Customers (All records)
+      const [totalCountRes] = await database
+        .select({ count: count(customers.id) })
+        .from(customers)
+        .where(sql`${customers.archivedAt} IS NULL`);
+
+      const [activeCountRes] = await database
+        .select({ count: count(customers.id) })
+        .from(customers)
+        .where(and(eq(customers.status, 'ACTIVE'), sql`${customers.archivedAt} IS NULL`));
+
+      const totalCustomers = Number(totalCountRes?.count || 0);
+      const activeCustomers = Number(activeCountRes?.count || 0);
+
+      // 2. New This Month (Only genuine new customer creations strictly after baseline in current calendar month)
+      const [newThisMonthRes] = await database
+        .select({ count: count(customers.id) })
+        .from(customers)
+        .where(
+          and(
+            gt(customers.createdAt, baselineDate),
+            gte(customers.createdAt, startOfCurrentMonth),
+            lte(customers.createdAt, endOfCurrentMonth),
+            sql`${customers.archivedAt} IS NULL`
+          )
+        );
+      const newThisMonth = Number(newThisMonthRes?.count || 0);
+
+      // 3. With Active Warranty (Distinct customers registered strictly after baseline possessing valid active warranty)
+      const [withWarrantyRes] = await database
+        .select({ count: sql<number>`count(distinct ${customers.id})` })
+        .from(customers)
+        .innerJoin(warranties, eq(warranties.customerId, customers.id))
+        .where(
+          and(
+            gt(customers.createdAt, baselineDate),
+            sql`${customers.archivedAt} IS NULL`,
+            inArray(warranties.status, ['ACTIVE', 'EXPIRING_SOON']),
+            gte(warranties.endDate, now)
+          )
+        );
+      const withWarranty = Number(withWarrantyRes?.count || 0);
+
+      // 4. Due for Service (Distinct customers registered strictly after baseline possessing upcoming or assigned service)
+      const [dueForServiceRes] = await database
+        .select({ count: sql<number>`count(distinct ${customers.id})` })
+        .from(customers)
+        .innerJoin(services, eq(services.customerId, customers.id))
+        .where(
+          and(
+            gt(customers.createdAt, baselineDate),
+            sql`${customers.archivedAt} IS NULL`,
+            inArray(services.status, ['SCHEDULED', 'ASSIGNED']),
+            gte(services.scheduledDate, startOfToday)
+          )
+        );
+      const dueForService = Number(dueForServiceRes?.count || 0);
+
+      return {
+        totalCustomers,
+        activeCustomers,
+        newThisMonth,
+        withWarranty,
+        dueForService,
+      };
+    } catch (err) {
+      console.error('[CustomerRepository] Error computing customer dashboard stats:', err);
+      return {
+        totalCustomers: 0,
+        activeCustomers: 0,
+        newThisMonth: 0,
+        withWarranty: 0,
+        dueForService: 0,
+      };
+    }
   }
 }
 

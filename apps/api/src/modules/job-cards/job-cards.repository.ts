@@ -321,6 +321,29 @@ export class JobCardsRepository {
   async createJobCard(input: CreateJobCardInput, actorId?: string) {
     try {
       return await withTransaction(async (tx) => {
+        // Check if a Job Card already exists for this service order
+        const [existing] = await tx
+          .select()
+          .from(jobCards)
+          .where(eq(jobCards.serviceId, input.serviceId));
+
+        if (existing) {
+          const [updated] = await tx
+            .update(jobCards)
+            .set({
+              customerId: input.customerId,
+              assetId: input.assetId || existing.assetId,
+              technicianId: input.technicianId || existing.technicianId,
+              problemReported: input.problemReported || existing.problemReported,
+              status: input.technicianId ? 'ASSIGNED' : existing.status,
+              updatedAt: new Date(),
+            })
+            .where(eq(jobCards.id, existing.id))
+            .returning();
+
+          return updated;
+        }
+
         const jcSeq = await generateBusinessNumber(tx, 'JOB_CARD', 'JC');
 
         const [newJobCard] = await tx

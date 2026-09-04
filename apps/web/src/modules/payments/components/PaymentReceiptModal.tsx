@@ -48,6 +48,9 @@ export const PaymentReceiptModal: React.FC<PaymentReceiptModalProps> = ({
   const formattedBalanceAmount = outstandingNum.toLocaleString('en-IN', { maximumFractionDigits: 2 });
   const formattedDiscountAmount = discountAmountNum.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
+  const isPaidInFull = (invoice?.status === 'PAID') || (payment.invoiceStatus === 'PAID') || outstandingNum <= 0.001;
+  const hasOutstanding = !isPaidInFull && outstandingNum > 0.001;
+
   // Items
   const items = invoice?.items;
   const totalQty = items?.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0) || 1;
@@ -143,19 +146,21 @@ export const PaymentReceiptModal: React.FC<PaymentReceiptModalProps> = ({
                   <p className="text-[11px] font-medium text-black mt-1">Mobile: {customerPhone}</p>
                 </div>
 
-                <div className="col-span-6 grid grid-cols-3 text-center bg-white">
+                <div className={`col-span-6 grid ${hasOutstanding ? 'grid-cols-3' : 'grid-cols-2'} text-center bg-white`}>
                   <div className="border-r border-black p-2 flex flex-col justify-center items-center">
                     <span className="text-[10px] font-bold text-black">Invoice No.</span>
                     <span className="text-[11px] font-bold font-mono text-black mt-0.5">{invoiceNo}</span>
                   </div>
-                  <div className="border-r border-black p-2 flex flex-col justify-center items-center">
+                  <div className={`p-2 flex flex-col justify-center items-center ${hasOutstanding ? 'border-r border-black' : ''}`}>
                     <span className="text-[10px] font-bold text-black">Invoice Date</span>
                     <span className="text-[11px] font-bold text-black mt-0.5">{invoiceDate}</span>
                   </div>
-                  <div className="p-2 flex flex-col justify-center items-center">
-                    <span className="text-[10px] font-bold text-black">Due Date</span>
-                    <span className="text-[11px] font-bold text-black mt-0.5">{dueDate}</span>
-                  </div>
+                  {hasOutstanding && (
+                    <div className="p-2 flex flex-col justify-center items-center">
+                      <span className="text-[10px] font-bold text-black">Due Date</span>
+                      <span className="text-[11px] font-bold text-black mt-0.5">{dueDate}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

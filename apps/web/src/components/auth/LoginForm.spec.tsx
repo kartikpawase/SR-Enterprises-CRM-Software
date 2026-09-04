@@ -54,7 +54,7 @@ describe('Master Production LoginForm Component', () => {
     // The 4 approved fields
     expect(screen.getByLabelText(/^username$/i)).toBeDefined();
     expect(screen.getByLabelText(/^password$/i)).toBeDefined();
-    expect(screen.getByText(/^captcha$/i)).toBeDefined();
+    expect(screen.getByText(/captcha challenge/i)).toBeDefined();
     expect(screen.getByLabelText(/^enter captcha$/i)).toBeDefined();
 
     // Refresh icon button

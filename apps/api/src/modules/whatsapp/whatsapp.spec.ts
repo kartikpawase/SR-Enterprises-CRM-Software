@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { DevWhatsAppProvider, MetaWhatsAppProvider } from './whatsapp.provider';
+import { env } from '../../config/env';
 
 const { mockRedisInstance, mockWhatsAppService } = vi.hoisted(() => {
   class MockRedisStore {
@@ -177,7 +178,7 @@ describe('WhatsApp Integration Foundation (Phase 9)', () => {
     it('GET /api/v1/webhooks/whatsapp should respond with challenge on valid subscription token', async () => {
       const response = await app.inject({
         method: 'GET',
-        url: '/api/v1/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=sr_enterprises_wa_verify_token&hub.challenge=1158201444',
+        url: `/api/v1/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=${env.WHATSAPP_WEBHOOK_VERIFY_TOKEN}&hub.challenge=1158201444`,
       });
 
       expect(response.statusCode).toBe(200);

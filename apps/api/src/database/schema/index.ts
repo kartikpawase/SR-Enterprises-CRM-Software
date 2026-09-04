@@ -28,6 +28,7 @@ export * from './inventory';
 export * from './settings';
 export * from './workflows';
 export * from './rentals';
+export * from './inventory-items';
 
 // Export all Relations
 export * from './relations';

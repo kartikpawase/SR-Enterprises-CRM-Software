@@ -18,6 +18,13 @@ export class CustomerService {
     return this.repo.findPaginated(filters);
   }
 
+  /**
+   * Get customer summary statistics and dashboard metrics
+   */
+  async getCustomerDashboardStats() {
+    return this.repo.getCustomerDashboardStats();
+  }
+
   private createNotFoundError(id: string) {
     const error = new Error(`Customer with ID ${id} not found`);
     (error as any).statusCode = 404;
@@ -180,6 +187,7 @@ export class CustomerService {
     actorId?: string | null,
     actorName?: string | null
   ) {
+    await this.getCustomerById(id);
     return this.repo.deleteCustomerCompletely(id);
   }
 

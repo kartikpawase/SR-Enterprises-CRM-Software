@@ -47,6 +47,7 @@ interface FormLineItem {
   discountAmount: number;
   taxRatePercent: number;
   serialNumber?: string;
+  nextServiceDate?: string;
   installationRequired?: boolean;
   warrantyPeriodMonths: number;
   warrantyPreset: '1M' | '3M' | '6M' | '1Y' | '2Y' | 'CUSTOM' | 'NO_WARRANTY';
@@ -85,6 +86,7 @@ export const SaleCreatePage: React.FC = () => {
   const [draftStorageCapacity, setDraftStorageCapacity] = useState('8 Litres');
   const [draftTechnology, setDraftTechnology] = useState('RO + UV + UF + TDS Controller');
   const [draftSerialNumber, setDraftSerialNumber] = useState('');
+  const [draftNextServiceDate, setDraftNextServiceDate] = useState('');
   const [draftPartCategory, setDraftPartCategory] = useState('Filter Cartridge');
   const [draftHsnCode, setDraftHsnCode] = useState('84212190');
   const [draftQuantity, setDraftQuantity] = useState<number>(1);
@@ -242,6 +244,7 @@ export const SaleCreatePage: React.FC = () => {
       discountAmount: discount,
       taxRatePercent: draftTaxRatePercent,
       serialNumber: generatedSerial,
+      nextServiceDate: draftNextServiceDate ? draftNextServiceDate.trim() : undefined,
       warrantyPeriodMonths: warrantyMonths,
       warrantyPreset: draftWarrantyPreset,
     };
@@ -252,6 +255,7 @@ export const SaleCreatePage: React.FC = () => {
     // Reset draft fields for quick next entry
     setDraftName('');
     setDraftSerialNumber('');
+    setDraftNextServiceDate('');
     setDraftDiscountAmount('0');
   };
 
@@ -360,6 +364,7 @@ export const SaleCreatePage: React.FC = () => {
           discountAmount: Number(i.discountAmount || 0),
           taxRatePercent: Number(i.taxRatePercent !== undefined && i.taxRatePercent !== null ? i.taxRatePercent : 0),
           serialNumber: i.serialNumber ? i.serialNumber.trim() : undefined,
+          nextServiceDate: i.nextServiceDate ? i.nextServiceDate.trim() : undefined,
           warrantyPeriodMonths: Number(i.warrantyPeriodMonths ?? 12),
           warrantyMonths: Number(i.warrantyPeriodMonths ?? 12),
         })),
@@ -660,16 +665,28 @@ export const SaleCreatePage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Machine Serial Number / Barcode <span className="text-slate-400 font-normal">(Optional)</span>
+                          Machine Serial Number <span className="text-slate-400 font-normal">(Optional)</span>
                         </label>
                         <Input
-                          placeholder="e.g. SN-2026-KG-09812 (Auto-generated if blank)"
+                          placeholder="e.g. SN-2026-KG-09812 (Auto if blank)"
                           value={draftSerialNumber}
                           onChange={(e) => setDraftSerialNumber(e.target.value)}
                           className="font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Next Service / Visit Date <span className="text-slate-400 font-normal">(Optional)</span>
+                        </label>
+                        <Input
+                          type="date"
+                          value={draftNextServiceDate}
+                          onChange={(e) => setDraftNextServiceDate(e.target.value)}
+                          className="text-xs"
                         />
                       </div>
 
@@ -965,15 +982,27 @@ export const SaleCreatePage: React.FC = () => {
                       </div>
 
                       {item.productType === 'RO_MACHINE' && (
-                        <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
-                          <span className="text-xs font-semibold text-slate-700">Machine Serial #:</span>
-                          <input
-                            type="text"
-                            placeholder="e.g. SN-8921-2026"
-                            value={item.serialNumber || ''}
-                            onChange={(e) => handleUpdateItem(idx, 'serialNumber', e.target.value)}
-                            className="px-2.5 py-1 text-xs border border-slate-300 rounded font-mono bg-white focus:outline-none focus:ring-1 focus:ring-primary-500 w-48"
-                          />
+                        <div className="pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">Machine Serial #:</span>
+                            <input
+                              type="text"
+                              placeholder="e.g. SN-8921-2026"
+                              value={item.serialNumber || ''}
+                              onChange={(e) => handleUpdateItem(idx, 'serialNumber', e.target.value)}
+                              className="px-2.5 py-1 text-xs border border-slate-300 rounded font-mono bg-white focus:outline-none focus:ring-1 focus:ring-primary-500 w-full"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">Next Service Date:</span>
+                            <input
+                              type="date"
+                              value={item.nextServiceDate || ''}
+                              onChange={(e) => handleUpdateItem(idx, 'nextServiceDate', e.target.value)}
+                              className="px-2.5 py-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary-500 w-full"
+                            />
+                          </div>
                         </div>
                       )}
 

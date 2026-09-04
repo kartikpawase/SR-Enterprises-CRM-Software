@@ -6,6 +6,7 @@ import { requirePermission } from '../../middleware/rbac';
 import {
   CreateCustomerSchema,
   UpdateCustomerSchema,
+  UpdateCustomerLabelSchema,
   CustomerQueryFilterSchema,
   CheckDuplicateCustomerSchema,
   CustomerNoteSchema,
@@ -40,6 +41,22 @@ export const customerRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /**
+   * GET /api/v1/customers/stats
+   * Aggregated customer statistics & dashboard metrics
+   */
+  fastify.get(
+    '/stats',
+    { preHandler: [requirePermission('customers.view')] },
+    async (_request, reply) => {
+      const stats = await customerService.getCustomerDashboardStats();
+      return reply.status(HTTP_STATUS.OK).send({
+        success: true,
+        data: stats,
+      });
+    }
+  );
+
+  /**
    * GET /api/v1/customers/check-duplicate
    * Check for duplicate phone or email before form submission
    */
@@ -65,39 +82,25 @@ export const customerRoutes: FastifyPluginAsync = async (fastify) => {
     '/',
     { preHandler: [requirePermission('customers.create')] },
     async (request, reply) => {
-      try {
-        console.log('[DEBUG customer.routes.ts] POST /customers body:', JSON.stringify(request.body));
-        const body = CreateCustomerSchema.parse(request.body);
-        console.log('[DEBUG customer.routes.ts] Parsed schema body successfully');
-        const actorId = request.user?.userId;
-        const actorName = request.user?.displayName;
+      const body = CreateCustomerSchema.parse(request.body);
+      const actorId = request.user?.userId;
+      const actorName = request.user?.displayName;
 
-        const customer = await customerService.createCustomer(body, actorId, actorName);
-        if (!customer || !customer.id) {
-          return reply.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
-            success: false,
-            error: {
-              code: 'CUSTOMER_CREATE_FAILED',
-              message: 'Failed to create customer in database',
-            },
-          });
-        }
-
-        return reply.status(HTTP_STATUS.CREATED).send({
-          success: true,
-          data: customer,
-        });
-      } catch (err: any) {
-        console.error('[DEBUG customer.routes.ts] POST /customers ERROR:', err);
-        return reply.status(err.statusCode || 500).send({
+      const customer = await customerService.createCustomer(body, actorId, actorName);
+      if (!customer || !customer.id) {
+        return reply.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
           success: false,
           error: {
-            code: err.code || 'CUSTOMER_CREATE_ERROR',
-            message: err.message || 'Customer creation error',
-            stack: err.stack,
+            code: 'CUSTOMER_CREATE_FAILED',
+            message: 'Failed to create customer in database',
           },
         });
       }
+
+      return reply.status(HTTP_STATUS.CREATED).send({
+        success: true,
+        data: customer,
+      });
     }
   );
 
@@ -133,6 +136,33 @@ export const customerRoutes: FastifyPluginAsync = async (fastify) => {
       const actorName = request.user?.displayName;
 
       const updated = await customerService.updateCustomer(id, body, actorId, actorName);
+
+      return reply.status(HTTP_STATUS.OK).send({
+        success: true,
+        data: updated,
+      });
+    }
+  );
+
+  /**
+   * PATCH /api/v1/customers/:id/label
+   * Update customer classification label (GOOD, BAD, NONE/null)
+   */
+  fastify.patch(
+    '/:id/label',
+    { preHandler: [requirePermission('customers.update')] },
+    async (request, reply) => {
+      const { id } = UuidParamSchema.parse(request.params);
+      const body = UpdateCustomerLabelSchema.parse(request.body);
+      const actorId = request.user?.userId;
+      const actorName = request.user?.displayName;
+
+      const updated = await customerService.updateCustomer(
+        id,
+        { customerLabel: body.label } as any,
+        actorId,
+        actorName
+      );
 
       return reply.status(HTTP_STATUS.OK).send({
         success: true,

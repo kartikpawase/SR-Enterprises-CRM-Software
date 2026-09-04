@@ -205,16 +205,14 @@ export const SaleDetailPage: React.FC = () => {
   };
 
   const totalAmount = parseFloat(sale.totalAmount || '0');
-  const rawPaid = sale.invoice?.paidAmount
+  const validPayments = (sale.payments || []).filter((p: any) => p.status === 'COMPLETED');
+  const paidAmount = validPayments.length > 0
+    ? validPayments.reduce((acc: number, p: any) => acc + (parseFloat(p.amount) || 0), 0)
+    : sale.invoice?.paidAmount
     ? parseFloat(sale.invoice.paidAmount)
-    : sale.payments && sale.payments.length > 0
-    ? sale.payments.reduce((acc: number, p: any) => acc + parseFloat(p.amount || '0'), 0)
-    : sale.status === 'COMPLETED'
-    ? totalAmount
     : 0;
-  const paidAmount = Number.isFinite(rawPaid) ? rawPaid : 0;
   const balanceDue = Math.max(0, totalAmount - paidAmount);
-  const isFullyPaid = sale.invoice?.status === 'PAID' || balanceDue <= 0 || (sale.status === 'COMPLETED' && (!sale.invoice || sale.invoice.status === 'PAID'));
+  const isFullyPaid = (balanceDue <= 0.001 && paidAmount > 0) || sale.invoice?.status === 'PAID';
 
   return (
     <div ref={pageContainerRef} className="space-y-6 max-w-6xl mx-auto pb-16 print:p-0 print:m-0 print:space-y-4">
@@ -675,6 +673,16 @@ export const SaleDetailPage: React.FC = () => {
                               • {item.warrantyMonths}M Warranty
                             </span>
                           )}
+                          {item.nextServiceDate && (
+                            <span className="text-emerald-700 font-sans font-semibold">
+                              • Next Service:{' '}
+                              {new Date(item.nextServiceDate).toLocaleDateString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-3 text-center font-bold font-mono">{item.quantity}</td>
@@ -716,7 +724,7 @@ export const SaleDetailPage: React.FC = () => {
 
               <div className="flex items-center gap-2">
                 {isFullyPaid ? (
-                  <Badge variant="success">Fully Paid</Badge>
+                  <Badge variant="success">Payment Complete</Badge>
                 ) : paidAmount > 0 ? (
                   <Badge variant="warning">Partially Paid</Badge>
                 ) : (

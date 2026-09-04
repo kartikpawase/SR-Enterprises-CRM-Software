@@ -15,6 +15,7 @@ export interface CustomerRecord {
   nextServiceDate: string;
   nextServiceDays: number | 'Expired' | null;
   status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+  customerLabel?: 'GOOD' | 'BAD' | null;
   summary: {
     totalInvoices: string;
     outstanding: string;
@@ -87,9 +88,21 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                         {customer.initials}
                       </div>
                       <div className="min-w-0">
-                        <span className="font-bold text-slate-900 text-xs sm:text-sm block group-hover:text-primary-600 transition-colors truncate">
-                          {customer.fullName}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-900 text-xs sm:text-sm block group-hover:text-primary-600 transition-colors truncate">
+                            {customer.fullName}
+                          </span>
+                          {customer.customerLabel === 'GOOD' && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-2xs shrink-0">
+                              Good Customer
+                            </span>
+                          )}
+                          {customer.customerLabel === 'BAD' && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/90 shadow-2xs shrink-0">
+                              Bad Customer
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[11px] text-slate-500 font-mono block font-semibold">
                           {customer.customerNumber}
                         </span>

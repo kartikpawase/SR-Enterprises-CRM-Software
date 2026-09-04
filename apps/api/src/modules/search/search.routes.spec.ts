@@ -1,6 +1,19 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
+
+vi.mock('../../middleware/auth', () => ({
+  authenticate: async (request: any) => {
+    request.user = {
+      userId: '99999999-9999-9999-9999-999999999999',
+      username: 'admin',
+      displayName: 'System Admin',
+      role: 'Super Admin',
+      permissions: ['*'],
+    };
+  },
+}));
+
 import { v1Routes } from '../../routes/v1';
 
 describe('Search Routes Integration Tests — GET /api/v1/search', () => {

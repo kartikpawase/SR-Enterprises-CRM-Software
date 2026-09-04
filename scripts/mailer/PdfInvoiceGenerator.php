@@ -170,6 +170,36 @@ class PdfInvoiceGenerator {
         $formattedReceivedAmount = number_format($receivedAmount);
         $formattedBalanceAmount = number_format($balanceAmount);
 
+        $status = strtoupper($data['status'] ?? '');
+        $hasOutstanding = $balanceAmount > 0.001 && $status !== 'PAID';
+
+        $metaCellsHtml = '';
+        if ($hasOutstanding) {
+            $metaCellsHtml = "
+            <td style='width: 16.66%; border-right: 1px solid #000; text-align: center; vertical-align: middle; padding: 4px 2px;'>
+                <div style='font-size: 8.5px; font-weight: bold; color: #000;'>Invoice No.</div>
+                <div style='font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;'>{$invoiceNo}</div>
+            </td>
+            <td style='width: 16.66%; border-right: 1px solid #000; text-align: center; vertical-align: middle; padding: 4px 2px;'>
+                <div style='font-size: 8.5px; font-weight: bold; color: #000;'>Invoice Date</div>
+                <div style='font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;'>{$invoiceDate}</div>
+            </td>
+            <td style='width: 16.68%; text-align: center; vertical-align: middle; padding: 4px 2px;'>
+                <div style='font-size: 8.5px; font-weight: bold; color: #000;'>Due Date</div>
+                <div style='font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;'>{$dueDate}</div>
+            </td>";
+        } else {
+            $metaCellsHtml = "
+            <td style='width: 25%; border-right: 1px solid #000; text-align: center; vertical-align: middle; padding: 4px 2px;'>
+                <div style='font-size: 8.5px; font-weight: bold; color: #000;'>Invoice No.</div>
+                <div style='font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;'>{$invoiceNo}</div>
+            </td>
+            <td style='width: 25%; text-align: center; vertical-align: middle; padding: 4px 2px;'>
+                <div style='font-size: 8.5px; font-weight: bold; color: #000;'>Invoice Date</div>
+                <div style='font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;'>{$invoiceDate}</div>
+            </td>";
+        }
+
         // Warranty Notes
         $warrantyNotes = !empty($data['notes']) ? htmlspecialchars($data['notes']) : '1 Years Warranty On Ele Spears 1 Service Free';
 
@@ -202,6 +232,8 @@ class PdfInvoiceGenerator {
     
     .doc-container {
         width: 100%;
+        max-width: 190mm;
+        margin: 0 auto;
         page-break-inside: avoid;
     }
     
@@ -259,8 +291,11 @@ class PdfInvoiceGenerator {
     <!-- HEADER TABLE -->
     <table class="header-table">
         <tr>
-            <td style="width: 65px; vertical-align: middle; text-align: left;">
-                <img src="{$logoSvg}" style="width: 56px; height: 56px;" alt="SR Enterprises Logo" />
+            <td style="width: 60px; vertical-align: middle; text-align: center;">
+                <div style="width: 48px; height: 48px; border: 2px solid #1d4ed8; border-radius: 24px; text-align: center; background-color: #f8fafc; margin: 0 auto; line-height: 1;">
+                    <div style="font-size: 14px; font-weight: bold; color: #1d4ed8; padding-top: 8px;">SR</div>
+                    <div style="font-size: 5px; font-weight: bold; color: #1d4ed8; letter-spacing: 0.5px;">RO WATER</div>
+                </div>
             </td>
             <td style="text-align: center; vertical-align: middle; padding-left: 2px;">
                 <div style="font-size: 19px; font-weight: bold; color: #000; letter-spacing: 0.5px; line-height: 1.1;">SR ENTERPRISES</div>
@@ -283,18 +318,7 @@ class PdfInvoiceGenerator {
                 <div style="font-size: 10px; font-weight: bold; color: #000; text-transform: uppercase;">{$customerName}</div>
                 <div style="font-size: 9px; font-weight: 500; color: #000; margin-top: 2px;">Mobile: {$customerPhone}</div>
             </td>
-            <td style="width: 16.66%; border-right: 1px solid #000; text-align: center; vertical-align: middle; padding: 4px 2px;">
-                <div style="font-size: 8.5px; font-weight: bold; color: #000;">Invoice No.</div>
-                <div style="font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;">{$invoiceNo}</div>
-            </td>
-            <td style="width: 16.66%; border-right: 1px solid #000; text-align: center; vertical-align: middle; padding: 4px 2px;">
-                <div style="font-size: 8.5px; font-weight: bold; color: #000;">Invoice Date</div>
-                <div style="font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;">{$invoiceDate}</div>
-            </td>
-            <td style="width: 16.68%; text-align: center; vertical-align: middle; padding: 4px 2px;">
-                <div style="font-size: 8.5px; font-weight: bold; color: #000;">Due Date</div>
-                <div style="font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;">{$dueDate}</div>
-            </td>
+            {$metaCellsHtml}
         </tr>
     </table>
 
@@ -341,10 +365,35 @@ class PdfInvoiceGenerator {
         </tr>
     </table>
 
-    <!-- SECTION 5: EXACT STATIC OFFICIAL SR ENTERPRISES LOWER IMAGE -->
-    <div style="width: 100%; border: 1.5px solid #000; border-top: none; margin-top: 0; line-height: 0;">
-        <img src="{$lowerSectionImg}" style="width: 100%; display: block;" alt="Official SR Enterprises Bank, QR, Terms & Signatory" />
-    </div>
+    <!-- SECTION 5: OFFICIAL SR ENTERPRISES BANK, TERMS & SIGNATORY -->
+    <table class="flat-grid" style="border-top: none; margin-top: 0;">
+        <tr>
+            <td style="width: 50%; border-right: 1.5px solid #000; padding: 5px 6px; vertical-align: top;">
+                <div style="font-size: 8px; font-weight: bold; margin-bottom: 2px; color: #000;">BANK & PAYMENT DETAILS:</div>
+                <div style="font-size: 7.5px; line-height: 1.3; color: #111;">
+                    <strong>Bank Name:</strong> AU Small Finance Bank<br/>
+                    <strong>Account Name:</strong> SR ENTERPRISES<br/>
+                    <strong>Account No.:</strong> 2302256711883344<br/>
+                    <strong>IFSC Code:</strong> AUBL0002567<br/>
+                    <strong>Branch:</strong> Rahatani, Pune - 411017<br/>
+                    <strong>UPI ID:</strong> srenterprises6711@aubank
+                </div>
+            </td>
+            <td style="width: 50%; padding: 5px 6px; vertical-align: top;">
+                <div style="font-size: 8px; font-weight: bold; margin-bottom: 2px; color: #000;">TERMS & CONDITIONS:</div>
+                <div style="font-size: 7px; line-height: 1.25; color: #222;">
+                    1. 1 Year Warranty on Electrical Spare Parts.<br/>
+                    2. 1 Free Periodic Maintenance Service included.<br/>
+                    3. Physical damage or water leakage due to external pressure not covered under warranty.<br/>
+                    4. Subject to Pune jurisdiction only.
+                </div>
+                <div style="margin-top: 10px; text-align: right; font-size: 7.5px; font-weight: bold; color: #000;">
+                    For SR ENTERPRISES<br/><br/><br/>
+                    <span style="border-top: 1px dashed #444; padding-top: 2px;">Authorized Signatory</span>
+                </div>
+            </td>
+        </tr>
+    </table>
 
 </div>
 

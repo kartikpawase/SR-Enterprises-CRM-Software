@@ -20,14 +20,21 @@ import {
   useUnreadNotificationCountQuery,
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
+  useSendAdminTestEmailMutation,
 } from './notifications.api';
+import { useToast } from '../../providers/ToastProvider';
+import { Modal } from '../../components/ui/Modal';
+import { Input } from '../../components/ui/Input';
 import type { NotificationItem, NotificationSeverity } from '@crm/types';
 
 export const NotificationsPage: React.FC = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState<string>('ALL');
   const [readFilter, setReadFilter] = useState<'ALL' | 'UNREAD' | 'READ'>('ALL');
+  const [isTestEmailModalOpen, setIsTestEmailModalOpen] = useState(false);
+  const [testEmailAddress, setTestEmailAddress] = useState('');
 
   const queryFilter = {
     search: searchTerm || undefined,
@@ -39,6 +46,7 @@ export const NotificationsPage: React.FC = () => {
   const { data: unreadSummary } = useUnreadNotificationCountQuery();
   const markReadMutation = useMarkNotificationReadMutation();
   const markAllReadMutation = useMarkAllNotificationsReadMutation();
+  const sendTestEmailMutation = useSendAdminTestEmailMutation();
 
   const notifications = notifData?.data || [];
   const unreadCount = unreadSummary?.unreadCount ?? 0;
@@ -80,6 +88,29 @@ export const NotificationsPage: React.FC = () => {
     }
   };
 
+  const handleSendTestEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (testEmailAddress && (!testEmailAddress.includes('@') || !testEmailAddress.includes('.'))) {
+      toast.error('Please enter a valid recipient email address.', 'Invalid Email');
+      return;
+    }
+
+    try {
+      const res = await sendTestEmailMutation.mutateAsync(testEmailAddress || undefined);
+      if (res?.success === false) {
+        toast.error(res.error || res.message || 'Test email failed.', 'SMTP / Mailer Error');
+      } else {
+        toast.success(
+          `Test email dispatched successfully to ${res.recipient || testEmailAddress || 'system default'} via PHPMailer.`,
+          'PHPMailer Test Succeeded'
+        );
+        setIsTestEmailModalOpen(false);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to dispatch test email.', 'PHPMailer Error');
+    }
+  };
+
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
@@ -90,18 +121,28 @@ export const NotificationsPage: React.FC = () => {
           { label: 'Notifications Center' },
         ]}
         actions={
-          unreadCount > 0 ? (
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => markAllReadMutation.mutate()}
-              disabled={markAllReadMutation.isPending}
-              className="gap-1.5"
+              onClick={() => setIsTestEmailModalOpen(true)}
+              className="gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
             >
-              <CheckCheck className="w-4 h-4 text-primary-600" />
-              <span>Mark all {unreadCount} as read</span>
+              <span>Test PHPMailer / SMTP</span>
             </Button>
-          ) : undefined
+            {unreadCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => markAllReadMutation.mutate()}
+                disabled={markAllReadMutation.isPending}
+                className="gap-1.5"
+              >
+                <CheckCheck className="w-4 h-4 text-primary-600" />
+                <span>Mark all {unreadCount} as read</span>
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -230,6 +271,49 @@ export const NotificationsPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* PHPMailer / SMTP Diagnostic Modal */}
+      <Modal
+        isOpen={isTestEmailModalOpen}
+        onClose={() => setIsTestEmailModalOpen(false)}
+        title="Test PHPMailer & SMTP Service"
+      >
+        <form onSubmit={handleSendTestEmail} className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Send a live diagnostic test email through the server-side PHPMailer engine to verify SMTP credentials,
+            connection health, and template rendering.
+          </p>
+
+          <Input
+            label="Recipient Email Address (Optional)"
+            type="email"
+            placeholder="e.g. srenterprises02015@gmail.com"
+            value={testEmailAddress}
+            onChange={(e) => setTestEmailAddress(e.target.value)}
+            helperText="Leave blank to use the default configured SUPPORT_EMAIL or SMTP_USER."
+          />
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsTestEmailModalOpen(false)}
+              disabled={sendTestEmailMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={sendTestEmailMutation.isPending}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {sendTestEmailMutation.isPending ? 'Sending Test Email...' : 'Send Test Email'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };
+

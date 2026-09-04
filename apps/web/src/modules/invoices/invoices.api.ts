@@ -126,3 +126,20 @@ export function useCancelInvoiceMutation() {
     },
   });
 }
+
+export function useSendInvoiceDueMailMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const res = await apiClient.post<{ success: boolean; data?: any; message?: string }>(
+        `/invoices/${invoiceId}/send-due-mail`
+      );
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+

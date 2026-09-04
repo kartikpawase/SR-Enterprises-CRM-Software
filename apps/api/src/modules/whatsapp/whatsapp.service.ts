@@ -1,5 +1,6 @@
 import { whatsappRepository } from './whatsapp.repository';
 import { getWhatsAppProvider } from './whatsapp.provider';
+import { normalizeWhatsAppPhone } from './whatsapp-phone.util';
 import type {
   SendWhatsAppTextMessageDto,
   SendWhatsAppTemplateMessageDto,
@@ -292,6 +293,166 @@ export class WhatsAppService {
     }
 
     return results;
+  }
+
+  /**
+   * Send Dynamic WhatsApp Notification to Assigned Technician for a Job Card / Work Order
+   */
+  async notifyTechnicianJobAssignment(
+    jobCardId: string,
+    options?: { forceResend?: boolean; actorUserId?: string }
+  ): Promise<{
+    success: boolean;
+    status: string;
+    recipientPhone?: string;
+    technicianName?: string;
+    providerMessageId?: string;
+    messageText?: string;
+    directUrl?: string;
+    error?: string;
+    errorCode?: string;
+    isDuplicate?: boolean;
+  }> {
+    if (!jobCardId || typeof jobCardId !== 'string') {
+      return { success: false, status: 'FAILED', error: 'Invalid Job Card ID' };
+    }
+
+    try {
+      const { jobCardsRepository } = await import('../job-cards/job-cards.repository');
+      const jobCard = await jobCardsRepository.findById(jobCardId);
+
+      if (!jobCard) {
+        return { success: false, status: 'FAILED', error: `Job Card '${jobCardId}' not found` };
+      }
+
+      if (!jobCard.technicianId) {
+        return {
+          success: false,
+          status: 'SKIPPED',
+          error: 'No technician is currently assigned to this Job Card',
+        };
+      }
+
+      // Authoritatively resolve technician record from database
+      const { techniciansRepository } = await import('../technicians/technicians.repository');
+      const techRecord = await techniciansRepository.findById(jobCard.technicianId);
+
+      const technicianName = techRecord?.fullName || jobCard.technicianName || 'Technician';
+      const rawTechPhone = techRecord?.phone || jobCard.technicianPhone || '';
+      const normalizedPhone = normalizeWhatsAppPhone(rawTechPhone);
+
+      if (!normalizedPhone) {
+        return {
+          success: false,
+          status: 'FAILED',
+          technicianName,
+          error: `Invalid technician mobile number (${rawTechPhone || 'None'}). Please ensure technician mobile number is valid.`,
+        };
+      }
+
+      // Dynamic field extraction from authoritative CRM record
+      const customerName = jobCard.customerName || 'Valued Customer';
+      const customerPhone = jobCard.customerPhone || 'N/A';
+      const machineName = jobCard.productName || jobCard.productBrand || 'RO Water Purifier';
+      const serialNumber = jobCard.serialNumber || 'N/A';
+
+      const formatTitleCase = (str?: string | null): string => {
+        if (!str) return '';
+        return str
+          .replace(/_/g, ' ')
+          .toLowerCase()
+          .split(' ')
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(' ');
+      };
+
+      const serviceType = formatTitleCase(jobCard.serviceType) || 'Periodic Maintenance';
+      const priority = formatTitleCase(jobCard.priority) || 'Normal';
+      const serviceLocation = (jobCard as any).serviceLocation === 'IN_SHOP' ? 'In-Shop' : 'Doorstep';
+      const timeSlot = (jobCard as any).scheduledTimeSlot || '10:00 AM - 12:00 PM';
+
+      let scheduledDateStr = 'Scheduled Visit';
+      if (jobCard.scheduledDate) {
+        const d = new Date(jobCard.scheduledDate);
+        if (!isNaN(d.getTime())) {
+          scheduledDateStr = d.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          });
+        }
+      }
+
+      const messageText = `New Service Job Assigned
+
+Customer: ${customerName}
+Customer Phone: ${customerPhone}
+Machine/Product: ${machineName}
+Serial Number: ${serialNumber}
+Service Type: ${serviceType}
+Visit Date: ${scheduledDateStr}
+Time Slot: ${timeSlot}
+Location: ${serviceLocation}
+Priority: ${priority}
+
+Job Card: ${jobCard.jobCardNumber}
+
+Please check the CRM for complete job details.`;
+
+      const directUrl = `https://api.whatsapp.com/send?phone=${normalizedPhone}&text=${encodeURIComponent(messageText)}`;
+
+      // Dispatch via configured WhatsApp provider
+      const provider = getWhatsAppProvider();
+      const sendResult = await provider.sendTextMessage(normalizedPhone, messageText);
+
+      // Create contact, conversation and local message for audit
+      try {
+        const contact = await whatsappRepository.findOrCreateContact(normalizedPhone, null);
+        const conversation = await whatsappRepository.findOrCreateConversation(contact.id, null);
+
+        const localMessage = await whatsappRepository.createOutboundMessage({
+          conversationId: conversation.id,
+          contactId: contact.id,
+          content: messageText,
+          messageType: 'TEXT',
+          ...(options?.actorUserId ? { sentByUserId: options.actorUserId } : {}),
+          status: sendResult.status || (sendResult.success ? 'SENT' : 'FAILED'),
+          ...(sendResult.providerMessageId ? { providerMessageId: sendResult.providerMessageId } : {}),
+          ...(sendResult.error?.code ? { errorCode: sendResult.error.code } : {}),
+          ...(sendResult.error?.message ? { errorMessage: sendResult.error.message } : {}),
+        });
+
+        return {
+          success: sendResult.success,
+          status: sendResult.status,
+          recipientPhone: normalizedPhone,
+          technicianName,
+          providerMessageId: sendResult.providerMessageId || localMessage?.id,
+          messageText,
+          directUrl,
+          error: sendResult.error?.message,
+          errorCode: sendResult.error?.code,
+        };
+      } catch {
+        return {
+          success: sendResult.success,
+          status: sendResult.status,
+          recipientPhone: normalizedPhone,
+          technicianName,
+          providerMessageId: sendResult.providerMessageId,
+          messageText,
+          directUrl,
+          error: sendResult.error?.message,
+          errorCode: sendResult.error?.code,
+        };
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        status: 'FAILED',
+        error: err?.message || 'Failed to dispatch WhatsApp notification to technician',
+      };
+    }
   }
 }
 

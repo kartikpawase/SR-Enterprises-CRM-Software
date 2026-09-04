@@ -91,6 +91,6 @@ describe('TodaysScheduleCard Component', () => {
     // The completed item container has opacity class for lower visibility
     const completedHeading = screen.getByText('Customer Completed Done');
     const itemContainer = completedHeading.closest('.cursor-pointer');
-    expect(itemContainer?.className).toContain('opacity-50');
+    expect(itemContainer?.className).toContain('opacity-70');
   });
 });

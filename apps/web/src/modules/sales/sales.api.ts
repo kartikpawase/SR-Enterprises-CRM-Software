@@ -24,6 +24,7 @@ export interface SaleItemData {
   warrantyMonths: number;
   serviceIntervalMonths: number;
   serialNumber?: string | null;
+  nextServiceDate?: string | null;
 }
 
 export interface SaleSummaryData {

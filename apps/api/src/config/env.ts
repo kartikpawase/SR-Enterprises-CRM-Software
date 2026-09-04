@@ -1,7 +1,25 @@
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { z } from 'zod';
 
-// Load .env file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Deterministically search and load environment files
+const envLocations = [
+  path.resolve(__dirname, '../../../../.env'),
+  path.resolve(__dirname, '../../.env'),
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), 'apps/api/.env'),
+];
+
+for (const p of envLocations) {
+  if (fs.existsSync(p)) {
+    dotenv.config({ path: p });
+  }
+}
 dotenv.config();
 
 const envSchema = z.object({
@@ -62,13 +80,27 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().optional(),
 
   // WhatsApp Business Integration
-  WHATSAPP_PROVIDER: z.enum(['META', 'DEV', 'MOCK']).default('DEV'),
+  WHATSAPP_PROVIDER: z.enum(['META', 'DEV', 'MOCK']).default('META'),
+  WHATSAPP_API_URL: z.string().default('https://graph.facebook.com'),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().optional(),
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().default('sr_enterprises_wa_verify_token'),
   WHATSAPP_WEBHOOK_APP_SECRET: z.string().optional(),
   WHATSAPP_API_VERSION: z.string().default('v21.0'),
+
+  // Transactional Email / PHPMailer (SMTP)
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.string().default('587'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_SECURE: z.string().default('tls'),
+  SMTP_FROM_EMAIL: z.string().optional(),
+  SMTP_FROM_NAME: z.string().default('SR Enterprises'),
+  SUPPORT_EMAIL: z.string().default('srenterprises02015@gmail.com'),
+  SUPPORT_PHONE: z.string().default('+91 97660 39197'),
+  MAIL_DRIVER: z.string().optional(),
+  MOCK_MAIL: z.string().optional(),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

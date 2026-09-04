@@ -7,6 +7,7 @@ import { Textarea } from '../../../components/ui/Textarea';
 import { useCustomersQuery, useCustomerDetailQuery } from '../../customers/customer.api';
 import { useAssetsQuery } from '../../assets/assets.api';
 import { useTechniciansQuery, useCreateServiceMutation } from '../services.api';
+import { useToast } from '../../../providers/ToastProvider';
 import { Calendar, User, Cpu, AlertCircle, Search, X } from 'lucide-react';
 import type { CreateServiceInput } from '@crm/validation';
 
@@ -44,6 +45,15 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
   });
 
   const [formError, setFormError] = useState<string | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce customer search input by 200ms
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(customerSearch);
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [customerSearch]);
 
   // Sync initial date or system date whenever modal opens
   useEffect(() => {
@@ -59,10 +69,11 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
   }, [isOpen, initialDate]);
 
   // Queries for customers, assets, technicians
-  const { data: customersData } = useCustomersQuery({
+  const { data: customersData, isLoading: isLoadingCustomers } = useCustomersQuery({
     status: 'ACTIVE',
     page: 1,
-    limit: 500,
+    limit: 200,
+    search: debouncedSearch.trim() || undefined,
     sortBy: 'createdAt',
     sortOrder: 'desc',
   });
@@ -72,29 +83,37 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
   const { data: customerDetail } = useCustomerDetailQuery(formData.customerId || undefined);
   const { data: technicians } = useTechniciansQuery();
 
+  const toast = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const createMutation = useCreateServiceMutation();
 
   const customerList = React.useMemo(() => {
     const raw = customersData?.data || [];
-    return [...raw].sort((a, b) => {
-      const timeA = new Date(a.createdAt || 0).getTime();
-      const timeB = new Date(b.createdAt || 0).getTime();
-      return timeB - timeA;
-    });
-  }, [customersData]);
+    const list = [...raw];
+
+    // If a customer is currently selected and not present in the current search query page, preserve them
+    if (formData.customerId && customerDetail && !list.some((c) => c.id === formData.customerId)) {
+      list.unshift(customerDetail as any);
+    }
+
+    return list;
+  }, [customersData, formData.customerId, customerDetail]);
 
   const filteredCustomerList = React.useMemo(() => {
     if (!customerSearch.trim()) return customerList;
     const q = customerSearch.toLowerCase().trim();
     return customerList.filter((c) => {
       return (
+        c.id === formData.customerId ||
         c.fullName?.toLowerCase().includes(q) ||
         c.phone?.includes(q) ||
         c.customerNumber?.toLowerCase().includes(q) ||
         c.companyName?.toLowerCase().includes(q)
       );
     });
-  }, [customerList, customerSearch]);
+  }, [customerList, customerSearch, formData.customerId]);
+
+  const totalAvailableCustomers = customersData?.pagination?.total ?? customerList.length;
 
   const assetList = React.useMemo(() => {
     if (!formData.customerId) return [];
@@ -153,6 +172,10 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
     e.preventDefault();
     setFormError(null);
 
+    if (isSubmitting || createMutation.isPending) {
+      return;
+    }
+
     if (!formData.customerId) {
       setFormError('Please select a customer.');
       return;
@@ -165,10 +188,13 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
     const effectiveAssetId =
       formData.assetId && formData.assetId !== 'DEFAULT_RO_PURIFIER'
         ? formData.assetId
-        : assetList[0]?.id || '00000000-0000-0000-0000-000000000000';
+        : assetList.length > 0
+        ? assetList[0].id
+        : null;
 
+    setIsSubmitting(true);
     try {
-      await createMutation.mutateAsync({
+      const res = await createMutation.mutateAsync({
         customerId: formData.customerId,
         assetId: effectiveAssetId,
         serviceType: formData.serviceType || 'PERIODIC_MAINTENANCE',
@@ -177,16 +203,24 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
         scheduledDate: formData.scheduledDate,
         scheduledTimeSlot: formData.scheduledTimeSlot || '10:00 AM - 12:00 PM',
         priority: formData.priority || 'NORMAL',
-        technicianId: formData.technicianId || null,
-        customerNotes: formData.customerNotes,
-        internalNotes: formData.internalNotes,
+        technicianId: formData.technicianId && formData.technicianId.trim() !== '' ? formData.technicianId.trim() : null,
+        customerNotes: formData.customerNotes || null,
+        internalNotes: formData.internalNotes || null,
       });
 
+      const srvNumber = (res as any)?.service?.serviceNumber || (res as any)?.serviceNumber || 'Service';
+      toast.success('Service Scheduled', `Service visit ${srvNumber} scheduled successfully.`);
       onClose();
     } catch (err: any) {
-      setFormError(err.message || 'Failed to schedule service');
+      const msg = err?.message || err?.error?.message || 'Failed to schedule service';
+      setFormError(msg);
+      toast.error('Scheduling Failed', msg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  const isBusy = isSubmitting || createMutation.isPending;
 
   return (
     <Modal
@@ -211,9 +245,15 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
               <User className="w-3.5 h-3.5 text-slate-500" />
               Select Customer <span className="text-rose-500">*</span>
             </label>
-            {customerSearch && (
+            {customerSearch.trim() ? (
               <span className="text-[11px] font-medium text-slate-500">
-                {filteredCustomerList.length} matching customer(s)
+                {isLoadingCustomers ? 'Searching...' : `${filteredCustomerList.length} matching customer(s)`}
+              </span>
+            ) : (
+              <span className="text-[11px] font-medium text-slate-500">
+                {totalAvailableCustomers > 0
+                  ? `${totalAvailableCustomers.toLocaleString('en-IN')} available in CRM`
+                  : ''}
               </span>
             )}
           </div>
@@ -245,10 +285,13 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
             options={[
               {
                 value: '',
-                label:
-                  filteredCustomerList.length === 0
+                label: customerSearch.trim()
+                  ? filteredCustomerList.length === 0
                     ? '— No customers match your search —'
-                    : `— Choose Customer (${filteredCustomerList.length} available) —`,
+                    : `— Select Customer (${filteredCustomerList.length} found) —`
+                  : totalAvailableCustomers > 0
+                    ? `— Choose Customer (${totalAvailableCustomers.toLocaleString('en-IN')} available) —`
+                    : '— Choose Customer —',
               },
               ...filteredCustomerList.map((c) => ({
                 value: c.id,
@@ -448,15 +491,15 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
-          <Button type="button" variant="outline" onClick={onClose} disabled={createMutation.isPending}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isBusy}>
             Cancel
           </Button>
           <Button
             type="submit"
             className="bg-primary-600 hover:bg-primary-700 text-white font-bold"
-            disabled={createMutation.isPending}
+            disabled={isBusy}
           >
-            {createMutation.isPending ? 'Scheduling...' : 'Confirm & Schedule'}
+            {isBusy ? 'Scheduling...' : 'Confirm & Schedule'}
           </Button>
         </div>
       </form>

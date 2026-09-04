@@ -60,18 +60,40 @@ export class InvoicesService {
     const result = await emailService.sendPaymentPendingReminder(invoiceId);
 
     if (!result) {
-      const invoice = await this.getInvoiceById(invoiceId);
-      const balance = await this.getInvoiceBalance(invoiceId);
-      const dueAmount = parseFloat(balance.outstandingAmount);
-      if (dueAmount <= 0.01) {
+      try {
+        const invoice = await this.getInvoiceById(invoiceId);
+        const balance = await this.getInvoiceBalance(invoiceId);
+        const dueAmount = parseFloat(balance.outstandingAmount);
+        if (dueAmount <= 0.01) {
+          return {
+            success: false,
+            message: `Invoice #${invoice.invoiceNumber} is already fully paid. No balance due.`,
+          };
+        }
         return {
           success: false,
-          message: `Invoice #${invoice.invoiceNumber} is already fully paid. No balance due.`,
+          message: `Invoice #${invoice.invoiceNumber} is not eligible for reminder or customer is missing email.`,
+        };
+      } catch {
+        return {
+          success: false,
+          message: `Invoice record '${invoiceId}' could not be found.`,
         };
       }
+    }
+
+    if (!result.success) {
+      let invNum = '';
+      try {
+        const invoice = await this.getInvoiceById(invoiceId);
+        if (invoice?.invoiceNumber) invNum = ` for invoice #${invoice.invoiceNumber}`;
+      } catch {}
+
       return {
         success: false,
-        message: `Invoice #${invoice.invoiceNumber} not eligible or missing email.`,
+        status: result.status || 'FAILED',
+        notificationId: result.notificationId,
+        message: result.error || result.reason || `Email could not be sent${invNum}. Please verify customer email and SMTP configuration.`,
       };
     }
 
@@ -79,7 +101,7 @@ export class InvoicesService {
       success: true,
       status: result.status,
       notificationId: result.notificationId,
-      message: 'Payment due reminder queued successfully',
+      message: result.message || 'Payment reminder email sent successfully via PHPMailer.',
     };
   }
 

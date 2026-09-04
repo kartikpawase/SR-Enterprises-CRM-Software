@@ -141,9 +141,21 @@ export const invoicesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/:id/send-due-mail', { preHandler: [requirePermission('invoices.view')] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const result = await invoicesService.sendPaymentDueMail(id);
-    return reply.send({
-      success: result.success !== false,
+    if (!result.success) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: 'EMAIL_DISPATCH_FAILED',
+          message: result.message || 'Payment reminder email could not be sent.',
+        },
+        data: result,
+        message: result.message,
+      });
+    }
+    return reply.status(200).send({
+      success: true,
       data: result,
+      message: result.message,
     });
   });
 
