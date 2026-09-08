@@ -46,7 +46,7 @@ export const JobCardDirectory: React.FC = () => {
     technicianId: technicianId || undefined,
   });
 
-  const { data: kpis, isLoading: isKPIsLoading } = useJobCardKPIsQuery();
+  const { data: kpis, isLoading: isKPIsLoading, refetch: refetchKPIs } = useJobCardKPIsQuery();
   const { data: techniciansData } = useTechniciansQuery({ limit: 100 });
 
   // Action Mutation
@@ -109,7 +109,10 @@ export const JobCardDirectory: React.FC = () => {
         }}
         technicians={techniciansData?.data}
         onCreateClick={() => setIsCreateOpen(true)}
-        onRefresh={() => refetch()}
+        onRefresh={() => {
+          refetch();
+          refetchKPIs();
+        }}
         isFetching={isFetching}
       />
 

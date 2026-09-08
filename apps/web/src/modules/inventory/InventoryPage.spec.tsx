@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from '../../providers/ToastProvider';
 import { InventoryPage } from './InventoryPage';
 import * as inventoryApi from './inventory.api';
 
@@ -19,7 +20,9 @@ function renderWithProviders(ui: React.ReactElement) {
   const queryClient = createTestQueryClient();
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <MemoryRouter>
+        <ToastProvider>{ui}</ToastProvider>
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -270,5 +273,65 @@ describe('InventoryPage Frontend Component', () => {
     expect(screen.getByText('Transaction-Level Profit Ledger')).toBeDefined();
     expect(screen.getByText('+₹750.00')).toBeDefined();
     expect(screen.getByText('42.9%')).toBeDefined();
+  });
+
+  it('8. Renders Delete button for items and opens Delete Confirmation Modal', () => {
+    renderWithProviders(<InventoryPage />);
+
+    const itemsTab = screen.getByRole('button', { name: /inventory items/i });
+    fireEvent.click(itemsTab);
+
+    const deleteButtons = screen.getAllByTitle('Delete Item');
+    expect(deleteButtons.length).toBe(2);
+
+    // Click delete on first item
+    fireEvent.click(deleteButtons[0]);
+
+    expect(screen.getByText('Delete Inventory Item?')).toBeInTheDocument();
+    expect(screen.getByText(/Are you sure you want to delete:/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Sediment Filter 10 Inch/i).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /delete item/i }).length).toBeGreaterThan(0);
+  });
+
+  it('9. Cancels deletion when clicking Cancel in confirmation modal', () => {
+    renderWithProviders(<InventoryPage />);
+
+    const itemsTab = screen.getByRole('button', { name: /inventory items/i });
+    fireEvent.click(itemsTab);
+
+    const deleteButtons = screen.getAllByTitle('Delete Item');
+    fireEvent.click(deleteButtons[0]);
+
+    expect(screen.getByText('Delete Inventory Item?')).toBeInTheDocument();
+
+    const cancelButton = screen.getByRole('button', { name: /cancel/i });
+    fireEvent.click(cancelButton);
+
+    expect(screen.queryByText('Delete Inventory Item?')).not.toBeInTheDocument();
+  });
+
+  it('10. Executes delete mutation when confirming Delete Item in modal', async () => {
+    const mockDelete = vi.fn().mockResolvedValue({ success: true });
+    vi.spyOn(inventoryApi, 'useDeleteInventoryItemMutation').mockReturnValue({
+      mutateAsync: mockDelete,
+      isPending: false,
+    } as any);
+
+    renderWithProviders(<InventoryPage />);
+
+    const itemsTab = screen.getByRole('button', { name: /inventory items/i });
+    fireEvent.click(itemsTab);
+
+    const deleteButtons = screen.getAllByTitle('Delete Item');
+    fireEvent.click(deleteButtons[0]);
+
+    // Find the destructive button inside the modal
+    const modalButtons = screen.getAllByRole('button', { name: /delete item/i });
+    // The modal confirmation button is the one rendered inside the modal footer
+    const confirmButton = modalButtons[modalButtons.length - 1];
+    fireEvent.click(confirmButton);
+
+    expect(mockDelete).toHaveBeenCalledWith('item-1');
   });
 });

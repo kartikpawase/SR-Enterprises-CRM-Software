@@ -105,69 +105,82 @@ export async function generateBusinessNumber(
   const currentYear = options?.forceYear ?? new Date().getFullYear();
 
   try {
-    if (typeof db?.select === 'function') {
-      const existing = await db
-        .select()
-        .from(businessSequences)
-        .where(eq(businessSequences.name, sequenceName));
+    const sequenceOp = async () => {
+      if (typeof db?.select === 'function') {
+        const existing = await db
+          .select()
+          .from(businessSequences)
+          .where(eq(businessSequences.name, sequenceName));
 
-      let counter = 1;
-      if (existing && existing.length > 0) {
-        const record = existing[0];
-        const isNewYear = yearReset && record.currentYear < currentYear;
-        counter = isNewYear ? 1 : (Number(record.currentVal) || 0) + 1;
-        await db
-          .update(businessSequences)
-          .set({
-            currentVal: counter,
+        let counter = 1;
+        if (existing && existing.length > 0) {
+          const record = existing[0];
+          const isNewYear = yearReset && record.currentYear < currentYear;
+          counter = isNewYear ? 1 : (Number(record.currentVal) || 0) + 1;
+          await db
+            .update(businessSequences)
+            .set({
+              currentVal: counter,
+              prefix,
+              currentYear,
+              updatedAt: new Date(),
+            })
+            .where(eq(businessSequences.name, sequenceName));
+        } else {
+          await db.insert(businessSequences).values({
+            name: sequenceName,
             prefix,
+            currentVal: 1,
+            padding,
+            yearReset,
             currentYear,
             updatedAt: new Date(),
-          })
-          .where(eq(businessSequences.name, sequenceName));
-      } else {
-        await db.insert(businessSequences).values({
-          name: sequenceName,
+          });
+          counter = 1;
+        }
+
+        const formatted = formatSequenceNumber(prefix, currentYear, counter, padding);
+        return {
+          sequenceNumber: formatted,
           prefix,
-          currentVal: 1,
-          padding,
-          yearReset,
-          currentYear,
-          updatedAt: new Date(),
-        });
-        counter = 1;
+          year: currentYear,
+          counter,
+        };
+      } else if (typeof db?.execute === 'function') {
+        const rows = await db.execute();
+        const row = Array.isArray(rows) && rows[0] ? rows[0] : {};
+        const counter = Number(row.current_val ?? row.currentVal ?? 1);
+        const year = Number(row.current_year ?? row.currentYear ?? currentYear);
+        const resPrefix = row.prefix || prefix;
+        const resPadding = Number(row.padding || padding);
+        const formatted = formatSequenceNumber(resPrefix, year, counter, resPadding);
+        return {
+          sequenceNumber: formatted,
+          prefix: resPrefix,
+          year,
+          counter,
+        };
       }
 
-      const formatted = formatSequenceNumber(prefix, currentYear, counter, padding);
+      const formatted = formatSequenceNumber(prefix, currentYear, 1, padding);
       return {
         sequenceNumber: formatted,
         prefix,
         year: currentYear,
-        counter,
+        counter: 1,
       };
-    } else if (typeof db?.execute === 'function') {
-      const rows = await db.execute();
-      const row = Array.isArray(rows) && rows[0] ? rows[0] : {};
-      const counter = Number(row.current_val ?? row.currentVal ?? 1);
-      const year = Number(row.current_year ?? row.currentYear ?? currentYear);
-      const resPrefix = row.prefix || prefix;
-      const resPadding = Number(row.padding || padding);
-      const formatted = formatSequenceNumber(resPrefix, year, counter, resPadding);
-      return {
-        sequenceNumber: formatted,
-        prefix: resPrefix,
-        year,
-        counter,
-      };
-    }
-
-    const formatted = formatSequenceNumber(prefix, currentYear, 1, padding);
-    return {
-      sequenceNumber: formatted,
-      prefix,
-      year: currentYear,
-      counter: 1,
     };
+
+    let timeoutTimer: any;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutTimer = setTimeout(() => reject(new Error(`Sequence ${sequenceName} generation timed out`)), 3500);
+    });
+
+    try {
+      return await Promise.race([sequenceOp(), timeoutPromise]);
+    } finally {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+    }
   } catch {
     const rand = Math.floor(1000 + Math.random() * 9000);
     const formatted = formatSequenceNumber(prefix, currentYear, rand, padding);

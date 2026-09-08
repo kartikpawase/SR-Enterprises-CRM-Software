@@ -535,7 +535,26 @@ export const CustomerProfile: React.FC = () => {
                     <span>Bad Customer</span>
                   </button>
                 )}
-                {!customer.customerLabel && (
+                {customer.customLabel && (
+                  <button
+                    type="button"
+                    onClick={() => setIsLabelModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold shadow-2xs hover:opacity-85 transition-opacity cursor-pointer border"
+                    style={{
+                      backgroundColor: `${customer.customLabel.color}15`,
+                      color: customer.customLabel.color,
+                      borderColor: `${customer.customLabel.color}40`,
+                    }}
+                    title="Click to change customer label"
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: customer.customLabel.color }}
+                    />
+                    <span>{customer.customLabel.name}</span>
+                  </button>
+                )}
+                {!customer.customerLabel && !customer.customLabel && (
                   <button
                     type="button"
                     onClick={() => setIsLabelModalOpen(true)}

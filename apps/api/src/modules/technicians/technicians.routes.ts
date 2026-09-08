@@ -80,4 +80,29 @@ export const techniciansRoutes: FastifyPluginAsync = async (fastify) => {
       message: 'Technician updated successfully',
     });
   });
+
+  /**
+   * DELETE /api/v1/technicians/:id
+   * Safe delete technician with dependency checks
+   */
+  fastify.delete('/:id', { preHandler: [requirePermission('users.manage')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = (request as any).user;
+    try {
+      const result = await techniciansService.deleteTechnician(id, user?.id);
+      return reply.send({
+        success: true,
+        data: result,
+        message: 'Technician deleted successfully',
+      });
+    } catch (err: any) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: 'TECHNICIAN_DELETE_FAILED',
+          message: err?.message || 'Failed to delete technician',
+        },
+      });
+    }
+  });
 };

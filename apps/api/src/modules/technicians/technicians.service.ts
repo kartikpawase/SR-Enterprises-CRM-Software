@@ -29,6 +29,10 @@ export class TechniciansService {
   async updateTechnician(id: string, input: UpdateTechnicianInput, actorId?: string) {
     return techniciansRepository.update(id, input, actorId);
   }
+
+  async deleteTechnician(id: string, actorId?: string) {
+    return techniciansRepository.delete(id, actorId);
+  }
 }
 
 export const techniciansService = new TechniciansService();

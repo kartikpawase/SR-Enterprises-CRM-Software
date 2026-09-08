@@ -74,7 +74,7 @@ describe('SR Enterprises CRM - PHPMailer & PDF Notification System', () => {
 
       let isPhpAvailable = false;
       try {
-        execFileSync('php', ['-v'], { stdio: 'ignore' });
+        execFileSync('php', ['-r', 'exit(extension_loaded("gd") ? 0 : 1);'], { stdio: 'ignore' });
         isPhpAvailable = true;
       } catch {
         isPhpAvailable = false;

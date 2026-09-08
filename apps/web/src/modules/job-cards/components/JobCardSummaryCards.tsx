@@ -35,7 +35,7 @@ export const JobCardSummaryCards: React.FC<JobCardSummaryCardsProps> = ({
     {
       id: 'ASSIGNED',
       title: 'Assigned / Scheduled',
-      count: kpis?.assignedCount ?? 0,
+      count: kpis?.assignedCount ?? (((kpis as any)?.assigned ?? 0) + ((kpis as any)?.scheduled ?? 0)),
       icon: <UserCheck className="w-5 h-5" />,
       colorScheme: {
         bg: 'bg-blue-50/50 hover:bg-blue-50/80',
@@ -51,7 +51,7 @@ export const JobCardSummaryCards: React.FC<JobCardSummaryCardsProps> = ({
     {
       id: 'IN_PROGRESS',
       title: 'In Progress & Active',
-      count: kpis?.inProgressCount ?? 0,
+      count: kpis?.inProgressCount ?? ((kpis as any)?.inProgress ?? 0),
       icon: <PlayCircle className="w-5 h-5" />,
       colorScheme: {
         bg: 'bg-amber-50/50 hover:bg-amber-50/80',
@@ -67,7 +67,7 @@ export const JobCardSummaryCards: React.FC<JobCardSummaryCardsProps> = ({
     {
       id: 'COMPLETED',
       title: 'Completed & Closed',
-      count: kpis?.completedCount ?? 0,
+      count: kpis?.completedCount ?? ((kpis as any)?.completed ?? 0),
       icon: <CheckCircle2 className="w-5 h-5" />,
       colorScheme: {
         bg: 'bg-emerald-50/50 hover:bg-emerald-50/80',

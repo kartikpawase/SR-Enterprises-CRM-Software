@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/api-client';
-import type { InvoiceQueryFilter, CancelInvoiceInput } from '@crm/validation';
+import type { InvoiceQueryFilter, CancelInvoiceInput, CreateInvoiceInput, UpdateInvoiceInput } from '@crm/validation';
 
 export interface InvoiceItemData {
   id: string;
@@ -27,6 +27,7 @@ export interface InvoiceSummaryData {
   saleId?: string | null;
   invoiceDate: string;
   dueDate: string;
+  poNumber?: string | null;
   subtotal: string;
   discountAmount: string;
   taxAmount: string;
@@ -139,6 +140,36 @@ export function useSendInvoiceDueMailMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useCreateInvoiceMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: CreateInvoiceInput) => {
+      const res = await apiClient.post<InvoiceDetailData>('/invoices', data);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      if (data?.customerId) {
+        queryClient.invalidateQueries({ queryKey: ['customers', data.customerId] });
+      }
+    },
+  });
+}
+
+export function useUpdateInvoiceMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: UpdateInvoiceInput }) => {
+      const res = await apiClient.patch<InvoiceDetailData>(`/invoices/${id}`, data);
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices', variables.id] });
     },
   });
 }

@@ -106,7 +106,7 @@ export class PhpMailerService {
 
     const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_FROM || process.env.MAIL_FROM_ADDRESS || 'no-reply@srenterprises.com';
     const fromName = process.env.SMTP_FROM_NAME || process.env.MAIL_FROM_NAME || 'SR Enterprises';
-    const supportEmail = process.env.SUPPORT_EMAIL || 'support@srenterprises.com';
+    const supportEmail = process.env.SUPPORT_EMAIL || 'srenterprises02015@gmail.com';
 
     const mailDriver = (process.env.MAIL_DRIVER || '').toLowerCase();
     const isMock = mailDriver === 'log' || mailDriver === 'mock' || process.env.MOCK_MAIL === 'true' || Boolean(payload.mock);
@@ -295,7 +295,7 @@ export class PhpMailerService {
   ): { subject: string; html: string; text: string } {
     const customerName = data.customerName || data.toName || data.recipientName || 'Valued Customer';
     const companyName = process.env.COMPANY_NAME || 'SR Enterprises';
-    const supportPhone = process.env.SUPPORT_PHONE || '+91 97660 39197';
+    const supportPhone = process.env.SUPPORT_PHONE || '+91 73850 59197';
     const supportEmail = process.env.SUPPORT_EMAIL || 'srenterprises02015@gmail.com';
     const companyAddress = 'Shop A6 SaiPritam Nagari, Chatrapati Chowk Rahatani, Pimpri-Chinchwad, Pune 411017';
 

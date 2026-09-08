@@ -9,6 +9,7 @@ import {
   Briefcase,
   ChevronRight,
   Edit2,
+  Trash2,
 } from 'lucide-react';
 import type { TechnicianItem } from '../technicians.api';
 
@@ -17,6 +18,7 @@ export interface TechnicianTableProps {
   isLoading?: boolean;
   onViewDetail: (tech: TechnicianItem) => void;
   onEdit: (tech: TechnicianItem) => void;
+  onDelete?: (tech: TechnicianItem) => void;
 }
 
 export const TechnicianTable: React.FC<TechnicianTableProps> = ({
@@ -24,6 +26,7 @@ export const TechnicianTable: React.FC<TechnicianTableProps> = ({
   isLoading,
   onViewDetail,
   onEdit,
+  onDelete,
 }) => {
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -188,6 +191,16 @@ export const TechnicianTable: React.FC<TechnicianTableProps> = ({
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={() => onDelete(t)}
+                        className="p-1.5 text-slate-400 hover:text-danger-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Delete Technician"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onViewDetail(t)}

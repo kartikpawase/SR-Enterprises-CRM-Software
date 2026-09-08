@@ -23,11 +23,13 @@ import {
 } from 'lucide-react';
 import type { InvoiceQueryFilter } from '@crm/validation';
 import { useAuth } from '../../providers/AuthBoundary';
+import { InvoiceFormModal } from './components/InvoiceFormModal';
 
 export const InvoiceDirectory: React.FC = () => {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canCreate = hasPermission('sales.create') || hasPermission('invoices.create');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const [filters, setFilters] = useState<Partial<InvoiceQueryFilter>>({
     page: 1,
@@ -232,15 +234,25 @@ export const InvoiceDirectory: React.FC = () => {
               Export CSV
             </Button>
             {canCreate && (
-              <Button
-                variant="primary"
-                size="sm"
-                className="bg-red-600 hover:bg-red-700 text-white font-bold"
-                onClick={() => navigate('/sales/new')}
-                leftIcon={<Plus className="w-4 h-4" />}
-              >
-                New Sale &amp; Invoice
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsCreateModalOpen(true)}
+                  leftIcon={<Plus className="w-4 h-4" />}
+                >
+                  Create Invoice
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold"
+                  onClick={() => navigate('/sales/new')}
+                  leftIcon={<Plus className="w-4 h-4" />}
+                >
+                  New Sale &amp; Invoice
+                </Button>
+              </>
             )}
           </div>
         }
@@ -371,6 +383,13 @@ export const InvoiceDirectory: React.FC = () => {
           }
         />
       </div>
+
+      {isCreateModalOpen && (
+        <InvoiceFormModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+        />
+      )}
     </div>
   );
 };

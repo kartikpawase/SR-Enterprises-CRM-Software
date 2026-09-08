@@ -305,7 +305,7 @@ describe('Comprehensive End-to-End CRM System Test — All 16 Modules Step-by-St
       const body = res.json();
       expect(body.success).toBe(true);
       expect(body.data.id).toBe(testInvoiceId);
-      expect(body.data.invoiceNumber).toMatch(/^INV-/);
+      expect(body.data.invoiceNumber).toMatch(/^(INV-|\d{6,8})/);
     });
 
     it('should execute transactional payment reminder dispatch via PHPMailer', async () => {

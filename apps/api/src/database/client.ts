@@ -48,6 +48,7 @@ export async function applySqlMigrations(targetPg: PGlite | postgres.Sql): Promi
         `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'services') as exists;`
       );
       if (check.rows && check.rows[0]?.exists) {
+        await ensureGoogleDriveColumns(targetPg);
         return;
       }
     } catch {}
@@ -57,6 +58,7 @@ export async function applySqlMigrations(targetPg: PGlite | postgres.Sql): Promi
         `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'services') as exists;`
       );
       if (check && check[0]?.exists) {
+        await ensureGoogleDriveColumns(targetPg);
         return;
       }
     } catch {}
@@ -317,7 +319,9 @@ export async function ensureGoogleDriveColumns(targetPg: PGlite | postgres.Sql):
     `ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "drive_upload_status" text DEFAULT 'PENDING';`,
     `ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "drive_uploaded_at" timestamp with time zone;`,
     `ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "drive_error" text;`,
+    `ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "po_number" text;`,
     `CREATE INDEX IF NOT EXISTS "invoices_drive_file_id_idx" ON "invoices" ("drive_file_id");`,
+    `CREATE INDEX IF NOT EXISTS "invoices_po_number_idx" ON "invoices" ("po_number");`,
 
     `ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "drive_file_id" text;`,
     `ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "drive_file_name" text;`,
@@ -376,6 +380,17 @@ export async function ensureCustomerLabelColumn(targetPg: PGlite | postgres.Sql)
     `DO $$ BEGIN CREATE TYPE "customer_label" AS ENUM('GOOD', 'BAD'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
     `ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "customer_label" "customer_label";`,
     `CREATE INDEX IF NOT EXISTS "customers_customer_label_idx" ON "customers" ("customer_label");`,
+    `CREATE TABLE IF NOT EXISTS "customer_custom_labels" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "name" text NOT NULL UNIQUE,
+      "color" text NOT NULL,
+      "description" text,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS "customer_custom_labels_name_idx" ON "customer_custom_labels" ("name");`,
+    `ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "custom_label_id" uuid REFERENCES "customer_custom_labels"("id") ON DELETE SET NULL;`,
+    `CREATE INDEX IF NOT EXISTS "customers_custom_label_id_idx" ON "customers" ("custom_label_id");`,
   ];
 
   if ('exec' in targetPg) {
@@ -711,6 +726,50 @@ export async function ensureWhatsAppTables(targetPg: PGlite | postgres.Sql): Pro
 }
 
 /**
+ * Ensures inquiry columns and inquiry_events table exist
+ */
+export async function ensureInquiryColumns(targetPg: PGlite | postgres.Sql): Promise<void> {
+  const statements = [
+    `DO $$ BEGIN CREATE TYPE "inquiry_type" AS ENUM('NEW_PURCHASE', 'SERVICE', 'REPAIR', 'WARRANTY', 'INSTALLATION', 'PRODUCT_INFORMATION', 'GENERAL'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
+    `DO $$ BEGIN CREATE TYPE "inquiry_priority" AS ENUM('LOW', 'NORMAL', 'HIGH', 'URGENT'); EXCEPTION WHEN duplicate_object THEN null; END $$;`,
+    `ALTER TABLE "inquiries" ADD COLUMN IF NOT EXISTS "inquiry_type" "inquiry_type" DEFAULT 'GENERAL';`,
+    `ALTER TABLE "inquiries" ADD COLUMN IF NOT EXISTS "priority" "inquiry_priority" DEFAULT 'NORMAL';`,
+    `ALTER TABLE "inquiries" ADD COLUMN IF NOT EXISTS "assigned_by_user_id" uuid REFERENCES "users"("id") ON DELETE SET NULL;`,
+    `ALTER TABLE "inquiries" ADD COLUMN IF NOT EXISTS "assigned_at" timestamp with time zone;`,
+    `ALTER TABLE "inquiries" ADD COLUMN IF NOT EXISTS "is_possible_duplicate" boolean DEFAULT false;`,
+    `ALTER TABLE "inquiries" ADD COLUMN IF NOT EXISTS "duplicate_of_inquiry_id" uuid;`,
+    `ALTER TABLE "inquiries" ADD COLUMN IF NOT EXISTS "converted_by_user_id" uuid REFERENCES "users"("id") ON DELETE SET NULL;`,
+    `CREATE TABLE IF NOT EXISTS "inquiry_events" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "inquiry_id" uuid NOT NULL REFERENCES "inquiries"("id") ON DELETE CASCADE,
+      "event_type" text NOT NULL,
+      "actor_user_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+      "notes" text,
+      "metadata" jsonb,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS "inquiries_priority_idx" ON "inquiries" ("priority");`,
+    `CREATE INDEX IF NOT EXISTS "inquiry_events_inquiry_id_idx" ON "inquiry_events" ("inquiry_id");`,
+    `CREATE INDEX IF NOT EXISTS "inquiry_events_event_type_idx" ON "inquiry_events" ("event_type");`,
+    `CREATE INDEX IF NOT EXISTS "inquiry_events_created_at_idx" ON "inquiry_events" ("created_at");`,
+  ];
+
+  if ('exec' in targetPg) {
+    for (const stmt of statements) {
+      try {
+        await targetPg.exec(stmt);
+      } catch {}
+    }
+  } else {
+    for (const stmt of statements) {
+      try {
+        await targetPg.unsafe(stmt);
+      } catch {}
+    }
+  }
+}
+
+/**
  * Ensures migrations and initial database initialization is executed once on server startup
  */
 export async function ensureDatabaseInitialized(): Promise<void> {
@@ -745,6 +804,7 @@ export async function ensureDatabaseInitialized(): Promise<void> {
         await ensureCustomerLabelColumn(pgliteClient);
         await ensureInventoryTables(pgliteClient);
         await ensureWhatsAppTables(pgliteClient);
+        await ensureInquiryColumns(pgliteClient);
       } else if (pgClient) {
         await applySqlMigrations(pgClient);
         await ensureEmailTables(pgClient);
@@ -754,6 +814,7 @@ export async function ensureDatabaseInitialized(): Promise<void> {
         await ensureCustomerLabelColumn(pgClient);
         await ensureInventoryTables(pgClient);
         await ensureWhatsAppTables(pgClient);
+        await ensureInquiryColumns(pgClient);
       }
 
       isInitialized = true;

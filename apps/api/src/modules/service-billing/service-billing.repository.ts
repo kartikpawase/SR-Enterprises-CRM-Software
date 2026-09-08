@@ -15,6 +15,7 @@ import {
   auditLogs,
 } from '../../database/schema/index';
 import { generateBusinessNumber } from '../../database/sequences';
+import { generateInvoiceNumber } from '../invoices/invoices.numbering';
 import { withTransaction } from '../../database/transactions';
 import { inventoryRepository } from '../inventory/inventory.repository';
 import { memoryInvoices, memoryInvoiceItems } from '../invoices/invoices.repository';
@@ -459,10 +460,8 @@ export class ServiceBillingRepository {
         const totalAmount = Math.max(0, subtotal + taxAmount - overallDiscount);
 
         // 5. Generate Authoritative Invoice Number
-        const seqResult = await generateBusinessNumber(tx, 'INVOICE', 'INV');
-        const invoiceNumber = seqResult.sequenceNumber;
-
         const now = new Date();
+        const invoiceNumber = await generateInvoiceNumber(tx, now);
         const dueDate = input.dueDate ? new Date(input.dueDate) : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
         // 6. Insert Central Financial Invoice
@@ -481,6 +480,7 @@ export class ServiceBillingRepository {
             taxAmount: taxAmount.toFixed(2),
             totalAmount: totalAmount.toFixed(2),
             status: 'ISSUED',
+            poNumber: (input as any).poNumber || null,
             notes: input.notes || `Service Invoice for Job Card ${jobCard.jobCardNumber}`,
             termsAndConditions: input.termsAndConditions || 'Payment due upon receipt of service.',
             createdBy: actorId || null,

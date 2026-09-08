@@ -1,6 +1,8 @@
+import fs from 'node:fs';
 import type { FastifyPluginAsync } from 'fastify';
 import { backupService } from './backup.service';
 import { restoreService } from './restore.service';
+import { backupScheduler, type BackupScheduleConfig } from './backup-scheduler';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
 import { HTTP_STATUS } from '@crm/shared';
@@ -185,6 +187,67 @@ export const backupRoutes: FastifyPluginAsync = async (fastify) => {
           error: { code: 'DELETE_FAILED', message: err.message },
         });
       }
+    }
+  );
+
+  /**
+   * GET /api/v1/backups/:id/download
+   * Download validated backup file package
+   */
+  fastify.get<{ Params: { id: string } }>(
+    '/:id/download',
+    { preHandler: [requirePermission('backups.view')] },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const fileInfo = backupService.getBackupFilePath(id);
+        const stream = fs.createReadStream(fileInfo.fullPath);
+        return reply
+          .header('Content-Disposition', `attachment; filename="${fileInfo.filename}"`)
+          .header('Content-Type', 'application/octet-stream')
+          .send(stream);
+      } catch (err: any) {
+        return reply.status(HTTP_STATUS.NOT_FOUND).send({
+          success: false,
+          error: { code: 'BACKUP_NOT_FOUND', message: err.message },
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/v1/backups/schedule
+   * Get automatic backup schedule configuration
+   */
+  fastify.get(
+    '/schedule',
+    { preHandler: [requirePermission('backups.view')] },
+    async (_request, reply) => {
+      const config = await backupScheduler.getConfig();
+      return reply.status(HTTP_STATUS.OK).send({
+        success: true,
+        data: config,
+      });
+    }
+  );
+
+  /**
+   * PUT /api/v1/backups/schedule
+   * Update automatic backup schedule configuration
+   */
+  fastify.put<{ Body: Partial<BackupScheduleConfig> }>(
+    '/schedule',
+    { preHandler: [requirePermission('backups.manage')] },
+    async (request, reply) => {
+      const user = (request as any).user;
+      const body = request.body || {};
+      const updated = await backupScheduler.updateConfig(body, {
+        userId: user?.userId || user?.id,
+      });
+      return reply.status(HTTP_STATUS.OK).send({
+        success: true,
+        data: updated,
+      });
     }
   );
 

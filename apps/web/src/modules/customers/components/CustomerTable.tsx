@@ -16,6 +16,7 @@ export interface CustomerRecord {
   nextServiceDays: number | 'Expired' | null;
   status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
   customerLabel?: 'GOOD' | 'BAD' | null;
+  customLabel?: { id: string; name: string; color: string } | null;
   summary: {
     totalInvoices: string;
     outstanding: string;
@@ -100,6 +101,18 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                           {customer.customerLabel === 'BAD' && (
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/90 shadow-2xs shrink-0">
                               Bad Customer
+                            </span>
+                          )}
+                          {customer.customLabel && (
+                            <span
+                              className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs shrink-0"
+                              style={{
+                                backgroundColor: `${customer.customLabel.color}15`,
+                                color: customer.customLabel.color,
+                                borderColor: `${customer.customLabel.color}40`,
+                              }}
+                            >
+                              {customer.customLabel.name}
                             </span>
                           )}
                         </div>

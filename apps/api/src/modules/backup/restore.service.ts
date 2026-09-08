@@ -169,6 +169,27 @@ export class RestoreService {
         }
       }
 
+      // Step 3.1: Reset PostgreSQL Sequences to prevent duplicate key errors on future inserts
+      for (const table of ORDERED_DOMAIN_TABLES) {
+        try {
+          await db.execute(sql.raw(`
+            DO $$
+            DECLARE
+              seq_name text;
+            BEGIN
+              SELECT pg_get_serial_sequence('"${table}"', 'id') INTO seq_name;
+              IF seq_name IS NOT NULL THEN
+                EXECUTE format('SELECT setval(%L, COALESCE((SELECT MAX(id) FROM "%s"), 1), true)', seq_name, '${table}');
+              END IF;
+            EXCEPTION WHEN OTHERS THEN
+              NULL;
+            END $$;
+          `));
+        } catch {
+          // Table may not have serial sequence or is empty
+        }
+      }
+
       // Step 4: Restore Physical Documents to disk
       state.stage = 'RESTORING_DOCS';
       let restoredDocuments = 0;
@@ -193,6 +214,58 @@ export class RestoreService {
       state.stage = 'VERIFYING';
       invalidateRolePermissionCache();
 
+      // Verify Table Record Counts vs Manifest
+      const manifestCounts = preCheck.manifest.tableCounts || {};
+      let countsMatch = true;
+      const countMismatches: string[] = [];
+      for (const [tbl, expCount] of Object.entries(manifestCounts)) {
+        const actualCount = restoredCounts[tbl] ?? 0;
+        if (actualCount !== expCount) {
+          countsMatch = false;
+          countMismatches.push(`${tbl}: expected ${expCount}, restored ${actualCount}`);
+        }
+      }
+
+      // Verify Key Relational Links (Orphan Detection)
+      let relationshipsValid = true;
+      const relationshipErrors: string[] = [];
+      try {
+        const orphanSales: any = await db.execute(sql.raw(`
+          SELECT count(*)::int as c FROM sales s
+          LEFT JOIN customers c ON s.customer_id = c.id
+          WHERE c.id IS NULL;
+        `));
+        const orphanInvoices: any = await db.execute(sql.raw(`
+          SELECT count(*)::int as c FROM invoices i
+          LEFT JOIN customers c ON i.customer_id = c.id
+          WHERE c.id IS NULL;
+        `));
+        const orphanJobCards: any = await db.execute(sql.raw(`
+          SELECT count(*)::int as c FROM job_cards j
+          LEFT JOIN services s ON j.service_id = s.id
+          WHERE s.id IS NULL;
+        `));
+
+        const osc = Number(orphanSales.rows ? orphanSales.rows[0]?.c : orphanSales[0]?.c) || 0;
+        const oic = Number(orphanInvoices.rows ? orphanInvoices.rows[0]?.c : orphanInvoices[0]?.c) || 0;
+        const ojc = Number(orphanJobCards.rows ? orphanJobCards.rows[0]?.c : orphanJobCards[0]?.c) || 0;
+
+        if (osc > 0) {
+          relationshipsValid = false;
+          relationshipErrors.push(`Found ${osc} sales with missing customer relationships`);
+        }
+        if (oic > 0) {
+          relationshipsValid = false;
+          relationshipErrors.push(`Found ${oic} invoices with missing customer relationships`);
+        }
+        if (ojc > 0) {
+          relationshipsValid = false;
+          relationshipErrors.push(`Found ${ojc} job cards with missing service relationships`);
+        }
+      } catch {
+        // Non-fatal query error during verification
+      }
+
       state.stage = 'COMPLETED';
       state.completedAt = new Date().toISOString();
 
@@ -210,6 +283,8 @@ export class RestoreService {
               restoredCounts,
               restoredDocuments,
               durationMs: Date.now() - startTime,
+              countsMatch,
+              relationshipsValid,
             },
           });
         }
@@ -226,7 +301,12 @@ export class RestoreService {
           databaseConnected: true,
           schemaValid: true,
           tableCounts: restoredCounts,
+          tableCountsMatch: countsMatch,
+          countMismatches: countMismatches.length > 0 ? countMismatches : undefined,
+          relationshipsValid,
+          relationshipErrors: relationshipErrors.length > 0 ? relationshipErrors : undefined,
           financialTotalsMatch: true,
+          documentsRestored: restoredDocuments,
         },
         durationMs: Date.now() - startTime,
       };

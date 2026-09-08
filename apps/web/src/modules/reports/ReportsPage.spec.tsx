@@ -175,4 +175,61 @@ describe('Reports & Analytics Page (/reports)', () => {
     expect(screen.getByText('Total Sales Revenue')).toBeDefined();
     expect(screen.getByText('Sales Performance')).toBeDefined();
   });
+
+  it('filters view to Customers tab when clicked', () => {
+    renderComponent();
+
+    const customersTab = screen.getByRole('button', { name: /Customers/i });
+    fireEvent.click(customersTab);
+
+    expect(screen.getByText('Registered Customers')).toBeDefined();
+    expect(screen.getByText('Customer Insights')).toBeDefined();
+  });
+
+  it('filters view to Services tab when clicked', () => {
+    renderComponent();
+
+    const servicesTab = screen.getByRole('button', { name: /Services/i });
+    fireEvent.click(servicesTab);
+
+    expect(screen.getByText('Total Service Tickets')).toBeDefined();
+    expect(screen.getByText('Service Performance')).toBeDefined();
+  });
+
+  it('filters view to Invoices tab when clicked', () => {
+    renderComponent();
+
+    const invoicesTab = screen.getByRole('button', { name: /Invoices/i });
+    fireEvent.click(invoicesTab);
+
+    expect(screen.getByText('Gross Invoiced')).toBeDefined();
+    expect(screen.getByText('Financial Overview')).toBeDefined();
+  });
+
+  it('filters view to Payments tab when clicked', () => {
+    renderComponent();
+
+    const paymentsTab = screen.getByRole('button', { name: /Payments/i });
+    fireEvent.click(paymentsTab);
+
+    expect(screen.getByText(/Payment Collections & Cashflow/i)).toBeDefined();
+  });
+
+  it('filters view to Products tab when clicked', () => {
+    renderComponent();
+
+    const productsTab = screen.getByRole('button', { name: /Products/i });
+    fireEvent.click(productsTab);
+
+    expect(screen.getByText('Product Catalog Value')).toBeDefined();
+  });
+
+  it('filters view to Technicians tab when clicked', () => {
+    renderComponent();
+
+    const techniciansTab = screen.getByRole('button', { name: /Technicians/i });
+    fireEvent.click(techniciansTab);
+
+    expect(screen.getByText('Registered Technicians')).toBeDefined();
+  });
 });

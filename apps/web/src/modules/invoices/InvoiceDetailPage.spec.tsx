@@ -59,6 +59,14 @@ vi.mock('./invoices.api', () => ({
   useCancelInvoiceMutation: () => ({
     mutateAsync: vi.fn(),
   }),
+  useCreateInvoiceMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useUpdateInvoiceMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
   useSendInvoiceDueMailMutation: () => ({
     mutateAsync: vi.fn(),
     isPending: false,

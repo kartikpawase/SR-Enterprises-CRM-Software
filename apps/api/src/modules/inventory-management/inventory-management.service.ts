@@ -33,6 +33,11 @@ export class InventoryManagementService {
     return inventoryManagementRepository.updateItem(id, input);
   }
 
+  async deleteItem(id: string) {
+    await this.getItemById(id); // Ensure exists
+    return inventoryManagementRepository.deleteItem(id);
+  }
+
   async createPurchase(input: CreateInventoryPurchaseInput) {
     await this.getItemById(input.itemId); // Ensure item exists
     return inventoryManagementRepository.createPurchase(input);

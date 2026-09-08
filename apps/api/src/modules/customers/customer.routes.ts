@@ -7,6 +7,8 @@ import {
   CreateCustomerSchema,
   UpdateCustomerSchema,
   UpdateCustomerLabelSchema,
+  CreateCustomLabelSchema,
+  UpdateCustomLabelSchema,
   CustomerQueryFilterSchema,
   CheckDuplicateCustomerSchema,
   CustomerNoteSchema,
@@ -145,8 +147,76 @@ export const customerRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /**
+   * GET /api/v1/customers/custom-labels
+   * List all saved custom customer label definitions
+   */
+  fastify.get(
+    '/custom-labels',
+    { preHandler: [requirePermission('customers.view')] },
+    async (_request, reply) => {
+      const labels = await customerService.getAllCustomLabels();
+      return reply.status(HTTP_STATUS.OK).send({
+        success: true,
+        data: labels,
+      });
+    }
+  );
+
+  /**
+   * POST /api/v1/customers/custom-labels
+   * Create a new custom customer label definition
+   */
+  fastify.post(
+    '/custom-labels',
+    { preHandler: [requirePermission('customers.update')] },
+    async (request, reply) => {
+      const body = CreateCustomLabelSchema.parse(request.body);
+      const created = await customerService.createCustomLabel(body);
+      return reply.status(HTTP_STATUS.CREATED).send({
+        success: true,
+        data: created,
+      });
+    }
+  );
+
+  /**
+   * PUT /api/v1/customers/custom-labels/:labelId
+   * Update an existing custom customer label definition (name/color)
+   */
+  fastify.put(
+    '/custom-labels/:labelId',
+    { preHandler: [requirePermission('customers.update')] },
+    async (request, reply) => {
+      const { labelId } = request.params as { labelId: string };
+      const body = UpdateCustomLabelSchema.parse(request.body);
+      const updated = await customerService.updateCustomLabel(labelId, body);
+      return reply.status(HTTP_STATUS.OK).send({
+        success: true,
+        data: updated,
+      });
+    }
+  );
+
+  /**
+   * DELETE /api/v1/customers/custom-labels/:labelId
+   * Delete a custom customer label definition
+   */
+  fastify.delete(
+    '/custom-labels/:labelId',
+    { preHandler: [requirePermission('customers.update')] },
+    async (request, reply) => {
+      const { labelId } = request.params as { labelId: string };
+      await customerService.deleteCustomLabel(labelId);
+      return reply.status(HTTP_STATUS.OK).send({
+        success: true,
+        data: { id: labelId, deleted: true },
+      });
+    }
+  );
+
+  /**
    * PATCH /api/v1/customers/:id/label
-   * Update customer classification label (GOOD, BAD, NONE/null)
+   * Update customer classification label (GOOD, BAD, CUSTOM, NONE/null)
    */
   fastify.patch(
     '/:id/label',
@@ -157,9 +227,33 @@ export const customerRoutes: FastifyPluginAsync = async (fastify) => {
       const actorId = request.user?.userId;
       const actorName = request.user?.displayName;
 
+      let customerLabel: 'GOOD' | 'BAD' | null = null;
+      let customLabelId: string | null = null;
+
+      if (body.newCustomLabel) {
+        // Admin created a new custom label inline
+        const created = await customerService.createCustomLabel(body.newCustomLabel);
+        customLabelId = created.id;
+        customerLabel = null;
+      } else if (body.customLabelId) {
+        // Admin selected an existing custom label
+        customLabelId = body.customLabelId;
+        customerLabel = null;
+      } else if (body.label === 'GOOD') {
+        customerLabel = 'GOOD';
+        customLabelId = null;
+      } else if (body.label === 'BAD') {
+        customerLabel = 'BAD';
+        customLabelId = null;
+      } else {
+        // NONE or null -> unassigned
+        customerLabel = null;
+        customLabelId = null;
+      }
+
       const updated = await customerService.updateCustomer(
         id,
-        { customerLabel: body.label } as any,
+        { customerLabel, customLabelId } as any,
         actorId,
         actorName
       );

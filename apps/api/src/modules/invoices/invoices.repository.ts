@@ -16,6 +16,7 @@ import {
 import { withTransaction } from '../../database/transactions';
 import { generateBusinessNumber } from '../../database/sequences';
 import { calculateInvoiceTotals } from './invoices.calculator';
+import { generateInvoiceNumber } from './invoices.numbering';
 import { customerRepository } from '../customers/customer.repository';
 import { productRepository } from '../products/product.repository';
 import { randomUUID } from 'crypto';
@@ -29,6 +30,9 @@ import type {
 // Resilient memory store for offline desktop and local development
 export const memoryInvoices: any[] = [];
 export const memoryInvoiceItems: any[] = [];
+
+// Idempotency cache for double-click / rapid retry duplicate save protection (60s window)
+const recentInvoiceSubmissions = new Map<string, { timestamp: number; result: any }>();
 
 export class InvoicesRepository {
   /**
@@ -135,6 +139,7 @@ export class InvoicesRepository {
           taxAmount: invoices.taxAmount,
           totalAmount: invoices.totalAmount,
           status: invoices.status,
+          poNumber: invoices.poNumber,
           notes: invoices.notes,
           createdAt: invoices.createdAt,
           cancelledAt: invoices.cancelledAt,
@@ -280,6 +285,7 @@ export class InvoicesRepository {
             taxAmount: invoices.taxAmount,
             totalAmount: invoices.totalAmount,
             status: invoices.status,
+            poNumber: invoices.poNumber,
             notes: invoices.notes,
             termsAndConditions: invoices.termsAndConditions,
             createdAt: invoices.createdAt,
@@ -314,6 +320,7 @@ export class InvoicesRepository {
             taxAmount: invoices.taxAmount,
             totalAmount: invoices.totalAmount,
             status: invoices.status,
+            poNumber: invoices.poNumber,
             notes: invoices.notes,
             termsAndConditions: invoices.termsAndConditions,
             createdAt: invoices.createdAt,
@@ -348,6 +355,7 @@ export class InvoicesRepository {
             taxAmount: invoices.taxAmount,
             totalAmount: invoices.totalAmount,
             status: invoices.status,
+            poNumber: invoices.poNumber,
             notes: invoices.notes,
             termsAndConditions: invoices.termsAndConditions,
             createdAt: invoices.createdAt,
@@ -586,7 +594,27 @@ export class InvoicesRepository {
    * Create direct Invoice (DRAFT or ISSUED) with authoritative line calculations
    */
   async createInvoice(data: CreateInvoiceInput, actorId?: string, actorName = 'System') {
-    return await withTransaction(async (tx) => {
+    // Double-click / rapid retry deduplication protection
+    const dedupeKey = `${data.customerId}_${data.invoiceDate || ''}_${data.poNumber || ''}_${data.notes || ''}_${data.items.length}_${data.items.map(i => `${i.description || (i as any).name}_${i.quantity}_${i.unitPrice}`).join('|')}`;
+    const cached = recentInvoiceSubmissions.get(dedupeKey);
+    if (cached && Date.now() - cached.timestamp < 15000) {
+      return cached.result;
+    }
+
+    const invoiceDate = data.invoiceDate ? new Date(data.invoiceDate) : new Date();
+    const dueDate = data.dueDate
+      ? new Date(data.dueDate)
+      : new Date(invoiceDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+
+    // Validate Due Date cannot be earlier than Invoice Date
+    if (new Date(dueDate).setHours(0, 0, 0, 0) < new Date(invoiceDate).setHours(0, 0, 0, 0)) {
+      const err: any = new Error('Due Date cannot be before Invoice Date');
+      err.statusCode = 400;
+      err.code = 'INVALID_DUE_DATE';
+      throw err;
+    }
+
+    const created = await withTransaction(async (tx) => {
       const validActorId = await this.resolveActorUserId(tx, actorId);
       // 1. Verify customer exists
       const [customer] = await tx
@@ -611,13 +639,8 @@ export class InvoicesRepository {
         data.discountAmount || 0
       );
 
-      // 3. Generate sequential business invoice number
-      const { sequenceNumber: invoiceNumber } = await generateBusinessNumber(tx, 'INVOICE', 'INV');
-
-      const invoiceDate = data.invoiceDate ? new Date(data.invoiceDate) : new Date();
-      const dueDate = data.dueDate
-        ? new Date(data.dueDate)
-        : new Date(invoiceDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+      // 3. Generate sequential business invoice number in MMYY+serial format (starts from 251)
+      const invoiceNumber = await generateInvoiceNumber(tx, invoiceDate);
 
       const status = data.status || 'ISSUED';
 
@@ -630,6 +653,7 @@ export class InvoicesRepository {
           saleId: data.saleId || null,
           invoiceDate,
           dueDate,
+          poNumber: data.poNumber ? data.poNumber.trim() : null,
           subtotal: calcResult.subtotal,
           discountAmount: calcResult.discountAmount,
           taxAmount: calcResult.taxAmount,
@@ -702,6 +726,11 @@ export class InvoicesRepository {
 
       return this.findById(invoice.id, tx);
     });
+
+    if (created) {
+      recentInvoiceSubmissions.set(dedupeKey, { timestamp: Date.now(), result: created });
+    }
+    return created;
   }
 
   /**
@@ -752,12 +781,13 @@ export class InvoicesRepository {
         throw err;
       }
 
-      // 4. Generate sequential business invoice number
-      const { sequenceNumber: invoiceNumber } = await generateBusinessNumber(tx, 'INVOICE', 'INV');
+      // 4. Generate sequential business invoice number in MMYY+serial format (starts from 251)
       const invoiceDate = sale.saleDate || new Date();
       const dueDate = options.dueDate
         ? new Date(options.dueDate)
         : new Date(invoiceDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+
+      const invoiceNumber = await generateInvoiceNumber(tx, invoiceDate);
 
       // 5. Insert Invoice Header
       const [invoice] = await tx
@@ -768,6 +798,7 @@ export class InvoicesRepository {
           saleId: sale.id,
           invoiceDate,
           dueDate,
+          poNumber: options.poNumber ? options.poNumber.trim() : null,
           subtotal: sale.subtotal,
           discountAmount: sale.discountAmount,
           taxAmount: sale.taxAmount,
@@ -839,7 +870,7 @@ export class InvoicesRepository {
   }
 
   /**
-   * Update Draft Invoice (Immutability rule: Only DRAFT invoices can be edited)
+   * Update Invoice (Allows updating DRAFT or ISSUED active invoices)
    */
   async updateDraft(id: string, data: UpdateInvoiceInput, actorId?: string, actorName = 'System') {
     return await withTransaction(async (tx) => {
@@ -855,19 +886,69 @@ export class InvoicesRepository {
         throw err;
       }
 
-      if (invoice.status !== 'DRAFT') {
-        const err: any = new Error(
-          `Only DRAFT invoices can be edited. Current status is ${invoice.status}`
-        );
+      if (invoice.status === 'CANCELLED') {
+        const err: any = new Error('Cannot edit a cancelled invoice');
         err.statusCode = 400;
-        err.code = 'IMMUTABLE_INVOICE';
+        err.code = 'CANCELLED_INVOICE';
+        throw err;
+      }
+
+      const invDate = data.invoiceDate ? new Date(data.invoiceDate) : new Date(invoice.invoiceDate);
+      const dueDate = data.dueDate ? new Date(data.dueDate) : new Date(invoice.dueDate);
+
+      if (new Date(dueDate).setHours(0, 0, 0, 0) < new Date(invDate).setHours(0, 0, 0, 0)) {
+        const err: any = new Error('Due Date cannot be before Invoice Date');
+        err.statusCode = 400;
+        err.code = 'INVALID_DUE_DATE';
         throw err;
       }
 
       const updateValues: Record<string, unknown> = { updatedAt: new Date() };
-      if (data.notes !== undefined) updateValues.notes = data.notes;
+      if (data.notes !== undefined) updateValues.notes = data.notes ? data.notes.trim() : null;
       if (data.termsAndConditions !== undefined) updateValues.termsAndConditions = data.termsAndConditions;
-      if (data.dueDate) updateValues.dueDate = new Date(data.dueDate);
+      if (data.poNumber !== undefined) updateValues.poNumber = data.poNumber ? data.poNumber.trim() : null;
+      if (data.invoiceDate) updateValues.invoiceDate = invDate;
+      if (data.dueDate) updateValues.dueDate = dueDate;
+
+      // If items are provided, replace items and recalculate totals (up to 10 items)
+      if (data.items && data.items.length > 0) {
+        const calcResult = calculateInvoiceTotals(
+          data.items.map((item) => ({
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discountAmount: item.discountAmount || 0,
+            taxRatePercent: item.taxRatePercent ?? 18,
+          })),
+          data.discountAmount !== undefined ? data.discountAmount : parseFloat(invoice.discountAmount || '0')
+        );
+
+        updateValues.subtotal = calcResult.subtotal;
+        updateValues.discountAmount = calcResult.discountAmount;
+        updateValues.taxAmount = calcResult.taxAmount;
+        updateValues.totalAmount = calcResult.totalAmount;
+
+        // Delete existing items
+        await tx.delete(invoiceItems).where(eq(invoiceItems.invoiceId, invoice.id));
+
+        // Insert updated items
+        const itemRows = data.items.map((item, idx) => {
+          const calc = calcResult.lines[idx]!;
+          return {
+            invoiceId: invoice.id,
+            productId: item.productId || null,
+            itemType: item.itemType || 'PRODUCT',
+            nameSnapshot: item.name || item.description,
+            descriptionSnapshot: item.description,
+            quantity: item.quantity,
+            unitPriceSnapshot: calc.unitPrice,
+            discountAmount: calc.discountAmount,
+            taxRatePercent: calc.taxRatePercent,
+            taxAmount: calc.taxAmount,
+            lineTotal: calc.lineTotal,
+          };
+        });
+        await tx.insert(invoiceItems).values(itemRows);
+      }
 
       await tx.update(invoices).set(updateValues).where(eq(invoices.id, id));
 

@@ -25,10 +25,7 @@ export const CustomerInsightsSection: React.FC<CustomerInsightsSectionProps> = (
         formattedValue: `${formatNumber(t.count || 0)} cust`,
         color: idx === 0 ? '#10B981' : idx === 1 ? '#3B82F6' : '#F59E0B',
       }))
-    : [
-        { id: 'active', label: 'Active', value: activeCustomers, formattedValue: `${activeCustomers} cust`, color: '#10B981' },
-        { id: 'new', label: 'New Adds', value: newCustomers, formattedValue: `${newCustomers} cust`, color: '#3B82F6' },
-      ];
+    : [];
 
   const growthTrend: ChartDataPoint[] = customerData?.acquisitionTrend?.length
     ? customerData.acquisitionTrend.map((a: any) => ({

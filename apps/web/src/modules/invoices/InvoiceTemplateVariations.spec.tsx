@@ -82,7 +82,7 @@ describe('Invoice Template Variations Verification (Section 11 Tests A-G)', () =
     expect(screen.getAllByText('₹ 15,050').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('₹ 0')).toBeDefined();
 
-    // Verify static lower section image
+    // Verify static lower section image with Bank Details and Payment QR
     const lowerImg = screen.getByAltText('Official SR Enterprises Bank, QR, Terms & Signatory') as HTMLImageElement;
     expect(lowerImg).toBeDefined();
     expect(lowerImg.src).toBe(OFFICIAL_LOWER_SECTION_B64);
@@ -192,5 +192,111 @@ describe('Invoice Template Variations Verification (Section 11 Tests A-G)', () =
     expect(screen.getByText(longName)).toBeDefined();
     expect(screen.getByText(longItem)).toBeDefined();
     expect(screen.getAllByText('₹ 60,000').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('TEST F: Exact Master Prompt Layout (single INVOICE, no SUPPLY, no Due Date, PO Number, 10 row slots, dynamic note)', () => {
+    const { container } = renderWithInvoiceData({
+      id: 'inv-f',
+      invoiceNumber: '0926251',
+      customerName: 'Kartik Pawase',
+      customerPhone: '8432708662',
+      invoiceDate: '2026-09-05T00:00:00.000Z',
+      dueDate: '2026-09-20T00:00:00.000Z',
+      poNumber: 'PO-2026-EXACT',
+      subtotal: '16500.00',
+      discountAmount: '0.00',
+      taxAmount: '0.00',
+      totalAmount: '16500.00',
+      paidAmount: '0.00',
+      outstandingAmount: '16500.00',
+      status: 'ISSUED',
+      notes: '1 Years Warranty On Ele Spears 1 Service Free',
+      items: [
+        { nameSnapshot: 'livpure', quantity: 1, unitPriceSnapshot: '16500', lineTotal: '16500' },
+      ],
+    });
+
+    // 1. Single INVOICE badge exists
+    expect(screen.getByText('INVOICE')).toBeDefined();
+
+    // 2. BILL OF SUPPLY & ORIGINAL FOR RECIPIENT are NOT in document
+    expect(screen.queryByText('BILL OF SUPPLY')).toBeNull();
+    expect(screen.queryByText('ORIGINAL FOR RECIPIENT')).toBeNull();
+
+    // 3. SUPPLY header column is NOT in document
+    expect(screen.queryByText('SUPPLY')).toBeNull();
+    expect(screen.queryByText('Main Service Location')).toBeNull();
+
+    // 4. Due Date is NOT in invoice layout
+    expect(screen.queryByText('Due Date')).toBeNull();
+
+    // 5. PO Number is displayed
+    expect(screen.getByText('PO Number')).toBeDefined();
+    expect(screen.getByText('PO-2026-EXACT')).toBeDefined();
+
+    // 6. Dynamic Note is displayed
+    expect(screen.getByText(/1 Years Warranty On Ele Spears 1 Service Free/)).toBeDefined();
+
+    // 7. 10 table rows exist in printable invoice tbody
+    const printableInvoice = container.querySelector('#printable-tax-invoice');
+    expect(printableInvoice).not.toBeNull();
+    const tableRows = printableInvoice!.querySelectorAll('tbody tr');
+    // 10 item slots + 1 TOTAL row = 11 tr in tbody
+    expect(tableRows.length).toBe(11);
+  });
+
+  // TEST G: Mandatory Verification — Addition of AU Bank Details & AU Bank QR, Terms, Signatory
+  it('TEST G: Verifies AU Small Finance Bank Details, AU Bank Payment QR, Terms & Conditions, and Signatory', () => {
+    const { container } = renderWithInvoiceData({
+      id: 'inv-g',
+      invoiceNumber: '0926256',
+      customerName: 'KARTIK PAWASE',
+      customerPhone: '8432708662',
+      invoiceDate: '2026-09-05T00:00:00.000Z',
+      poNumber: 'PO-2026-EXACT',
+      subtotal: '16500.00',
+      discountAmount: '0.00',
+      taxAmount: '0.00',
+      totalAmount: '16500.00',
+      paidAmount: '0.00',
+      outstandingAmount: '16500.00',
+      status: 'ISSUED',
+      notes: '1 Years Warranty On Ele Spears 1 Service Free',
+      items: [
+        { nameSnapshot: 'livpure', quantity: 1, unitPriceSnapshot: '16500', lineTotal: '16500' },
+      ],
+    });
+
+    const printableInvoice = container.querySelector('#printable-tax-invoice');
+    expect(printableInvoice).not.toBeNull();
+
+    // TEST 1: Bank Details heading and account details are present in metadata/alt
+    expect(screen.getByText(/Bank Details/i)).toBeDefined();
+    expect(screen.getByText(/AU Small Finance Bank/i)).toBeDefined();
+    expect(screen.getByText(/2602245912923632/i)).toBeDefined();
+    expect(screen.getByText(/AUBL0002459/i)).toBeDefined();
+    expect(screen.getByText(/S R Enterprises/i)).toBeDefined();
+
+    // TEST 2: Payment QR is visible with AU Bank UPI ID
+    expect(screen.getByText(/Payment QR Code/i)).toBeDefined();
+    expect(screen.getByText(/srenterprises6711@aubank/i)).toBeDefined();
+
+    // TEST 3: Terms and Conditions are still visible
+    expect(screen.getByText(/Terms and Conditions/i)).toBeDefined();
+
+    // TEST 4: Authorized Signatory and signature are still visible
+    expect(screen.getByText(/Authorised Signatory For/i)).toBeDefined();
+
+    // TEST 5: Notes are still visible
+    expect(screen.getByText(/1 Years Warranty On Ele Spears 1 Service Free/i)).toBeDefined();
+
+    // TEST 6: Received Amount and Balance Amount remain unchanged
+    expect(screen.getByText('Received Amount:')).toBeDefined();
+    expect(screen.getByText('Balance Amount:')).toBeDefined();
+    expect(screen.getByText('₹ 0')).toBeDefined();
+    expect(screen.getAllByText('₹ 16,500').length).toBeGreaterThanOrEqual(1);
+
+    // TEST 7: Invoice total remains unchanged
+    expect(screen.getByText('TOTAL')).toBeDefined();
   });
 });

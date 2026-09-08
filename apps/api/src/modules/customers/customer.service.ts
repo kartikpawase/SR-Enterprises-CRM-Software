@@ -257,6 +257,29 @@ export class CustomerService {
       return this.repo.addNote(customerId, content, actorId, actorName, db);
     }
   }
+
+  /**
+   * Custom Customer Label methods
+   */
+  async getAllCustomLabels() {
+    return this.repo.getAllCustomLabels();
+  }
+
+  async getCustomLabelById(id: string) {
+    return this.repo.getCustomLabelById(id);
+  }
+
+  async createCustomLabel(data: { name: string; color: string; description?: string | null }) {
+    return this.repo.createCustomLabel(data);
+  }
+
+  async updateCustomLabel(id: string, data: { name?: string; color?: string; description?: string | null }) {
+    return this.repo.updateCustomLabel(id, data);
+  }
+
+  async deleteCustomLabel(id: string) {
+    return this.repo.deleteCustomLabel(id);
+  }
 }
 
 export const customerService = new CustomerService();

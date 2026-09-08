@@ -18,6 +18,7 @@ import {
   jobCards,
 } from '../../database/schema/index';
 import { generateBusinessNumber } from '../../database/sequences';
+import { generateInvoiceNumber } from '../invoices/invoices.numbering';
 import { withTransaction } from '../../database/transactions';
 import { calculateSaleTotals } from './sales.calculator';
 import { inventoryRepository } from '../inventory/inventory.repository';
@@ -869,6 +870,8 @@ export class SalesRepository {
       return await inFlightSales.get(dedupeKey)!;
     }
 
+    console.log(`[SALE_CONFIRM_START] Processing sale for customer ${data.customerId}, items: ${data.items?.length}, status: ${data.status}`);
+
     const executionPromise = (async () => {
       try {
         const createdSale = await withTransaction(async (tx) => {
@@ -881,13 +884,16 @@ export class SalesRepository {
           if (!customer) {
             throw new Error(`Customer with ID ${data.customerId} does not exist`);
           }
+          console.log(`[CUSTOMER_VALIDATED] Customer ${customer.fullName} (${customer.id}) confirmed`);
 
           // 2. Fetch or dynamically auto-provision product records for snapshots
+          console.log('[STEP_2_START] Resolving product lines...');
           const resolvedLines: any[] = [];
           for (const item of data.items) {
             let prod: any = null;
 
             if (item.productId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.productId)) {
+              console.log('[STEP_2_PROD_LOOKUP_ID]', item.productId);
               const [found] = await tx
                 .select()
                 .from(products)
@@ -896,6 +902,7 @@ export class SalesRepository {
             }
 
             if (!prod && item.sku && item.sku.trim()) {
+              console.log('[STEP_2_PROD_LOOKUP_SKU]', item.sku);
               const [foundBySku] = await tx
                 .select()
                 .from(products)
@@ -904,6 +911,7 @@ export class SalesRepository {
             }
 
             if (!prod) {
+              console.log('[STEP_2_PROD_AUTO_PROVISION]', item.productName || item.sku);
               // Auto-provision product in database catalog
               const pType = (item.productType as any) || 'RO_MACHINE';
               const prefix = pType === 'RO_MACHINE' ? 'RO' : 'SPARE';
@@ -956,8 +964,10 @@ export class SalesRepository {
               nextServiceDate: item.nextServiceDate || null,
             });
           }
+          console.log('[STEP_2_COMPLETE] Product lines resolved:', resolvedLines.length);
 
           // 4. Calculate authoritative document totals
+          console.log('[STEP_4_START] Calculating totals...');
           const calcResult = calculateSaleTotals(
             resolvedLines.map((l) => ({
               quantity: l.quantity,
@@ -967,15 +977,21 @@ export class SalesRepository {
             })),
             data.discountAmount || 0
           );
+          console.log('[STEP_4_COMPLETE] Totals calculated:', calcResult.totalAmount);
 
           // 5. Generate sequential business sale number
+          console.log('[STEP_5_START] Generating sale number...');
           const { sequenceNumber: saleNumber } = await generateBusinessNumber(tx, 'SALE', 'SALE');
+          console.log('[STEP_5_COMPLETE] Generated sale number:', saleNumber);
 
           const isCompleted = data.status === 'COMPLETED';
 
+          console.log('[STEP_ACTOR_START] Resolving actor ID...');
           const safeActorId = await this.resolveActorUserId(tx, actorId);
+          console.log('[STEP_ACTOR_COMPLETE] Resolved actor:', safeActorId);
 
           // 6. Insert sale header
+          console.log('[STEP_6_START] Inserting sale header...');
           const [sale] = await tx
             .insert(sales)
             .values({
@@ -995,8 +1011,10 @@ export class SalesRepository {
           if (!sale) {
             throw new Error('Failed to insert sale record');
           }
+          console.log(`[SALE_CREATED] Sale ${sale.saleNumber} (${sale.id}) inserted`);
 
           // 7. Insert immutable sale items
+          console.log('[STEP_7_START] Inserting sale items...');
           const itemValues = resolvedLines.map((line, idx) => {
             const calculated = calcResult.lines[idx]!;
             return {
@@ -1018,9 +1036,11 @@ export class SalesRepository {
           });
 
           const insertedItems = await tx.insert(saleItems).values(itemValues).returning();
+          console.log(`[SALE_ITEMS_CREATED] ${insertedItems.length} items created for sale ${sale.saleNumber}`);
 
           // 8. If created directly as COMPLETED, execute invoice & asset creation
           if (isCompleted) {
+            console.log('[STEP_8_START] Executing confirmation side effects...');
             await this.executeConfirmationSideEffects(
               tx,
               sale,
@@ -1028,8 +1048,10 @@ export class SalesRepository {
               resolvedLines,
               insertedItems,
               safeActorId || undefined,
-              actorName
+              actorName,
+              data as any
             );
+            console.log('[STEP_8_COMPLETE] Confirmation side effects completed');
           } else {
             // Also register customer assets for purchased items so they are immediately available for services and in profile
             for (let i = 0; i < resolvedLines.length; i++) {
@@ -1094,6 +1116,7 @@ export class SalesRepository {
         });
 
         if (createdSale) {
+          console.log(`[DATABASE_COMMITTED] Sale ${createdSale.saleNumber} committed`);
           recentSalesSubmissions.set(dedupeKey, { timestamp: Date.now(), result: createdSale });
           if (createdSale.status === 'COMPLETED') {
             import('../notifications/email.service').then(({ emailService }) => {
@@ -1103,11 +1126,17 @@ export class SalesRepository {
         }
         return createdSale;
       } catch (err: any) {
-        console.error('[SalesRepository.createSale ERROR]', err);
+        console.error('[SalesRepository.createSale ERROR]', err?.message || err);
         if (err.statusCode || err.code === 'INSUFFICIENT_STOCK') throw err;
+        if (err.message && (err.message.includes('does not exist') || err.message.includes('required') || err.message.includes('Invalid'))) {
+          throw err;
+        }
 
         // Resilient fallback implementation
         const customer = await customerRepository.findById(data.customerId);
+        if (!customer) {
+          throw new Error(`Customer with ID ${data.customerId} does not exist`);
+        }
       const randNum = String(Math.floor(1000 + Math.random() * 9000));
       const saleNumber = `SALE-${new Date().getFullYear()}-${randNum}`;
 
@@ -1288,10 +1317,20 @@ export class SalesRepository {
     }
   })();
 
+  const inFlightTimer = setTimeout(() => {
+    inFlightSales.delete(dedupeKey);
+  }, 12000);
+
   inFlightSales.set(dedupeKey, executionPromise);
   try {
-    return await executionPromise;
+    const result = await executionPromise;
+    console.log(`[SALE_CONFIRM_SUCCESS] Sale ${(result as any)?.saleNumber || (result as any)?.id} completed successfully`);
+    return result;
+  } catch (err: any) {
+    console.error(`[SALE_CONFIRM_ERROR] Sale creation failed for dedupeKey ${dedupeKey}:`, err?.message || err);
+    throw err;
   } finally {
+    clearTimeout(inFlightTimer);
     inFlightSales.delete(dedupeKey);
   }
 }
@@ -1692,14 +1731,14 @@ export class SalesRepository {
   ) {
     const safeActorId = await this.resolveActorUserId(tx, actorId);
 
-    // 1. Generate Invoice Number & Create Invoice
-    console.log('[SideEffects] 1. Generating invoice sequence...');
-    const { sequenceNumber: invoiceNumber } = await generateBusinessNumber(tx, 'INVOICE', 'INV');
+    // 1. Generate Invoice Number & Create Invoice (MMYY + running serial starting from 251)
+    console.log('[INVOICE_PROCESSING] 1. Generating invoice sequence...');
     const invoiceDate = sale.saleDate || new Date();
     const dueDate = new Date(invoiceDate);
     dueDate.setDate(dueDate.getDate() + 15); // Standard 15-day payment terms
+    const invoiceNumber = await generateInvoiceNumber(tx, invoiceDate);
 
-    console.log('[SideEffects] 2. Inserting invoice header...');
+    console.log('[INVOICE_PROCESSING] 2. Inserting invoice header with PO and notes...');
     const [invoice] = await tx
       .insert(invoices)
       .values({
@@ -1708,18 +1747,19 @@ export class SalesRepository {
         saleId: sale.id,
         invoiceDate,
         dueDate,
+        poNumber: (confirmation as any)?.poNumber || (sale as any)?.poNumber || null,
         subtotal: sale.subtotal,
         discountAmount: sale.discountAmount,
         taxAmount: sale.taxAmount,
         totalAmount: sale.totalAmount,
         status: 'ISSUED',
-        notes: sale.notes,
+        notes: (confirmation as any)?.confirmNotes || (confirmation as any)?.notes || sale.notes || null,
         termsAndConditions: 'Payment due within 15 days of invoice date. 1 year standard warranty on RO machines.',
         createdBy: safeActorId,
       })
       .returning();
 
-    console.log('[SideEffects] 3. Inserting invoice items...');
+    console.log('[INVOICE_PROCESSING] 3. Inserting invoice line items...');
     // 2. Insert Invoice Items (Immutable Snapshots)
     const invItems = saleItemRows.map((si) => ({
       invoiceId: invoice.id,
@@ -1755,7 +1795,7 @@ export class SalesRepository {
       );
     }
 
-    console.log('[SideEffects] 5. Registering customer assets & warranties...');
+    console.log('[ASSET_PROCESSING] 5. Registering customer assets & warranties...');
     for (let i = 0; i < resolvedLines.length; i++) {
       const line = resolvedLines[i];
       const quantity = line.quantity;
@@ -1814,6 +1854,7 @@ export class SalesRepository {
         }
 
           // 5. Activate Warranty Foundation
+          console.log('[WARRANTY_PROCESSING] Activating warranty for asset ' + asset.id);
           const { sequenceNumber: warrantyNumber } = await generateBusinessNumber(tx, 'WARRANTY', 'WAR');
           const warrantyStartDate = invoiceDate;
           const warrantyEndDate = new Date(warrantyStartDate);

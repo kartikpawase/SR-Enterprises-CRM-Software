@@ -307,6 +307,21 @@ export function useUpdateInventoryItemMutation() {
   });
 }
 
+export function useDeleteInventoryItemMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.delete<{ success: boolean; data: any; message?: string }>(
+        `/inventory-management/items/${id}`
+      );
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    },
+  });
+}
+
 export function useCreatePurchaseMutation() {
   const queryClient = useQueryClient();
   return useMutation({

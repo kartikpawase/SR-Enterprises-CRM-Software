@@ -177,6 +177,49 @@ export class InventoryManagementRepository {
     return updated;
   }
 
+  async deleteItem(id: string) {
+    // 1. Verify item exists
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, id));
+    if (!item) {
+      throw new Error('Inventory item not found');
+    }
+
+    // 2. Check if item is referenced in sales transactions
+    const [salesCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(inventorySales)
+      .where(eq(inventorySales.itemId, id));
+
+    if (Number(salesCount?.count || 0) > 0) {
+      throw new Error(
+        'This item cannot be deleted because it is already used in existing inventory sales transactions.'
+      );
+    }
+
+    // 3. Check if item has supplier purchases or consumed stock batches
+    const purchases = await db
+      .select()
+      .from(inventoryPurchases)
+      .where(eq(inventoryPurchases.itemId, id));
+
+    const hasNonInitialPurchases = purchases.some(
+      (p) => p.notes !== 'Initial opening stock batch' || p.remainingQuantity < p.quantity
+    );
+
+    if (hasNonInitialPurchases || purchases.length > 1) {
+      throw new Error(
+        'This item cannot be deleted because it is already used in existing inventory purchase transactions.'
+      );
+    }
+
+    // 4. Safe deletion inside transaction: clean up opening stock purchase and delete master item
+    return await db.transaction(async (tx) => {
+      await tx.delete(inventoryPurchases).where(eq(inventoryPurchases.itemId, id));
+      const [deleted] = await tx.delete(inventoryItems).where(eq(inventoryItems.id, id)).returning();
+      return deleted;
+    });
+  }
+
   // =========================================================================
   // PURCHASES (INWARD STOCK)
   // =========================================================================

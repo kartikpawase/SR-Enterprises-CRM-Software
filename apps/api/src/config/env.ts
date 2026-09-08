@@ -98,7 +98,7 @@ const envSchema = z.object({
   SMTP_FROM_EMAIL: z.string().optional(),
   SMTP_FROM_NAME: z.string().default('SR Enterprises'),
   SUPPORT_EMAIL: z.string().default('srenterprises02015@gmail.com'),
-  SUPPORT_PHONE: z.string().default('+91 97660 39197'),
+  SUPPORT_PHONE: z.string().default('+91 73850 59197'),
   MAIL_DRIVER: z.string().optional(),
   MOCK_MAIL: z.string().optional(),
 });

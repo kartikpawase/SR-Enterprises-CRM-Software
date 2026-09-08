@@ -25,7 +25,9 @@ import {
   Plus,
   MessageCircle,
   Mail,
+  Edit,
 } from 'lucide-react';
+import { InvoiceFormModal } from './components/InvoiceFormModal';
 
 export const InvoiceDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +38,7 @@ export const InvoiceDetailPage: React.FC = () => {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [receiptTarget, setReceiptTarget] = useState<PaymentItem | null>(null);
 
   const { data: invoice, isLoading } = useInvoiceQuery(id);
@@ -203,6 +206,15 @@ export const InvoiceDetailPage: React.FC = () => {
                   Record Payment
                 </Button>
               )}
+              {invoice.status !== 'CANCELLED' && (
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditModalOpen(true)}
+                  leftIcon={<Edit className="w-4 h-4 text-blue-600" />}
+                >
+                  Edit Invoice
+                </Button>
+              )}
               <Button variant="outline" onClick={handlePrint} leftIcon={<Printer className="w-4 h-4" />}>
                 Print Invoice
               </Button>
@@ -301,34 +313,34 @@ export const InvoiceDetailPage: React.FC = () => {
         const formattedDiscountAmount = discountAmountNum.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
         const totalQty = invoice.items?.reduce((sum: number, item: any) => sum + (Number(item.quantity) || 1), 0) || 1;
-        const warrantyNotes = invoice.notes || '1 Years Warranty On Ele Spears 1 Service Free';
+        const noteText = invoice.notes ? String(invoice.notes).trim() : '';
+
+        const defaultAddress = invoice.addresses?.find((a) => a.isDefault) || invoice.addresses?.[0];
+        const poNumber = invoice.poNumber || (invoice as any).po_number || '';
 
         return (
           <div
             id="printable-tax-invoice"
             className={cn(
-              "bg-white p-4 md:p-8 rounded-xl border border-slate-200 shadow-sm text-black font-sans space-y-4 printable-tax-invoice print:border-none print:shadow-none print:p-0 print:m-0 print:space-y-0",
+              "bg-white p-4 md:p-8 rounded-xl border border-slate-200 shadow-sm text-black font-sans space-y-2 printable-tax-invoice print:border-none print:shadow-none print:p-0 print:m-0 print:space-y-0",
               receiptTarget && "print:hidden"
             )}
           >
-            <div className="border-[1.5px] border-black p-4 text-black font-sans leading-tight text-[11px] bg-white">
-              {/* Top Badges */}
-              <div className="mb-2 flex items-center gap-1.5">
-                <span className="inline-block border border-black px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase">
-                  BILL OF SUPPLY
-                </span>
-                <span className="inline-block border border-slate-500 px-1.5 py-0.5 text-[9px] text-slate-600 tracking-wider uppercase">
-                  ORIGINAL FOR RECIPIENT
-                </span>
-              </div>
+            {/* Top INVOICE Label: Positioned Above Inner Invoice Rectangle (Left-Aligned) */}
+            <div className="mb-2 flex items-center justify-start">
+              <span className="inline-block border border-black px-2.5 py-0.5 text-[9px] font-bold tracking-wider uppercase">
+                INVOICE
+              </span>
+            </div>
 
+            <div className="border-[1.5px] border-black p-4 text-black font-sans leading-tight text-[11px] bg-white">
               {/* Header: Logo & Company Name */}
-              <div className="flex items-center justify-between mb-3 pb-2">
-                <div className="w-16 shrink-0 flex items-center justify-center">
+              <div className="flex items-center mb-3 pb-2">
+                <div className="w-20 shrink-0 flex items-center justify-center">
                   <img
                     src={SR_ENTERPRISES_LOGO_B64}
                     alt="SR Enterprises Logo"
-                    className="w-14 h-14 object-contain select-none"
+                    className="w-20 h-20 object-contain select-none"
                   />
                 </div>
 
@@ -337,51 +349,51 @@ export const InvoiceDetailPage: React.FC = () => {
                     SR ENTERPRISES
                   </h1>
                   <p className="text-[10px] text-slate-800 font-medium mt-0.5">
-                    Shop A6 SaiPritam Nagari, Chatrapati Chowk Rahatani. Mo.7385059197, Pimpri-Chinchwad, Pune., Maharashtra, 411017
+                    Shop A6 SaiPritam Nagari, Chatrapati Chowk Rahatani. Mo.7385059197
+                  </p>
+                  <p className="text-[10px] text-slate-800 font-medium mt-0.5">
+                    Pimpri-Chinchwad, Pune., Maharashtra, 411017
                   </p>
                   <p className="text-[11px] font-bold text-black mt-1">
-                    Mobile: 9766039197 &nbsp;&nbsp;&nbsp;&nbsp; Email: srenterprises02015@gmail.com
+                    Mobile: 7385059197 &nbsp;&nbsp;&nbsp;&nbsp; Email: srenterprises02015@gmail.com
                   </p>
                 </div>
-
-                <div className="w-16 shrink-0" />
               </div>
 
               {/* Main Flat Grid Border Wrapper */}
               <div className="border-[1.5px] border-black">
-                {/* Row 1: Bill To & Invoice Meta Details */}
+                {/* Row 1: Bill To & Invoice Meta Details (SUPPLY removed) */}
                 <div className="grid grid-cols-12 border-b-[1.5px] border-black">
-                  <div className="col-span-6 border-r-[1.5px] border-black p-2.5 bg-white">
+                  {/* BILL TO */}
+                  <div className="col-span-7 border-r-[1.5px] border-black p-2.5 bg-white flex flex-col justify-center">
                     <p className="text-[10px] font-bold uppercase text-black">BILL TO</p>
                     <p className="text-xs font-extrabold uppercase text-black mt-0.5">{customerName}</p>
-                    <p className="text-[11px] font-medium text-black mt-1">Mobile: {customerPhone}</p>
+                    <p className="text-[11px] font-medium text-black mt-0.5">Mobile: {customerPhone}</p>
+                    {invoice.customerGst && (
+                      <p className="text-[10px] font-medium text-black mt-0.5">GSTIN: {invoice.customerGst}</p>
+                    )}
                   </div>
 
-                  <div className={cn(
-                    "col-span-6 grid text-center bg-white",
-                    hasOutstanding ? "grid-cols-3" : "grid-cols-2"
-                  )}>
-                    <div className="border-r border-black p-2 flex flex-col justify-center items-center">
+                  {/* Meta Details: Invoice No, Invoice Date & PO Number (Due Date removed) */}
+                  <div className="col-span-5 grid grid-cols-2 text-center bg-white">
+                    <div className="border-r border-b border-black p-1.5 flex flex-col justify-center items-center">
                       <span className="text-[10px] font-bold text-black">Invoice No.</span>
                       <span className="text-[11px] font-bold font-mono text-black mt-0.5">{invoiceNo}</span>
                     </div>
-                    <div className={cn(
-                      "p-2 flex flex-col justify-center items-center",
-                      hasOutstanding && "border-r border-black"
-                    )}>
+                    <div className="border-b border-black p-1.5 flex flex-col justify-center items-center">
                       <span className="text-[10px] font-bold text-black">Invoice Date</span>
                       <span className="text-[11px] font-bold text-black mt-0.5">{invoiceDate}</span>
                     </div>
-                    {hasOutstanding && (
-                      <div className="p-2 flex flex-col justify-center items-center">
-                        <span className="text-[10px] font-bold text-black">Due Date</span>
-                        <span className="text-[11px] font-bold text-black mt-0.5">{dueDate}</span>
-                      </div>
-                    )}
+                    <div className="col-span-2 p-1.5 flex flex-col justify-center items-center min-h-[38px]">
+                      <span className="text-[10px] font-bold text-black">PO Number</span>
+                      <span className="text-[11px] font-bold font-mono text-black mt-0.5 min-h-[14px]">
+                        {poNumber || ''}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Row 2: Items Table */}
+                {/* Row 2: Items Table (10 Default Rows) */}
                 <table className="w-full text-[11px] border-collapse">
                   <thead>
                     <tr className="bg-slate-200/70 border-b-[1.5px] border-black font-bold">
@@ -393,29 +405,48 @@ export const InvoiceDetailPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {invoice.items && invoice.items.length > 0 ? (
-                      invoice.items.map((item: any, idx: number) => {
-                        const unitRate = parseFloat(item.unitPriceSnapshot || '0').toLocaleString('en-IN', { maximumFractionDigits: 2 });
-                        const lineAmt = parseFloat(item.lineTotal || '0').toLocaleString('en-IN', { maximumFractionDigits: 2 });
+                    {(() => {
+                      const actualItems: Array<Partial<any>> = invoice.items && invoice.items.length > 0
+                        ? invoice.items
+                        : [
+                            {
+                              id: 'default-item',
+                              nameSnapshot: '25LPH Ro Plant With 18L Tank',
+                              quantity: 1,
+                              unitPriceSnapshot: String(totalAmountNum || 16500),
+                              lineTotal: String(totalAmountNum || 16500),
+                            },
+                          ];
+
+                      return Array.from({ length: 10 }).map((_, slotIdx) => {
+                        const item = actualItems[slotIdx];
+
+                        if (item) {
+                          const unitRate = parseFloat(String(item.unitPriceSnapshot || item.unitPrice || '0')).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+                          const lineAmt = parseFloat(String(item.lineTotal || '0')).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+                          return (
+                            <tr key={item.id || slotIdx} className="h-6">
+                              <td className="border-r border-black py-1 px-1 text-center align-top">{slotIdx + 1}</td>
+                              <td className="border-r border-black py-1 px-2 text-left font-medium align-top">{item.nameSnapshot || item.name || ''}</td>
+                              <td className="border-r border-black py-1 px-1 text-center align-top">{item.quantity ?? 1} PCS</td>
+                              <td className="border-r border-black py-1 px-2 text-right font-mono align-top">{unitRate}</td>
+                              <td className="py-1 px-2 text-right font-mono font-medium align-top">{lineAmt}</td>
+                            </tr>
+                          );
+                        }
+
+                        // Blank slot row to ensure exactly 10 slots
                         return (
-                          <tr key={item.id || idx}>
-                            <td className="border-r border-black py-1 px-1 text-center align-top">{idx + 1}</td>
-                            <td className="border-r border-black py-1 px-2 text-left font-medium align-top">{item.nameSnapshot}</td>
-                            <td className="border-r border-black py-1 px-1 text-center align-top">{item.quantity} PCS</td>
-                            <td className="border-r border-black py-1 px-2 text-right font-mono align-top">{unitRate}</td>
-                            <td className="py-1 px-2 text-right font-mono font-medium align-top">{lineAmt}</td>
+                          <tr key={`blank-slot-${slotIdx}`} className="h-6">
+                            <td className="border-r border-black py-1 px-1 text-center">&nbsp;</td>
+                            <td className="border-r border-black py-1 px-2">&nbsp;</td>
+                            <td className="border-r border-black py-1 px-1 text-center">&nbsp;</td>
+                            <td className="border-r border-black py-1 px-2 text-right">&nbsp;</td>
+                            <td className="py-1 px-2 text-right">&nbsp;</td>
                           </tr>
                         );
-                      })
-                    ) : (
-                      <tr>
-                        <td className="border-r border-black py-1 px-1 text-center align-top">1</td>
-                        <td className="border-r border-black py-1 px-2 text-left font-medium align-top">25LPH Ro Plant With 18L Tank</td>
-                        <td className="border-r border-black py-1 px-1 text-center align-top">1 PCS</td>
-                        <td className="border-r border-black py-1 px-2 text-right font-mono align-top">{formattedTotalAmount}</td>
-                        <td className="py-1 px-2 text-right font-mono font-medium align-top">{formattedTotalAmount}</td>
-                      </tr>
-                    )}
+                      });
+                    })()}
 
                     {/* Discount Row */}
                     {discountAmountNum > 0 && (
@@ -451,18 +482,24 @@ export const InvoiceDetailPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Row 4: Notes */}
-                <div className="p-2 border-b-[1.5px] border-black bg-white text-[10.5px]">
-                  <strong>Notes:</strong>&nbsp;{warrantyNotes}
+                {/* Row 4: Dynamic Note */}
+                <div className="p-2 border-b-[1.5px] border-black bg-white text-[10.5px] min-h-[26px]">
+                  <strong>Notes:</strong>{noteText ? <>&nbsp;{noteText}</> : null}
                 </div>
 
-                {/* PART B: Static Official SR Enterprises Lower Section Image */}
-                <div className="w-full bg-white leading-none">
+                {/* PART B: Official SR Enterprises Lower Section (Bank Details, Payment QR, Terms & Signatory) */}
+                <div className="w-full bg-white leading-none relative" data-testid="invoice-lower-section">
                   <img
                     src={OFFICIAL_LOWER_SECTION_B64}
                     alt="Official SR Enterprises Bank, QR, Terms & Signatory"
                     className="w-full h-auto block select-none"
                   />
+                  <div className="sr-only">
+                    <div>Bank Details: Bank: AU Small Finance Bank, Name: S R Enterprises, A/c No: 2602245912923632, IFSC: AUBL0002459, Branch: Pimpri Pune</div>
+                    <div>Payment QR Code: Scan &amp; Pay (UPI), UPI ID: srenterprises6711@aubank</div>
+                    <div>Terms and Conditions: 1) Except Breakage &amp; Pump In AMC, 2) T&amp;C Apply For AMC &amp; Warranty, 3) Dust &amp; Soil Damage Not Cover, 4) Any Other Issue Service Charge Applicable, 5) GST Bill Extra Charges Applicable, 6) New Machine Install Advance Payment 80%, 7) Commercial Use Unit No Warranty</div>
+                    <div>Authorised Signatory For SR ENTERPRISES</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -619,6 +656,15 @@ export const InvoiceDetailPage: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Edit Invoice Modal */}
+      {isEditModalOpen && (
+        <InvoiceFormModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          initialInvoice={invoice}
+        />
+      )}
     </div>
   );
 };

@@ -281,35 +281,46 @@ export class JobCardsRepository {
       const query = sql`
         SELECT
           COUNT(*)::int AS total_job_cards,
-          COUNT(*) FILTER (WHERE ${jobCards.status} = 'SCHEDULED')::int AS scheduled,
-          COUNT(*) FILTER (WHERE ${jobCards.status} = 'ASSIGNED')::int AS assigned,
-          COUNT(*) FILTER (WHERE ${jobCards.status} = 'IN_PROGRESS')::int AS in_progress,
-          COUNT(*) FILTER (WHERE ${jobCards.status} = 'ON_HOLD')::int AS on_hold,
-          COUNT(*) FILTER (WHERE ${jobCards.status} = 'COMPLETED')::int AS completed,
-          COUNT(*) FILTER (WHERE ${jobCards.status} = 'CANCELLED')::int AS cancelled
+          COUNT(*) FILTER (WHERE ${jobCards.status}::text IN ('SCHEDULED', 'ASSIGNED'))::int AS assigned_scheduled,
+          COUNT(*) FILTER (WHERE ${jobCards.status}::text IN ('STARTED', 'DIAGNOSIS', 'IN_PROGRESS'))::int AS in_progress_active,
+          COUNT(*) FILTER (WHERE ${jobCards.status}::text = 'ON_HOLD')::int AS on_hold,
+          COUNT(*) FILTER (WHERE ${jobCards.status}::text IN ('COMPLETED', 'CUSTOMER_CONFIRMED', 'CLOSED'))::int AS completed_closed,
+          COUNT(*) FILTER (WHERE ${jobCards.status}::text = 'CANCELLED')::int AS cancelled
         FROM ${jobCards}
       `;
 
-      const result = await database.execute(query);
-      const row = result[0] as any;
+      const result: any = await database.execute(query);
+      const row = (result.rows ? result.rows[0] : result[0]) as any;
 
       return {
-        totalJobCards: row?.total_job_cards ?? 0,
-        scheduled: row?.scheduled ?? 0,
-        assigned: row?.assigned ?? 0,
-        inProgress: row?.in_progress ?? 0,
-        onHold: row?.on_hold ?? 0,
-        completed: row?.completed ?? 0,
-        cancelled: row?.cancelled ?? 0,
+        totalJobCards: Number(row?.total_job_cards || 0),
+        assignedCount: Number(row?.assigned_scheduled || 0),
+        inProgressCount: Number(row?.in_progress_active || 0),
+        onHoldCount: Number(row?.on_hold || 0),
+        completedCount: Number(row?.completed_closed || 0),
+        cancelledCount: Number(row?.cancelled || 0),
+        // Retain backward-compatible keys for any legacy callers
+        scheduled: Number(row?.assigned_scheduled || 0),
+        assigned: Number(row?.assigned_scheduled || 0),
+        inProgress: Number(row?.in_progress_active || 0),
+        onHold: Number(row?.on_hold || 0),
+        completed: Number(row?.completed_closed || 0),
+        cancelled: Number(row?.cancelled || 0),
       };
-    } catch {
+    } catch (err) {
+      console.error('[JobCardsRepository.getKPIs] Error calculating KPIs from database:', err);
       return {
         totalJobCards: memoryJobCards.length,
-        scheduled: memoryJobCards.filter((j) => j.status === 'SCHEDULED').length,
-        assigned: memoryJobCards.filter((j) => j.status === 'ASSIGNED').length,
-        inProgress: memoryJobCards.filter((j) => j.status === 'IN_PROGRESS').length,
+        assignedCount: memoryJobCards.filter((j) => ['SCHEDULED', 'ASSIGNED'].includes(j.status)).length,
+        inProgressCount: memoryJobCards.filter((j) => ['STARTED', 'DIAGNOSIS', 'IN_PROGRESS'].includes(j.status)).length,
+        onHoldCount: memoryJobCards.filter((j) => j.status === 'ON_HOLD').length,
+        completedCount: memoryJobCards.filter((j) => ['COMPLETED', 'CUSTOMER_CONFIRMED', 'CLOSED'].includes(j.status)).length,
+        cancelledCount: memoryJobCards.filter((j) => j.status === 'CANCELLED').length,
+        scheduled: memoryJobCards.filter((j) => ['SCHEDULED', 'ASSIGNED'].includes(j.status)).length,
+        assigned: memoryJobCards.filter((j) => ['SCHEDULED', 'ASSIGNED'].includes(j.status)).length,
+        inProgress: memoryJobCards.filter((j) => ['STARTED', 'DIAGNOSIS', 'IN_PROGRESS'].includes(j.status)).length,
         onHold: memoryJobCards.filter((j) => j.status === 'ON_HOLD').length,
-        completed: memoryJobCards.filter((j) => j.status === 'COMPLETED').length,
+        completed: memoryJobCards.filter((j) => ['COMPLETED', 'CUSTOMER_CONFIRMED', 'CLOSED'].includes(j.status)).length,
         cancelled: memoryJobCards.filter((j) => j.status === 'CANCELLED').length,
       };
     }

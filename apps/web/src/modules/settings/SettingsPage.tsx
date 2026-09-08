@@ -1,6 +1,7 @@
 import React from 'react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Building2, Mail, Phone, ShieldCheck, Database, Sliders } from 'lucide-react';
+import { BackupRestoreSection } from './components/BackupRestoreSection';
 
 export const SettingsPage: React.FC = () => {
   return (
@@ -40,7 +41,7 @@ export const SettingsPage: React.FC = () => {
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 font-mono">
                 <Phone className="w-3 h-3 text-slate-400" /> Support Contact
               </span>
-              <p className="text-sm font-bold text-slate-900 font-mono">+91 90216 53893</p>
+              <p className="text-sm font-bold text-slate-900 font-mono">+91 73850 59197</p>
               <p className="text-xs text-slate-500">Official Customer Line</p>
             </div>
 
@@ -48,7 +49,7 @@ export const SettingsPage: React.FC = () => {
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 font-mono">
                 <Mail className="w-3 h-3 text-slate-400" /> Official Email
               </span>
-              <p className="text-sm font-bold text-slate-900 font-mono">varpes380@gmail.com</p>
+              <p className="text-sm font-bold text-slate-900 font-mono">srenterprises02015@gmail.com</p>
               <p className="text-xs text-slate-500">Transactional Dispatch</p>
             </div>
           </div>
@@ -118,6 +119,9 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Backup, Automatic Scheduler & Disaster Recovery Engine */}
+      <BackupRestoreSection />
     </div>
   );
 };

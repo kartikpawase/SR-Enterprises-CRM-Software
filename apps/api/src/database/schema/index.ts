@@ -35,7 +35,7 @@ export * from './relations';
 
 // Type Inference Helpers
 import { users, roles, permissions, rolePermissions } from './users';
-import { customers, customerAddresses } from './customers';
+import { customers, customerAddresses, customerCustomLabels } from './customers';
 import { products } from './products';
 import { customerAssets } from './assets';
 import { sales, saleItems } from './sales';
@@ -79,6 +79,9 @@ export type NewCustomer = InferInsertModel<typeof customers>;
 
 export type CustomerAddress = InferSelectModel<typeof customerAddresses>;
 export type NewCustomerAddress = InferInsertModel<typeof customerAddresses>;
+
+export type CustomerCustomLabel = InferSelectModel<typeof customerCustomLabels>;
+export type NewCustomerCustomLabel = InferInsertModel<typeof customerCustomLabels>;
 
 export type Product = InferSelectModel<typeof products>;
 export type NewProduct = InferInsertModel<typeof products>;

@@ -80,6 +80,19 @@ export const CustomerDetailsPanel: React.FC<CustomerDetailsPanelProps> = ({
                   <span>Bad Customer</span>
                 </span>
               )}
+              {customer.customLabel && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold shadow-2xs"
+                  style={{
+                    backgroundColor: `${customer.customLabel.color}15`,
+                    color: customer.customLabel.color,
+                    borderColor: `${customer.customLabel.color}40`,
+                  }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: customer.customLabel.color }} />
+                  <span>{customer.customLabel.name}</span>
+                </span>
+              )}
             </div>
           </div>
         </div>

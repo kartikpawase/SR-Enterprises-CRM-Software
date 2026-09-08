@@ -18,6 +18,7 @@ export const customers = pgTable(
     gstNumber: text('gst_number'),
     status: customerStatusEnum('status').default('ACTIVE').notNull(),
     customerLabel: customerLabelEnum('customer_label'),
+    customLabelId: uuid('custom_label_id').references(() => customerCustomLabels.id, { onDelete: 'set null' }),
     notes: text('notes'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
@@ -30,7 +31,26 @@ export const customers = pgTable(
     index('customers_email_idx').on(table.email),
     index('customers_status_idx').on(table.status),
     index('customers_customer_label_idx').on(table.customerLabel),
+    index('customers_custom_label_id_idx').on(table.customLabelId),
     index('customers_created_at_idx').on(table.createdAt),
+  ]
+);
+
+/**
+ * Customer Custom Labels Table (Admin-defined classification tags with custom names and colors)
+ */
+export const customerCustomLabels = pgTable(
+  'customer_custom_labels',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: text('name').notNull().unique(), // e.g. "VIP Customer"
+    color: text('color').notNull(), // e.g. "#3B82F6"
+    description: text('description'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('customer_custom_labels_name_idx').on(table.name),
   ]
 );
 

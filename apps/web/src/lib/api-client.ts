@@ -59,14 +59,26 @@ export async function apiRequest<T>(
     defaultHeaders['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(url, {
-    headers: {
-      ...defaultHeaders,
-      ...headers,
-    },
-    credentials: 'include', // Send secure HTTP-only cookies
-    ...customConfig,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(new Error('Request timeout after 30 seconds')), 30000);
+  if (customConfig.signal) {
+    customConfig.signal.addEventListener('abort', () => controller.abort(customConfig.signal?.reason));
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        ...defaultHeaders,
+        ...headers,
+      },
+      credentials: 'include', // Send secure HTTP-only cookies
+      ...customConfig,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const isJson = response.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await response.json().catch(() => null) : null;

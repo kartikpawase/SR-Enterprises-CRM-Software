@@ -15,6 +15,7 @@ import {
   auditLogs,
 } from '../../database/schema/index';
 import { generateBusinessNumber } from '../../database/sequences';
+import { generateInvoiceNumber } from '../invoices/invoices.numbering';
 import { withTransaction } from '../../database/transactions';
 import { randomUUID } from 'crypto';
 import { assetsRepository, memoryAssets } from '../assets/assets.repository';
@@ -1104,12 +1105,10 @@ export class ServicesRepository {
         if (existingInvoice) {
           serviceInvoice = existingInvoice;
         } else {
-          const invSeq = await generateBusinessNumber(database, 'INVOICE', 'INV');
-          const invoiceNumber = invSeq.sequenceNumber;
+          const now = new Date();
+          const invoiceNumber = await generateInvoiceNumber(database, now);
           const subtotalNum = (Number(input.laborCharges) || 0) + (Number(input.partsCharges) || 0);
           const taxAmountNum = Math.max(0, totalChargesNum - subtotalNum);
-
-          const now = new Date();
           const due = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
 
           const [newInvoice] = await database
@@ -1126,6 +1125,8 @@ export class ServicesRepository {
               taxAmount: String(taxAmountNum.toFixed(2)),
               totalAmount: String(totalChargesNum.toFixed(2)),
               status: 'ISSUED',
+              poNumber: (input as any).poNumber || null,
+              notes: (input as any).notes || input.customerRemarks || input.technicianNotes || existing.description || null,
               createdBy: actorId || null,
             })
             .returning();

@@ -12,6 +12,7 @@ import {
   Filter,
   Eye,
   Edit2,
+  Trash2,
   Calendar,
   CheckCircle2,
   ShoppingBag,
@@ -26,6 +27,7 @@ import {
   useInventoryProfitLedgerQuery,
   useCreateInventoryItemMutation,
   useUpdateInventoryItemMutation,
+  useDeleteInventoryItemMutation,
   useCreatePurchaseMutation,
   useCreateSaleMutation,
   type InventoryItem,
@@ -37,11 +39,15 @@ import { InventoryItemModal } from './components/InventoryItemModal';
 import { RecordPurchaseModal } from './components/RecordPurchaseModal';
 import { RecordSaleModal } from './components/RecordSaleModal';
 import { InventoryItemDetailModal } from './components/InventoryItemDetailModal';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
+import { useToast } from '../../providers/ToastProvider';
 
 type TabType = 'overview' | 'items' | 'purchases' | 'sales' | 'profit';
 type PeriodType = 'today' | 'week' | 'month' | 'year' | 'custom';
 
 export const InventoryPage: React.FC = () => {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [period, setPeriod] = useState<PeriodType>('month');
   const [customStartDate, setCustomStartDate] = useState('');
@@ -55,6 +61,7 @@ export const InventoryPage: React.FC = () => {
   // Modals state
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  const [deletingItem, setDeletingItem] = useState<InventoryItem | null>(null);
 
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
   const [purchasePreselectedItemId, setPurchasePreselectedItemId] = useState<string | undefined>();
@@ -96,6 +103,7 @@ export const InventoryPage: React.FC = () => {
   // Mutations
   const createItemMutation = useCreateInventoryItemMutation();
   const updateItemMutation = useUpdateInventoryItemMutation();
+  const deleteItemMutation = useDeleteInventoryItemMutation();
   const createPurchaseMutation = useCreatePurchaseMutation();
   const createSaleMutation = useCreateSaleMutation();
 
@@ -134,6 +142,22 @@ export const InventoryPage: React.FC = () => {
   const handleOpenRecordSale = (itemId?: string) => {
     setSalePreselectedItemId(itemId);
     setIsSaleModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingItem || deleteItemMutation.isPending) return;
+    try {
+      await deleteItemMutation.mutateAsync(deletingItem.id);
+      toast.success(`Inventory item "${deletingItem.name}" deleted successfully.`, 'Item Deleted');
+      setDeletingItem(null);
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to delete inventory item. It may be used in existing transactions.';
+      toast.error(msg, 'Delete Failed');
+    }
   };
 
   return (
@@ -663,6 +687,14 @@ export const InventoryPage: React.FC = () => {
                               </button>
                               <button
                                 type="button"
+                                title="Delete Item"
+                                onClick={() => setDeletingItem(it)}
+                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
                                 title="Inward Purchase"
                                 onClick={() => handleOpenRecordPurchase(it.id)}
                                 className="px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 transition-colors"
@@ -1015,6 +1047,65 @@ export const InventoryPage: React.FC = () => {
           handleOpenRecordSale(id);
         }}
       />
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(deletingItem)}
+        onClose={() => {
+          if (!deleteItemMutation.isPending) {
+            setDeletingItem(null);
+          }
+        }}
+        title="Delete Inventory Item?"
+        size="sm"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setDeletingItem(null)}
+              disabled={deleteItemMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="md"
+              onClick={handleConfirmDelete}
+              isLoading={deleteItemMutation.isPending}
+              disabled={deleteItemMutation.isPending}
+            >
+              Delete Item
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 py-1">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200">
+              <Trash2 className="w-4 h-4" />
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm font-semibold text-slate-900">
+                Are you sure you want to delete:
+              </p>
+              <p className="text-sm font-bold text-slate-900 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                {deletingItem?.name}{' '}
+                {deletingItem?.partNumber && (
+                  <span className="font-mono text-xs text-slate-500 font-normal">
+                    ({deletingItem.partNumber})
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-slate-500 pt-1">
+                This action cannot be undone. Items with historical sales or supplier purchase records cannot be deleted.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

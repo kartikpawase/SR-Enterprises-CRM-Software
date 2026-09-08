@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   useTechniciansQuery,
   useTechnicianKPIsQuery,
+  useDeleteTechnicianMutation,
   type TechnicianItem,
 } from './technicians.api';
 import { TechnicianSummaryCards } from './components/TechnicianSummaryCards';
@@ -11,9 +12,14 @@ import { TechnicianTable } from './components/TechnicianTable';
 import { TechnicianModal } from './components/TechnicianModal';
 import { TechnicianDetailDrawer } from './components/TechnicianDetailDrawer';
 import { Pagination } from '../../components/ui/Pagination';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
+import { useToast } from '../../providers/ToastProvider';
+import { Trash2 } from 'lucide-react';
 
 export const TechniciansDirectory: React.FC = () => {
   const navigate = useNavigate();
+  const toast = useToast();
 
   // Filter States
   const [page, setPage] = useState(1);
@@ -25,6 +31,10 @@ export const TechniciansDirectory: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTech, setEditingTech] = useState<TechnicianItem | null>(null);
   const [selectedTech, setSelectedTech] = useState<TechnicianItem | null>(null);
+  const [deletingTech, setDeletingTech] = useState<TechnicianItem | null>(null);
+
+  // Mutations
+  const deleteMutation = useDeleteTechnicianMutation();
 
   // Queries
   const {
@@ -54,6 +64,28 @@ export const TechniciansDirectory: React.FC = () => {
   const handleCreate = () => {
     setEditingTech(null);
     setIsModalOpen(true);
+  };
+
+  const handleDelete = (tech: TechnicianItem) => {
+    setDeletingTech(tech);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingTech) return;
+    try {
+      await deleteMutation.mutateAsync(deletingTech.id);
+      toast.success(
+        `Technician "${deletingTech.fullName}" was successfully deleted.`,
+        'Technician Deleted'
+      );
+      setDeletingTech(null);
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.error?.message ||
+        err?.message ||
+        'Failed to delete technician. Please ensure there are no assigned records.';
+      toast.error(msg, 'Delete Failed');
+    }
   };
 
   return (
@@ -101,6 +133,7 @@ export const TechniciansDirectory: React.FC = () => {
         isLoading={isLoading}
         onViewDetail={(tech) => setSelectedTech(tech)}
         onEdit={handleEdit}
+        onDelete={handleDelete}
       />
 
       {/* Pagination */}
@@ -127,6 +160,63 @@ export const TechniciansDirectory: React.FC = () => {
         }}
         technician={editingTech}
       />
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(deletingTech)}
+        onClose={() => {
+          if (!deleteMutation.isPending) {
+            setDeletingTech(null);
+          }
+        }}
+        title="Delete Technician?"
+        size="sm"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setDeletingTech(null)}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="md"
+              onClick={handleConfirmDelete}
+              isLoading={deleteMutation.isPending}
+              disabled={deleteMutation.isPending}
+            >
+              Delete Technician
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 py-1">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200">
+              <Trash2 className="w-4 h-4" />
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm font-semibold text-slate-900">
+                Are you sure you want to delete:
+              </p>
+              <p className="text-sm font-bold text-slate-900 bg-slate-50 p-2 rounded-btn border border-slate-200">
+                {deletingTech?.fullName}{' '}
+                <span className="font-mono text-xs text-slate-500 font-normal">
+                  ({deletingTech?.phone})
+                </span>
+              </p>
+              <p className="text-xs text-slate-500 pt-1">
+                This action cannot be undone. Technicians with assigned active services or job cards cannot be deleted.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       {/* Detail Drawer */}
       <TechnicianDetailDrawer

@@ -993,6 +993,11 @@ export interface RestoreResult {
     schemaValid: boolean;
     tableCounts: Record<string, number>;
     financialTotalsMatch: boolean;
+    tableCountsMatch?: boolean;
+    countMismatches?: string[];
+    relationshipsValid?: boolean;
+    relationshipErrors?: string[];
+    documentsRestored?: number;
   };
   durationMs: number;
 }

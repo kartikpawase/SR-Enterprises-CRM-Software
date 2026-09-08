@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   TrendingUp,
@@ -39,6 +39,70 @@ import { formatCurrency, formatNumber } from '../../lib/formatters';
 import type { ReportFilterState, KpiMetric } from './reports.types';
 import type { AnalyticsDateFilter } from '@crm/types';
 
+function computeDateBounds(preset: string, customStart?: string, customEnd?: string): { startDate: string; endDate: string } {
+  const now = new Date();
+  const formatYmd = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  switch (preset) {
+    case 'today': {
+      const todayStr = formatYmd(now);
+      return { startDate: `${todayStr}T00:00:00.000Z`, endDate: `${todayStr}T23:59:59.999Z` };
+    }
+    case 'yesterday': {
+      const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      const yStr = formatYmd(y);
+      return { startDate: `${yStr}T00:00:00.000Z`, endDate: `${yStr}T23:59:59.999Z` };
+    }
+    case '7D':
+    case 'last_week': {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+      return { startDate: `${formatYmd(start)}T00:00:00.000Z`, endDate: `${formatYmd(now)}T23:59:59.999Z` };
+    }
+    case 'this_month': {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return { startDate: `${formatYmd(start)}T00:00:00.000Z`, endDate: `${formatYmd(end)}T23:59:59.999Z` };
+    }
+    case 'previous_month':
+    case 'last_month': {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { startDate: `${formatYmd(start)}T00:00:00.000Z`, endDate: `${formatYmd(end)}T23:59:59.999Z` };
+    }
+    case 'this_quarter': {
+      const quarter = Math.floor(now.getMonth() / 3);
+      const start = new Date(now.getFullYear(), quarter * 3, 1);
+      const end = new Date(now.getFullYear(), quarter * 3 + 3, 0);
+      return { startDate: `${formatYmd(start)}T00:00:00.000Z`, endDate: `${formatYmd(end)}T23:59:59.999Z` };
+    }
+    case 'this_year': {
+      const start = new Date(now.getFullYear(), 0, 1);
+      const end = new Date(now.getFullYear(), 11, 31);
+      return { startDate: `${formatYmd(start)}T00:00:00.000Z`, endDate: `${formatYmd(end)}T23:59:59.999Z` };
+    }
+    case 'custom': {
+      if (customStart && customEnd) {
+        return {
+          startDate: customStart.includes('T') ? customStart : `${customStart}T00:00:00.000Z`,
+          endDate: customEnd.includes('T') ? customEnd : `${customEnd}T23:59:59.999Z`,
+        };
+      }
+      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return { startDate: `${formatYmd(start)}T00:00:00.000Z`, endDate: `${formatYmd(now)}T23:59:59.999Z` };
+    }
+    default: {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return { startDate: `${formatYmd(start)}T00:00:00.000Z`, endDate: `${formatYmd(end)}T23:59:59.999Z` };
+    }
+  }
+}
+
 export const ReportsPage: React.FC = () => {
   const queryClient = useQueryClient();
 
@@ -53,20 +117,40 @@ export const ReportsPage: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
-  const apiFilter: AnalyticsDateFilter = {
-    range: filters.datePreset === 'custom' ? 'custom' : (filters.datePreset as any),
-    startDate: filters.datePreset === 'custom' && filters.customStartDate ? filters.customStartDate : undefined,
-    endDate: filters.datePreset === 'custom' && filters.customEndDate ? filters.customEndDate : undefined,
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  };
+  const dateBounds = useMemo(() => {
+    return computeDateBounds(filters.datePreset, filters.customStartDate, filters.customEndDate);
+  }, [filters.datePreset, filters.customStartDate, filters.customEndDate]);
 
-  // 1. Live CRM Domain Queries from all other pages
+  const apiFilter: AnalyticsDateFilter = useMemo(() => ({
+    range: filters.datePreset === 'custom' ? 'custom' : (filters.datePreset as any),
+    startDate: dateBounds.startDate,
+    endDate: dateBounds.endDate,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  }), [filters.datePreset, dateBounds]);
+
+  // 1. Live CRM Domain Queries synchronized with selected date interval
   const { data: customersData, isLoading: isCustomersLoading, refetch: refetchCustomers } = useCustomersQuery({ page: 1, limit: 100 });
-  const { data: invoicesData, isLoading: isInvoicesLoading, refetch: refetchInvoices } = useInvoicesQuery({ page: 1, limit: 100 });
-  const { data: jobCardsData, isLoading: isJobCardsLoading, refetch: refetchJobCards } = useJobCardsQuery({ page: 1, limit: 100 });
+  const { data: invoicesData, isLoading: isInvoicesLoading, refetch: refetchInvoices } = useInvoicesQuery({
+    page: 1,
+    limit: 100,
+    startDate: dateBounds.startDate,
+    endDate: dateBounds.endDate,
+  });
+  const { data: jobCardsData, isLoading: isJobCardsLoading, refetch: refetchJobCards } = useJobCardsQuery({
+    page: 1,
+    limit: 100,
+    dateFrom: dateBounds.startDate,
+    dateTo: dateBounds.endDate,
+  });
   const { data: techniciansData, isLoading: isTechniciansLoading, refetch: refetchTechnicians } = useTechniciansQuery({ page: 1, limit: 100 });
   const { data: productsData, isLoading: isProductsLoading, refetch: refetchProducts } = useProductsQuery();
-  const { data: salesData, isLoading: isSalesLoading, refetch: refetchSales } = useSalesQuery({ page: 1, limit: 100 });
+  const { data: salesData, isLoading: isSalesLoading, refetch: refetchSales } = useSalesQuery({
+    page: 1,
+    limit: 100,
+    startDate: dateBounds.startDate,
+    endDate: dateBounds.endDate,
+    datePreset: filters.datePreset === 'custom' ? undefined : (filters.datePreset as any),
+  });
   const { data: warrantiesData, isLoading: isWarrantiesLoading, refetch: refetchWarranties } = useWarrantiesQuery({ page: 1, limit: 100 });
 
   // 2. High-level Analytics Overview Query
@@ -122,30 +206,30 @@ export const ReportsPage: React.FC = () => {
     }
   };
 
-  // Real live counts calculated directly from loaded CRM datasets
-  const realTotalCustomers = customersData?.pagination?.total ?? customersData?.data?.length ?? overview?.customers?.totalCustomers ?? 0;
+  // Real authoritative metrics from database overview or filtered domain queries
+  const realTotalCustomers = overview?.customers?.totalCustomers ?? customersData?.pagination?.total ?? customersData?.data?.length ?? 0;
   const realInvoicesList = invoicesData?.data ?? [];
-  const realGrossBilled = realInvoicesList.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0) || (overview?.revenue?.grossBilled ?? 0);
-  const realAmountCollected = realInvoicesList.reduce((sum, inv) => sum + Number(inv.paidAmount || 0), 0) || (overview?.revenue?.amountCollected ?? 0);
-  const realOutstandingAmount = Math.max(0, realGrossBilled - realAmountCollected) || (overview?.revenue?.outstandingAmount ?? 0);
-  const realOverdueInvoices = realInvoicesList.filter((inv) => inv.status === 'OVERDUE').length;
-  const realOverdueAmount = realInvoicesList.filter((inv) => inv.status === 'OVERDUE').reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0) || (overview?.revenue?.overdueAmount ?? 0);
+  const realGrossBilled = overview?.revenue?.grossBilled ?? realInvoicesList.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
+  const realAmountCollected = overview?.revenue?.amountCollected ?? realInvoicesList.reduce((sum, inv) => sum + Number(inv.paidAmount || 0), 0);
+  const realOutstandingAmount = overview?.revenue?.outstandingAmount ?? Math.max(0, realGrossBilled - realAmountCollected);
+  const realOverdueInvoices = overview?.revenue?.overdueInvoicesCount ?? realInvoicesList.filter((inv) => inv.status === 'OVERDUE').length;
+  const realOverdueAmount = overview?.revenue?.overdueAmount ?? realInvoicesList.filter((inv) => inv.status === 'OVERDUE').reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
 
   const realSalesList = salesData?.data ?? [];
-  const realSalesCount = salesData?.pagination?.total ?? realSalesList.length ?? (overview?.sales?.salesCount ?? 0);
-  const realTotalSalesAmount = realSalesList.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0) || (overview?.sales?.totalSalesAmount ?? realGrossBilled);
+  const realSalesCount = overview?.sales?.salesCount ?? salesData?.pagination?.total ?? realSalesList.length;
+  const realTotalSalesAmount = overview?.sales?.totalSalesAmount ?? realSalesList.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
 
   const realJobCardsList = jobCardsData?.data ?? [];
-  const realTotalServices = jobCardsData?.pagination?.total ?? realJobCardsList.length ?? (overview?.services?.totalServices ?? 0);
-  const realCompletedServices = realJobCardsList.filter((j: any) => j.status === 'COMPLETED').length || (overview?.services?.completedServices ?? 0);
-  const realPendingServices = realJobCardsList.filter((j: any) => j.status !== 'COMPLETED').length || (overview?.services?.pendingServices ?? 0);
+  const realTotalServices = overview?.services?.totalServices ?? jobCardsData?.pagination?.total ?? realJobCardsList.length;
+  const realCompletedServices = overview?.services?.completedServices ?? realJobCardsList.filter((j: any) => j.status === 'COMPLETED').length;
+  const realPendingServices = overview?.services?.pendingServices ?? realJobCardsList.filter((j: any) => j.status !== 'COMPLETED').length;
 
   const realTechniciansList = techniciansData?.data ?? [];
-  const realActiveTechnicians = realTechniciansList.filter((t: any) => t.status === 'ACTIVE').length || realTechniciansList.length || (overview?.technicians?.activeTechniciansCount ?? 0);
+  const realActiveTechnicians = overview?.technicians?.activeTechniciansCount ?? realTechniciansList.filter((t: any) => t.status === 'ACTIVE').length;
 
   const realProductsList = productsData ?? [];
   const realWarrantiesList = warrantiesData?.data ?? [];
-  const realActiveWarranties = realWarrantiesList.filter((w: any) => w.status === 'ACTIVE').length || (overview?.warranties?.activeWarranties ?? 0);
+  const realActiveWarranties = overview?.warranties?.activeWarranties ?? realWarrantiesList.filter((w: any) => w.status === 'ACTIVE').length;
 
   // Map live metrics across all CRM data to KPI grid
   const dynamicKpis: Partial<Record<'revenue' | 'sales' | 'customers' | 'services' | 'outstanding', Partial<KpiMetric>>> = {

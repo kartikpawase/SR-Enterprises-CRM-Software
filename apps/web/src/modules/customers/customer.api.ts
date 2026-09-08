@@ -31,11 +31,22 @@ export interface CustomerSummary {
   gstNumber?: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
   customerLabel?: 'GOOD' | 'BAD' | null;
+  customLabelId?: string | null;
+  customLabel?: CustomLabelDefinition | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
   addresses?: CustomerAddress[];
   assets?: Array<{ id: string; assetType: string; status: string }>;
+}
+
+export interface CustomLabelDefinition {
+  id: string;
+  name: string;
+  color: string;
+  description?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CustomerFinancialSummary {
@@ -289,6 +300,20 @@ export function useUpdateCustomerMutation(customerId: string) {
   });
 }
 
+export type UpdateCustomerLabelPayload =
+  | 'GOOD'
+  | 'BAD'
+  | null
+  | {
+      label?: 'GOOD' | 'BAD' | 'CUSTOM' | 'NONE' | null;
+      customLabelId?: string | null;
+      newCustomLabel?: {
+        name: string;
+        color: string;
+        description?: string | null;
+      };
+    };
+
 /**
  * Update customer label mutation
  */
@@ -296,16 +321,70 @@ export function useUpdateCustomerLabelMutation(customerId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (label: 'GOOD' | 'BAD' | null) => {
-      const res = await apiClient.patch<CustomerSummary>(`/customers/${customerId}/label`, {
-        label: label ?? 'NONE',
-      });
+    mutationFn: async (payload: UpdateCustomerLabelPayload) => {
+      let body: any;
+      if (typeof payload === 'string' || payload === null) {
+        body = { label: payload ?? 'NONE' };
+      } else {
+        body = payload;
+      }
+      const res = await apiClient.patch<CustomerSummary>(`/customers/${customerId}/label`, body);
       return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CUSTOMER_QUERY_KEYS.detail(customerId) });
       queryClient.invalidateQueries({ queryKey: CUSTOMER_QUERY_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: ['custom-labels'] });
       queryClient.refetchQueries({ queryKey: CUSTOMER_QUERY_KEYS.all, type: 'active' });
+    },
+  });
+}
+
+/**
+ * Query hook for all custom labels
+ */
+export function useCustomLabelsQuery() {
+  return useQuery({
+    queryKey: ['custom-labels'],
+    queryFn: async () => {
+      const res = await apiClient.get<CustomLabelDefinition[]>('/customers/custom-labels');
+      return res.data || [];
+    },
+    staleTime: 30000,
+  });
+}
+
+/**
+ * Mutation hook to create a custom label definition
+ */
+export function useCreateCustomLabelMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { name: string; color: string; description?: string | null }) => {
+      const res = await apiClient.post<CustomLabelDefinition>('/customers/custom-labels', data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['custom-labels'] });
+    },
+  });
+}
+
+/**
+ * Mutation hook to update a custom label definition
+ */
+export function useUpdateCustomLabelMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { name?: string; color?: string; description?: string | null } }) => {
+      const res = await apiClient.put<CustomLabelDefinition>(`/customers/custom-labels/${id}`, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['custom-labels'] });
+      queryClient.invalidateQueries({ queryKey: CUSTOMER_QUERY_KEYS.all });
     },
   });
 }

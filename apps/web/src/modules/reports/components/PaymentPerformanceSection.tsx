@@ -37,11 +37,7 @@ export const PaymentPerformanceSection: React.FC<PaymentPerformanceSectionProps>
         formattedValue: formatCurrency(m.totalAmount || 0),
         color: METHOD_COLORS[m.method] || ['#0284C7', '#10B981', '#6366F1', '#F59E0B'][idx % 4],
       }))
-    : [
-        { id: 'upi', label: 'UPI / QR', value: Math.round(totalCollected * 0.65), formattedValue: formatCurrency(Math.round(totalCollected * 0.65)), color: '#0284C7' },
-        { id: 'cash', label: 'Cash', value: Math.round(totalCollected * 0.25), formattedValue: formatCurrency(Math.round(totalCollected * 0.25)), color: '#10B981' },
-        { id: 'bank', label: 'Bank Transfer', value: Math.round(totalCollected * 0.10), formattedValue: formatCurrency(Math.round(totalCollected * 0.10)), color: '#6366F1' },
-      ];
+    : [];
 
   const trendData: ChartDataPoint[] = paymentData?.collectionTrend?.length
     ? paymentData.collectionTrend.map((t: any) => ({

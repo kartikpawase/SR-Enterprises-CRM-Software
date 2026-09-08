@@ -86,13 +86,34 @@ class PdfInvoiceGenerator {
     public static function renderOfficialDocumentHtml(array $data): string {
         $customerName = htmlspecialchars(strtoupper($data['customerName'] ?? $data['toName'] ?? 'PRABHATI FOODS PRIVATE LIMITED'));
         $customerPhone = htmlspecialchars($data['customerPhone'] ?? $data['phone'] ?? '9989155841');
+        $customerGst = !empty($data['customerGst']) ? htmlspecialchars($data['customerGst']) : (!empty($data['gstNumber']) ? htmlspecialchars($data['gstNumber']) : '');
+        $gstHtml = $customerGst ? "<div style='font-size: 8px; font-weight: bold; color: #000; margin-top: 1px;'>GSTIN: {$customerGst}</div>" : '';
 
-        $rawInvoiceNo = $data['invoiceNumber'] ?? $data['invoice_number'] ?? '82026209';
+        // Supply Information from available customer / sale / invoice address
+        $supplyAddr = '';
+        if (!empty($data['supplyAddress'])) {
+            $supplyAddr = $data['supplyAddress'];
+        } elseif (!empty($data['addresses']) && is_array($data['addresses']) && !empty($data['addresses'][0])) {
+            $addr = $data['addresses'][0];
+            $parts = array_filter([$addr['addressLine1'] ?? '', $addr['city'] ?? '', $addr['state'] ?? '']);
+            $supplyAddr = implode(', ', $parts);
+        } elseif (!empty($data['customerAddress'])) {
+            $supplyAddr = $data['customerAddress'];
+        } elseif (!empty($data['customerCity']) || !empty($data['customerState'])) {
+            $supplyAddr = trim(($data['customerCity'] ?? '') . ', ' . ($data['customerState'] ?? 'Maharashtra'), ', ');
+        } else {
+            $supplyAddr = 'Maharashtra';
+        }
+        $supplyAddress = htmlspecialchars($supplyAddr);
+
+        $rawInvoiceNo = $data['invoiceNumber'] ?? $data['invoice_number'] ?? '0926251';
         $invoiceNo = htmlspecialchars($rawInvoiceNo);
 
+        $poNumber = !empty($data['poNumber']) ? htmlspecialchars(trim($data['poNumber'])) : '';
+
         $invoiceDate = !empty($data['invoiceDate']) ? date('d/m/Y', strtotime($data['invoiceDate'])) : date('d/m/Y');
-        $rawDueDate = !empty($data['nextDueDate']) ? $data['nextDueDate'] : (!empty($data['dueDate']) ? $data['dueDate'] : null);
-        $dueDate = !empty($rawDueDate) ? date('d/m/Y', strtotime($rawDueDate)) : date('d/m/Y', strtotime('+7 days'));
+        $rawDueDate = !empty($data['dueDate']) ? $data['dueDate'] : (!empty($data['nextDueDate']) ? $data['nextDueDate'] : null);
+        $dueDate = !empty($rawDueDate) ? date('d/m/Y', strtotime($rawDueDate)) : date('d/m/Y', strtotime($invoiceDate . ' +15 days'));
 
         $items = $data['items'] ?? [];
         $totalAmount = (float)($data['totalAmount'] ?? $data['total_amount'] ?? 0);
@@ -105,50 +126,54 @@ class PdfInvoiceGenerator {
             $balanceAmount = max(0, $totalAmount - $receivedAmount);
         }
 
-        // Build item rows
+        // Build item rows (up to 10 rows)
+        $actualItems = !empty($items) && is_array($items) ? $items : [
+            [
+                'nameSnapshot' => '25LPH Ro Plant With 18L Tank',
+                'quantity' => 1,
+                'unit' => 'PCS',
+                'unitPriceSnapshot' => $totalAmount > 0 ? $totalAmount : 16500,
+                'lineTotal' => $totalAmount > 0 ? $totalAmount : 16500,
+            ]
+        ];
+
         $itemRowsHtml = '';
         $totalQty = 0;
-        $idx = 1;
 
-        if (!empty($items) && is_array($items)) {
-            foreach ($items as $item) {
-                $name = htmlspecialchars($item['nameSnapshot'] ?? $item['productName'] ?? $item['name'] ?? '25LPH Ro Plant With 18L Tank');
+        for ($slotIdx = 0; $slotIdx < 10; $slotIdx++) {
+            if (isset($actualItems[$slotIdx])) {
+                $item = $actualItems[$slotIdx];
+                $name = htmlspecialchars($item['nameSnapshot'] ?? $item['productName'] ?? $item['name'] ?? $item['description'] ?? '25LPH Ro Plant With 18L Tank');
                 $qty = (int)($item['quantity'] ?? 1);
                 $unit = htmlspecialchars($item['unit'] ?? 'PCS');
                 $rate = (float)($item['unitPriceSnapshot'] ?? $item['unitPrice'] ?? $item['rate'] ?? 0);
                 $amt = (float)($item['lineTotal'] ?? ($qty * $rate));
 
                 $totalQty += $qty;
-
                 $formattedRate = number_format($rate);
                 $formattedAmt = number_format($amt);
+                $displayIdx = $slotIdx + 1;
 
                 $itemRowsHtml .= "
-                    <tr>
-                        <td style='border-right: 1px solid #000; padding: 3px 2px; font-size: 8.5px; text-align: center; vertical-align: top;'>{$idx}</td>
-                        <td style='border-right: 1px solid #000; padding: 3px 6px; font-size: 8.5px; text-align: left; vertical-align: top;'>{$name}</td>
-                        <td style='border-right: 1px solid #000; padding: 3px 2px; font-size: 8.5px; text-align: center; vertical-align: top;'>{$qty} {$unit}</td>
-                        <td style='border-right: 1px solid #000; padding: 3px 4px; font-size: 8.5px; text-align: right; vertical-align: top;'>{$formattedRate}</td>
-                        <td style='padding: 3px 6px; font-size: 8.5px; text-align: right; vertical-align: top;'>{$formattedAmt}</td>
+                    <tr style='height: 18px;'>
+                        <td style='border-right: 1px solid #000; padding: 2px 2px; font-size: 8.5px; text-align: center; vertical-align: top;'>{$displayIdx}</td>
+                        <td style='border-right: 1px solid #000; padding: 2px 6px; font-size: 8.5px; text-align: left; vertical-align: top;'>{$name}</td>
+                        <td style='border-right: 1px solid #000; padding: 2px 2px; font-size: 8.5px; text-align: center; vertical-align: top;'>{$qty} {$unit}</td>
+                        <td style='border-right: 1px solid #000; padding: 2px 4px; font-size: 8.5px; text-align: right; vertical-align: top;'>{$formattedRate}</td>
+                        <td style='padding: 2px 6px; font-size: 8.5px; text-align: right; vertical-align: top;'>{$formattedAmt}</td>
                     </tr>
                 ";
-                $idx++;
+            } else {
+                $itemRowsHtml .= "
+                    <tr style='height: 18px;'>
+                        <td style='border-right: 1px solid #000; padding: 2px 2px; font-size: 8.5px; text-align: center;'>&nbsp;</td>
+                        <td style='border-right: 1px solid #000; padding: 2px 6px; font-size: 8.5px; text-align: left;'>&nbsp;</td>
+                        <td style='border-right: 1px solid #000; padding: 2px 2px; font-size: 8.5px; text-align: center;'>&nbsp;</td>
+                        <td style='border-right: 1px solid #000; padding: 2px 4px; font-size: 8.5px; text-align: right;'>&nbsp;</td>
+                        <td style='padding: 2px 6px; font-size: 8.5px; text-align: right;'>&nbsp;</td>
+                    </tr>
+                ";
             }
-        }
-
-        // Fallback default item if empty
-        if (empty($itemRowsHtml)) {
-            $totalQty = 1;
-            $formattedAmt = number_format($totalAmount > 0 ? $totalAmount : 15050);
-            $itemRowsHtml = "
-                <tr>
-                    <td style='border-right: 1px solid #000; padding: 3px 2px; font-size: 8.5px; text-align: center; vertical-align: top;'>1</td>
-                    <td style='border-right: 1px solid #000; padding: 3px 6px; font-size: 8.5px; text-align: left; vertical-align: top;'>25LPH Ro Plant With 18L Tank</td>
-                    <td style='border-right: 1px solid #000; padding: 3px 2px; font-size: 8.5px; text-align: center; vertical-align: top;'>1 PCS</td>
-                    <td style='border-right: 1px solid #000; padding: 4px 4px; font-size: 8.5px; text-align: right; vertical-align: top;'>{$formattedAmt}</td>
-                    <td style='padding: 3px 6px; font-size: 8.5px; text-align: right; vertical-align: top;'>{$formattedAmt}</td>
-                </tr>
-            ";
         }
 
         // Discount row
@@ -166,46 +191,21 @@ class PdfInvoiceGenerator {
             ";
         }
 
-        $formattedTotalAmount = number_format($totalAmount > 0 ? $totalAmount : 15050);
+        $formattedTotalAmount = number_format($totalAmount > 0 ? $totalAmount : 16500);
         $formattedReceivedAmount = number_format($receivedAmount);
         $formattedBalanceAmount = number_format($balanceAmount);
 
         $status = strtoupper($data['status'] ?? '');
-        $hasOutstanding = $balanceAmount > 0.001 && $status !== 'PAID';
 
-        $metaCellsHtml = '';
-        if ($hasOutstanding) {
-            $metaCellsHtml = "
-            <td style='width: 16.66%; border-right: 1px solid #000; text-align: center; vertical-align: middle; padding: 4px 2px;'>
-                <div style='font-size: 8.5px; font-weight: bold; color: #000;'>Invoice No.</div>
-                <div style='font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;'>{$invoiceNo}</div>
-            </td>
-            <td style='width: 16.66%; border-right: 1px solid #000; text-align: center; vertical-align: middle; padding: 4px 2px;'>
-                <div style='font-size: 8.5px; font-weight: bold; color: #000;'>Invoice Date</div>
-                <div style='font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;'>{$invoiceDate}</div>
-            </td>
-            <td style='width: 16.68%; text-align: center; vertical-align: middle; padding: 4px 2px;'>
-                <div style='font-size: 8.5px; font-weight: bold; color: #000;'>Due Date</div>
-                <div style='font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;'>{$dueDate}</div>
-            </td>";
-        } else {
-            $metaCellsHtml = "
-            <td style='width: 25%; border-right: 1px solid #000; text-align: center; vertical-align: middle; padding: 4px 2px;'>
-                <div style='font-size: 8.5px; font-weight: bold; color: #000;'>Invoice No.</div>
-                <div style='font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;'>{$invoiceNo}</div>
-            </td>
-            <td style='width: 25%; text-align: center; vertical-align: middle; padding: 4px 2px;'>
-                <div style='font-size: 8.5px; font-weight: bold; color: #000;'>Invoice Date</div>
-                <div style='font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;'>{$invoiceDate}</div>
-            </td>";
-        }
-
-        // Warranty Notes
-        $warrantyNotes = !empty($data['notes']) ? htmlspecialchars($data['notes']) : '1 Years Warranty On Ele Spears 1 Service Free';
+        // Notes (dynamic only, no hardcoded fallback)
+        $notesText = isset($data['notes']) ? trim($data['notes']) : '';
+        $warrantyNotes = !empty($notesText) ? htmlspecialchars($notesText) : '';
 
         // Authoritative static lower section and logo
         $logoSvg = InvoiceAssets::$SR_ENTERPRISES_LOGO_B64;
         $lowerSectionImg = InvoiceAssets::$OFFICIAL_LOWER_SECTION_B64;
+        $qrSvg = self::getQrCodeSvgBase64();
+        $sigSvg = self::getSignatureSvgBase64();
 
         return <<<HTML
 <!DOCTYPE html>
@@ -282,43 +282,61 @@ class PdfInvoiceGenerator {
 
 <div class="doc-container">
 
-    <!-- TOP BADGES -->
-    <div class="top-badges">
-        <span class="badge-tag">BILL OF SUPPLY</span>
-        <span class="badge-tag-muted">ORIGINAL FOR RECIPIENT</span>
+    <!-- TOP BADGES: Single INVOICE Label -->
+    <div class="top-badges" style="text-align: left; margin-bottom: 6px;">
+        <span class="badge-tag">INVOICE</span>
     </div>
 
     <!-- HEADER TABLE -->
     <table class="header-table">
         <tr>
-            <td style="width: 60px; vertical-align: middle; text-align: center;">
-                <div style="width: 48px; height: 48px; border: 2px solid #1d4ed8; border-radius: 24px; text-align: center; background-color: #f8fafc; margin: 0 auto; line-height: 1;">
-                    <div style="font-size: 14px; font-weight: bold; color: #1d4ed8; padding-top: 8px;">SR</div>
-                    <div style="font-size: 5px; font-weight: bold; color: #1d4ed8; letter-spacing: 0.5px;">RO WATER</div>
-                </div>
+            <td style="width: 70px; vertical-align: middle; text-align: center;">
+                <img src="{$logoSvg}" style="width: 60px; height: 60px; object-fit: contain;" alt="SR Enterprises Logo" />
             </td>
-            <td style="text-align: center; vertical-align: middle; padding-left: 2px;">
+            <td style="text-align: center; vertical-align: middle; padding: 0 10px;">
                 <div style="font-size: 19px; font-weight: bold; color: #000; letter-spacing: 0.5px; line-height: 1.1;">SR ENTERPRISES</div>
                 <div style="font-size: 8px; color: #111; margin-top: 2px; font-weight: 500;">
-                    Shop A6 SaiPritam Nagari, Chatrapati Chowk Rahatani. Mo.7385059197, Pimpri-Chinchwad, Pune., Maharashtra, 411017
+                    Shop A6 SaiPritam Nagari, Chatrapati Chowk Rahatani. Mo.7385059197
+                </div>
+                <div style="font-size: 8px; color: #111; margin-top: 1px; font-weight: 500;">
+                    Pimpri-Chinchwad, Pune., Maharashtra, 411017
                 </div>
                 <div style="font-size: 9px; font-weight: bold; color: #000; margin-top: 2px;">
-                    Mobile: 9766039197 &nbsp;&nbsp;&nbsp;&nbsp; Email: srenterprises02015@gmail.com
+                    Mobile: 7385059197 &nbsp;&nbsp;&nbsp;&nbsp; Email: srenterprises02015@gmail.com
                 </div>
             </td>
-            <td style="width: 20px;"></td>
         </tr>
     </table>
 
-    <!-- SECTION 1: BILL TO & INVOICE DETAILS GRID -->
+    <!-- SECTION 1: BILL TO & INVOICE DETAILS GRID (SUPPLY removed) -->
     <table class="flat-grid">
         <tr>
-            <td style="width: 50%; border-right: 1.5px solid #000; padding: 4px 6px; vertical-align: top;">
-                <div style="font-size: 8px; font-weight: bold; color: #000; margin-bottom: 2px;">BILL TO</div>
-                <div style="font-size: 10px; font-weight: bold; color: #000; text-transform: uppercase;">{$customerName}</div>
-                <div style="font-size: 9px; font-weight: 500; color: #000; margin-top: 2px;">Mobile: {$customerPhone}</div>
+            <td style="width: 58%; border-right: 1.5px solid #000; padding: 4px 6px; vertical-align: middle;">
+                <div style="font-size: 8px; font-weight: bold; color: #000; margin-bottom: 2px; text-transform: uppercase;">BILL TO</div>
+                <div style="font-size: 9.5px; font-weight: bold; color: #000; text-transform: uppercase;">{$customerName}</div>
+                <div style="font-size: 8.5px; font-weight: 500; color: #000; margin-top: 1px;">Mobile: {$customerPhone}</div>
+                {$gstHtml}
             </td>
-            {$metaCellsHtml}
+            <td style="width: 42%; vertical-align: top; padding: 0;">
+                <table style="width: 100%; border-collapse: collapse; text-align: center;">
+                    <tr>
+                        <td style="width: 50%; border-right: 1px solid #000; border-bottom: 1px solid #000; padding: 3px 2px; text-align: center; vertical-align: middle;">
+                            <div style="font-size: 7.5px; font-weight: bold; color: #000;">Invoice No.</div>
+                            <div style="font-size: 8.5px; font-weight: bold; font-family: monospace; color: #000; margin-top: 2px;">{$invoiceNo}</div>
+                        </td>
+                        <td style="width: 50%; border-bottom: 1px solid #000; padding: 3px 2px; text-align: center; vertical-align: middle;">
+                            <div style="font-size: 7.5px; font-weight: bold; color: #000;">Invoice Date</div>
+                            <div style="font-size: 8.5px; font-weight: bold; color: #000; margin-top: 2px;">{$invoiceDate}</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" style="padding: 4px 2px; text-align: center; vertical-align: middle;">
+                            <div style="font-size: 7.5px; font-weight: bold; color: #000;">PO Number</div>
+                            <div style="font-size: 8.5px; font-weight: bold; font-family: monospace; color: #000; margin-top: 2px; min-height: 10px;">{$poNumber}</div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
         </tr>
     </table>
 
@@ -365,31 +383,48 @@ class PdfInvoiceGenerator {
         </tr>
     </table>
 
-    <!-- SECTION 5: OFFICIAL SR ENTERPRISES BANK, TERMS & SIGNATORY -->
-    <table class="flat-grid" style="border-top: none; margin-top: 0;">
+    <!-- SECTION 5: BANK DETAILS, PAYMENT QR, TERMS & SIGNATORY -->
+    <table class="flat-grid" style="border-top: none; margin-top: 0; width: 100%;">
         <tr>
-            <td style="width: 50%; border-right: 1.5px solid #000; padding: 5px 6px; vertical-align: top;">
-                <div style="font-size: 8px; font-weight: bold; margin-bottom: 2px; color: #000;">BANK & PAYMENT DETAILS:</div>
-                <div style="font-size: 7.5px; line-height: 1.3; color: #111;">
-                    <strong>Bank Name:</strong> AU Small Finance Bank<br/>
-                    <strong>Account Name:</strong> SR ENTERPRISES<br/>
-                    <strong>Account No.:</strong> 2302256711883344<br/>
-                    <strong>IFSC Code:</strong> AUBL0002567<br/>
-                    <strong>Branch:</strong> Rahatani, Pune - 411017<br/>
-                    <strong>UPI ID:</strong> srenterprises6711@aubank
+            <td style="width: 26%; border-right: 1.5px solid #000; padding: 4px 6px; vertical-align: top;">
+                <div style="font-size: 8px; font-weight: bold; margin-bottom: 3px; color: #000;">Bank Details</div>
+                <div style="font-size: 7px; line-height: 1.5; color: #111;">
+                    <strong>Bank:</strong> AU Small Finance Bank<br/>
+                    <strong>Name:</strong> S R Enterprises<br/>
+                    <strong>A/c No:</strong> 2602245912923632<br/>
+                    <strong>IFSC:</strong> AUBL0002459<br/>
+                    <strong>Branch:</strong> Pimpri, Pune
                 </div>
             </td>
-            <td style="width: 50%; padding: 5px 6px; vertical-align: top;">
-                <div style="font-size: 8px; font-weight: bold; margin-bottom: 2px; color: #000;">TERMS & CONDITIONS:</div>
-                <div style="font-size: 7px; line-height: 1.25; color: #222;">
-                    1. 1 Year Warranty on Electrical Spare Parts.<br/>
-                    2. 1 Free Periodic Maintenance Service included.<br/>
-                    3. Physical damage or water leakage due to external pressure not covered under warranty.<br/>
-                    4. Subject to Pune jurisdiction only.
+            <td style="width: 24%; border-right: 1.5px solid #000; padding: 4px 6px; vertical-align: top;">
+                <div style="font-size: 8px; font-weight: bold; margin-bottom: 2px; color: #000;">Payment QR Code</div>
+                <div style="font-size: 6.8px; line-height: 1.25; color: #111;">
+                    Scan &amp; Pay (UPI)<br/>
+                    <strong>UPI:</strong> srenterprises6711@aubank
                 </div>
-                <div style="margin-top: 10px; text-align: right; font-size: 7.5px; font-weight: bold; color: #000;">
-                    For SR ENTERPRISES<br/><br/><br/>
-                    <span style="border-top: 1px dashed #444; padding-top: 2px;">Authorized Signatory</span>
+                <div style="margin-top: 4px; text-align: left;">
+                    <img src="{$qrSvg}" alt="Payment QR Code" style="width: 52px; height: 52px; display: inline-block;" />
+                </div>
+            </td>
+            <td style="width: 32%; border-right: 1.5px solid #000; padding: 4px 6px; vertical-align: top;">
+                <div style="font-size: 8px; font-weight: bold; margin-bottom: 2px; color: #000;">Terms and Conditions</div>
+                <div style="font-size: 6.5px; line-height: 1.25; color: #222;">
+                    1) Except Breakage &amp; Pump In AMC<br/>
+                    2) T&amp;C Apply For AMC &amp; Warranty<br/>
+                    3) Dust &amp; Soil Damage Not Cover<br/>
+                    4) Any Other Issue Service Charge Applicable<br/>
+                    5) GST Bill Extra Charges Applicable<br/>
+                    6) New Machine Install Advance Payment 80%<br/>
+                    7) Commercial Use Unit No Warranty
+                </div>
+            </td>
+            <td style="width: 18%; padding: 4px 6px; vertical-align: top; text-align: center;">
+                <div style="margin-top: 2px; margin-bottom: 4px;">
+                    <img src="{$sigSvg}" alt="Authorised Signatory" style="height: 36px; display: inline-block;" />
+                </div>
+                <div style="font-size: 7.5px; font-weight: bold; color: #000; line-height: 1.2;">
+                    Authorised Signatory For<br/>
+                    SR ENTERPRISES
                 </div>
             </td>
         </tr>
@@ -422,61 +457,10 @@ HTML;
     }
 
     /**
-     * Vector UPI QR Code asset as base64
+     * Real AU Small Finance Bank UPI QR Code (srenterprises6711@aubank) as base64 PNG
      */
     private static function getQrCodeSvgBase64(): string {
-        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-            <rect width="100" height="100" fill="#ffffff"/>
-            <!-- Corner Finder 1 -->
-            <rect x="5" y="5" width="28" height="28" fill="#000000"/>
-            <rect x="9" y="9" width="20" height="20" fill="#ffffff"/>
-            <rect x="13" y="13" width="12" height="12" fill="#000000"/>
-            <!-- Corner Finder 2 -->
-            <rect x="67" y="5" width="28" height="28" fill="#000000"/>
-            <rect x="71" y="9" width="20" height="20" fill="#ffffff"/>
-            <rect x="75" y="13" width="12" height="12" fill="#000000"/>
-            <!-- Corner Finder 3 -->
-            <rect x="5" y="67" width="28" height="28" fill="#000000"/>
-            <rect x="9" y="71" width="20" height="20" fill="#ffffff"/>
-            <rect x="13" y="75" width="12" height="12" fill="#000000"/>
-            <!-- Data Dots Pattern -->
-            <rect x="38" y="8" width="6" height="6" fill="#000000"/>
-            <rect x="48" y="8" width="6" height="6" fill="#000000"/>
-            <rect x="58" y="8" width="6" height="6" fill="#000000"/>
-            <rect x="38" y="18" width="6" height="6" fill="#000000"/>
-            <rect x="52" y="18" width="6" height="6" fill="#000000"/>
-            <rect x="8" y="38" width="6" height="6" fill="#000000"/>
-            <rect x="18" y="38" width="6" height="6" fill="#000000"/>
-            <rect x="28" y="38" width="6" height="6" fill="#000000"/>
-            <rect x="38" y="38" width="8" height="8" fill="#000000"/>
-            <rect x="52" y="38" width="6" height="6" fill="#000000"/>
-            <rect x="62" y="38" width="6" height="6" fill="#000000"/>
-            <rect x="72" y="38" width="6" height="6" fill="#000000"/>
-            <rect x="82" y="38" width="6" height="6" fill="#000000"/>
-            <rect x="18" y="48" width="6" height="6" fill="#000000"/>
-            <rect x="28" y="48" width="6" height="6" fill="#000000"/>
-            <rect x="44" y="48" width="8" height="8" fill="#000000"/>
-            <rect x="60" y="48" width="6" height="6" fill="#000000"/>
-            <rect x="78" y="48" width="6" height="6" fill="#000000"/>
-            <rect x="38" y="58" width="6" height="6" fill="#000000"/>
-            <rect x="48" y="58" width="6" height="6" fill="#000000"/>
-            <rect x="58" y="58" width="6" height="6" fill="#000000"/>
-            <rect x="68" y="58" width="6" height="6" fill="#000000"/>
-            <rect x="88" y="58" width="6" height="6" fill="#000000"/>
-            <rect x="38" y="68" width="6" height="6" fill="#000000"/>
-            <rect x="52" y="68" width="6" height="6" fill="#000000"/>
-            <rect x="68" y="68" width="6" height="6" fill="#000000"/>
-            <rect x="78" y="68" width="6" height="6" fill="#000000"/>
-            <rect x="38" y="78" width="6" height="6" fill="#000000"/>
-            <rect x="48" y="78" width="6" height="6" fill="#000000"/>
-            <rect x="60" y="78" width="6" height="6" fill="#000000"/>
-            <rect x="82" y="78" width="6" height="6" fill="#000000"/>
-            <rect x="38" y="88" width="6" height="6" fill="#000000"/>
-            <rect x="58" y="88" width="6" height="6" fill="#000000"/>
-            <rect x="72" y="88" width="6" height="6" fill="#000000"/>
-            <rect x="88" y="88" width="6" height="6" fill="#000000"/>
-        </svg>';
-        return 'data:image/svg+xml;base64,' . base64_encode($svg);
+        return 'data:image/png;base64,' . InvoiceAssets::$AU_BANK_QR_B64;
     }
 
     /**

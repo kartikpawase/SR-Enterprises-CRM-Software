@@ -5,6 +5,7 @@ import { closeRedisConnection } from './redis/client.js';
 import { seedInitialSystemData } from './database/seeds/initial.js';
 import { emailQueueWorker } from './modules/notifications/email-queue.worker.js';
 import { emailScheduler } from './modules/notifications/email-scheduler.js';
+import { backupScheduler } from './modules/backup/backup-scheduler.js';
 
 export async function startServer() {
   const app = buildApp();
@@ -15,6 +16,7 @@ export async function startServer() {
     process.on(signal, async () => {
       console.log(`\nReceived ${signal}. Shutting down gracefully...`);
       try {
+        backupScheduler.stop();
         emailScheduler.stop();
         emailQueueWorker.stopPeriodicRunner();
         await app.close();
@@ -45,6 +47,10 @@ export async function startServer() {
     emailQueueWorker.startPeriodicRunner(30000); // Check email queue every 30s
     emailScheduler.start(15); // Check due reminders & expiries every 15m
     console.log('📧 PHPMailer transactional email worker and scheduler initialized.');
+
+    // Initialize automated backup scheduler
+    await backupScheduler.initialize();
+    console.log('🛡️ Automated Backup Scheduler initialized.');
 
     const address = await app.listen({
       port: env.PORT,

@@ -270,4 +270,87 @@ describe('Inventory Management Module (Spare Parts, Purchases, Sales & Profit An
     expect(firstRow.totalSaleAmount).toBeGreaterThan(0);
     expect(firstRow.marginPercent).toBeGreaterThan(0);
   });
+
+  it('9. Safely deletes an inventory item with no protected sales transactions', async () => {
+    // Create a standalone temporary item
+    const item = await inventoryManagementService.createItem({
+      name: 'Temporary Obsolete Filter 5 Inch',
+      category: 'Filter',
+      purchasePrice: 100,
+      sellingPrice: 180,
+      initialStock: 4,
+    });
+
+    const purchasesBefore = await inventoryManagementService.getPurchases({ itemId: item.id });
+    expect(purchasesBefore.data.length).toBe(1);
+
+    // Delete item
+    const deleted = await inventoryManagementService.deleteItem(item.id);
+    expect(deleted.id).toBe(item.id);
+
+    // Verify item is removed from database
+    const [fetched] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.id));
+    expect(fetched).toBeUndefined();
+
+    // Verify opening purchase batch is cleaned up
+    const purchasesAfter = await inventoryManagementService.getPurchases({ itemId: item.id });
+    expect(purchasesAfter.data.length).toBe(0);
+  });
+
+  it('10. Safely prevents deletion of an item referenced by outward sales history', async () => {
+    // Create item and record sale
+    const item = await inventoryManagementService.createItem({
+      name: 'Protected Filter With Sales',
+      category: 'Filter',
+      purchasePrice: 150,
+      sellingPrice: 280,
+      initialStock: 10,
+    });
+
+    await inventoryManagementService.createSale({
+      itemId: item.id,
+      customerName: 'Protected Customer',
+      saleDate: new Date().toISOString(),
+      quantity: 1,
+      sellingPricePerUnit: 280,
+    });
+
+    // Attempting to delete should fail with protected reference error
+    await expect(inventoryManagementService.deleteItem(item.id)).rejects.toThrow(
+      /already used in existing inventory sales transactions/
+    );
+
+    // Item must still exist
+    const [fetched] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.id));
+    expect(fetched).toBeDefined();
+    expect(fetched.name).toBe('Protected Filter With Sales');
+  });
+
+  it('11. Safely prevents deletion of an item referenced by external supplier purchases', async () => {
+    const item = await inventoryManagementService.createItem({
+      name: 'Protected Item With Supplier Inward',
+      category: 'Pump',
+      purchasePrice: 500,
+      sellingPrice: 900,
+      initialStock: 0,
+    });
+
+    // Inward purchase from external supplier
+    await inventoryManagementService.createPurchase({
+      itemId: item.id,
+      supplierName: 'Vendor XYZ',
+      purchaseDate: new Date().toISOString(),
+      quantity: 5,
+      purchasePricePerUnit: 500,
+    });
+
+    // Attempting to delete should fail with protected purchase transaction error
+    await expect(inventoryManagementService.deleteItem(item.id)).rejects.toThrow(
+      /already used in existing inventory purchase transactions/
+    );
+
+    // Item must still exist
+    const [fetched] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.id));
+    expect(fetched).toBeDefined();
+  });
 });

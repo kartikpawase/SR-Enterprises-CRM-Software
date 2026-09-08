@@ -43,8 +43,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         {/* Left: Greeting & Operational Subtitle */}
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-slate-900 tracking-tight leading-tight">
-            Good morning, {user?.username || 'Admin'}
+          <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-slate-900 tracking-tight leading-tight animate-subtle-fade-up">
+            SR 𝔼𝕟𝕥𝕖𝕣𝕡𝕣𝕚𝕤𝕖𝕤
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
             Here's what's happening with your business today.

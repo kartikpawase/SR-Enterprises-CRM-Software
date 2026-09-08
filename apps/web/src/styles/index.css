@@ -223,3 +223,19 @@ h1, h2, h3, .font-display {
     break-inside: avoid !important;
   }
 }
+
+/* Subtle professional text reveal animation */
+@keyframes subtleFadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-subtle-fade-up {
+  animation: subtleFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

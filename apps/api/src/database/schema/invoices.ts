@@ -27,6 +27,7 @@ export const invoices = pgTable(
     taxAmount: numeric('tax_amount', { precision: 12, scale: 2 }).default('0.00').notNull(),
     totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).notNull(),
     status: invoiceStatusEnum('status').default('ISSUED').notNull(),
+    poNumber: text('po_number'),
     notes: text('notes'),
     termsAndConditions: text('terms_and_conditions'),
     pdfFileId: uuid('pdf_file_id'),
@@ -44,6 +45,7 @@ export const invoices = pgTable(
     index('invoices_service_id_idx').on(table.serviceId),
     index('invoices_due_date_idx').on(table.dueDate),
     index('invoices_status_idx').on(table.status),
+    index('invoices_po_number_idx').on(table.poNumber),
   ]
 );
 

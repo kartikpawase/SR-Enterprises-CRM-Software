@@ -94,6 +94,13 @@ export const SYSTEM_PERMISSIONS: SystemPermissionDef[] = [
   { key: 'roles.manage', name: 'Manage Roles', module: 'Administration', description: 'Configure role permissions' },
   { key: 'audit.view', name: 'View Audit Logs', module: 'Administration', description: 'Inspect security audit logs' },
   { key: 'settings.manage', name: 'Manage Settings', module: 'Administration', description: 'Configure system settings' },
+
+  // Backup & Disaster Recovery Module
+  { key: 'backups.view', name: 'View Backups', module: 'Administration', description: 'View system backups and history' },
+  { key: 'backups.create', name: 'Create Backups', module: 'Administration', description: 'Generate manual full system backup snapshots' },
+  { key: 'backups.restore', name: 'Restore Backups', module: 'Administration', description: 'Execute disaster recovery data restoration' },
+  { key: 'backups.delete', name: 'Delete Backups', module: 'Administration', description: 'Delete non-protected backup snapshots' },
+  { key: 'backups.manage', name: 'Manage Backup Schedule', module: 'Administration', description: 'Configure automated backup schedules and retention' },
 ];
 
 export const SYSTEM_ROLES = [

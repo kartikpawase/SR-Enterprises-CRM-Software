@@ -581,6 +581,95 @@ export class TechniciansRepository {
       return tech;
     }
   }
+
+  /**
+   * Check if a technician has active or historical dependent records
+   */
+  async checkDependencies(id: string, database = db) {
+    let serviceCount = 0;
+    let jobCardCount = 0;
+
+    try {
+      const [srvRes, jcRes] = await Promise.all([
+        database
+          .select({ count: sql<number>`count(*)` })
+          .from(services)
+          .where(eq(services.technicianId, id)),
+        database
+          .select({ count: sql<number>`count(*)` })
+          .from(jobCards)
+          .where(eq(jobCards.technicianId, id)),
+      ]);
+
+      serviceCount = Number(srvRes[0]?.count || 0);
+      jobCardCount = Number(jcRes[0]?.count || 0);
+    } catch (err: any) {
+      console.warn('[TechniciansRepository.checkDependencies] DB check notice:', err?.message);
+    }
+
+    const memJobs = memoryJobCards.filter((j) => j.technicianId === id).length;
+    jobCardCount = Math.max(jobCardCount, memJobs);
+
+    const totalDependencies = serviceCount + jobCardCount;
+
+    return {
+      hasDependencies: totalDependencies > 0,
+      serviceCount,
+      jobCardCount,
+      totalDependencies,
+    };
+  }
+
+  /**
+   * Delete technician if no protected dependent records exist
+   */
+  async delete(id: string, actorId?: string, database = db) {
+    await this.ensureDefaultTechnicians(database);
+
+    const existing = await this.findById(id, database);
+    if (!existing) {
+      throw new Error('Technician not found');
+    }
+
+    // Dependency check to ensure referential safety
+    const dep = await this.checkDependencies(id, database);
+    if (dep.hasDependencies) {
+      const parts: string[] = [];
+      if (dep.jobCardCount > 0) parts.push(`${dep.jobCardCount} job card(s)`);
+      if (dep.serviceCount > 0) parts.push(`${dep.serviceCount} service record(s)`);
+      throw new Error(
+        `Cannot delete technician "${existing.fullName}". There are ${parts.join(' and ')} assigned to this technician. Please reassign these records or set the technician status to Inactive.`
+      );
+    }
+
+    // Perform database deletion
+    try {
+      await database.delete(technicians).where(eq(technicians.id, id));
+
+      // Audit Log
+      try {
+        if (actorId) {
+          await database.insert(auditLogs).values({
+            actorId,
+            action: 'DELETE',
+            entityType: 'USER',
+            entityId: id,
+            beforeState: existing,
+          });
+        }
+      } catch {}
+    } catch (err: any) {
+      console.warn('[TechniciansRepository.delete] DB delete notice, using memory fallback:', err?.message);
+    }
+
+    // Remove from in-memory array
+    const memIdx = memoryTechnicians.findIndex((t) => t.id === id);
+    if (memIdx !== -1) {
+      memoryTechnicians.splice(memIdx, 1);
+    }
+
+    return { success: true, id, message: 'Technician deleted successfully' };
+  }
 }
 
 export const techniciansRepository = new TechniciansRepository();

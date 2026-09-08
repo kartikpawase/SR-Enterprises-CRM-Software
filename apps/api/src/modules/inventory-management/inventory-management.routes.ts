@@ -75,6 +75,42 @@ export const inventoryManagementRoutes: FastifyPluginAsync = async (fastify) => 
   });
 
   /**
+   * DELETE /api/v1/inventory-management/items/:id
+   * Safely delete inventory item if not referenced by protected historical records
+   */
+  fastify.delete('/items/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const deletedItem = await inventoryManagementService.deleteItem(id);
+      return reply.status(HTTP_STATUS.OK).send({
+        success: true,
+        data: deletedItem,
+        message: 'Inventory item deleted successfully',
+      });
+    } catch (err: any) {
+      if (err.message && err.message.includes('already used in existing inventory')) {
+        return reply.status(HTTP_STATUS.BAD_REQUEST).send({
+          success: false,
+          error: {
+            code: 'CANNOT_DELETE_REFERENCED_ITEM',
+            message: err.message,
+          },
+        });
+      }
+      if (err.message && err.message.includes('not found')) {
+        return reply.status(HTTP_STATUS.NOT_FOUND).send({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: err.message,
+          },
+        });
+      }
+      throw err;
+    }
+  });
+
+  /**
    * GET /api/v1/inventory-management/purchases
    * Query inward stock purchase history
    */

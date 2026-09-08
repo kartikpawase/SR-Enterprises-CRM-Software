@@ -127,6 +127,7 @@ export const CustomerDirectory: React.FC = () => {
         nextServiceDays: nextServiceDaysCalc,
         status: item.status as any,
         customerLabel: (item as any).customerLabel || null,
+        customLabel: (item as any).customLabel || null,
         summary: {
           totalInvoices: totalInvoicesFormatted,
           outstanding: outstandingFormatted,

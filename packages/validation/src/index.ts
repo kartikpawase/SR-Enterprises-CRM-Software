@@ -147,12 +147,27 @@ export type CreateCustomerInput = z.infer<typeof CreateCustomerSchema>;
 export const CustomerLabelSchema = z.enum(['GOOD', 'BAD']);
 export type CustomerLabel = z.infer<typeof CustomerLabelSchema>;
 
+export const CreateCustomLabelSchema = z.object({
+  name: z.string().trim().min(1, 'Label name cannot be blank').max(40, 'Label name cannot exceed 40 characters'),
+  color: z.string().trim().min(1, 'Label color is required').regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Color must be a valid hex code (e.g. #3B82F6)'),
+  description: z.string().trim().max(255).optional().nullable(),
+});
+export type CreateCustomLabelInput = z.infer<typeof CreateCustomLabelSchema>;
+
+export const UpdateCustomLabelSchema = z.object({
+  name: z.string().trim().min(1, 'Label name cannot be blank').max(40, 'Label name cannot exceed 40 characters').optional(),
+  color: z.string().trim().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Color must be a valid hex code').optional(),
+  description: z.string().trim().max(255).optional().nullable(),
+});
+export type UpdateCustomLabelInput = z.infer<typeof UpdateCustomLabelSchema>;
+
 export const UpdateCustomerLabelSchema = z.object({
   label: z
-    .enum(['GOOD', 'BAD', 'NONE'])
+    .enum(['GOOD', 'BAD', 'CUSTOM', 'NONE'])
     .nullable()
-    .optional()
-    .transform((val) => (val === 'NONE' || !val ? null : (val as 'GOOD' | 'BAD'))),
+    .optional(),
+  customLabelId: z.string().uuid().nullable().optional(),
+  newCustomLabel: CreateCustomLabelSchema.optional(),
 });
 export type UpdateCustomerLabelInput = z.infer<typeof UpdateCustomerLabelSchema>;
 
@@ -364,11 +379,12 @@ export const CreateSaleSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
   saleDate: z.union([z.string(), z.date()]).optional(),
   status: z.enum(['DRAFT', 'COMPLETED', 'CANCELLED']).default('DRAFT').optional(),
-  items: z.array(SaleItemInputSchema).min(1, 'At least one sale item is required'),
+  items: z.array(SaleItemInputSchema).min(1, 'At least one sale item is required').max(10, 'Maximum 10 items allowed'),
   discountAmount: z.coerce.number().min(0).default(0).optional(),
   notes: z.string().optional().nullable(),
   billingAddressId: z.string().uuid().optional().nullable(),
   serviceAddressId: z.string().uuid().optional().nullable(),
+  poNumber: z.string().optional().nullable(),
   createInvoice: z.boolean().default(true).optional(),
   activateWarranty: z.boolean().default(true).optional(),
   generateServiceSchedules: z.boolean().default(true).optional(),
@@ -383,6 +399,7 @@ export const ConfirmSaleSchema = z.object({
   itemSerialNumbers: z.record(z.string()).optional(),
   installationAddressId: z.string().uuid().optional().nullable(),
   installationNotes: z.string().optional().nullable(),
+  poNumber: z.string().optional().nullable(),
 });
 export type ConfirmSaleInput = z.infer<typeof ConfirmSaleSchema>;
 
@@ -437,34 +454,81 @@ export const CreateInvoiceItemSchema = z.object({
 });
 export type CreateInvoiceItemInput = z.infer<typeof CreateInvoiceItemSchema>;
 
-export const CreateInvoiceSchema = z.object({
-  customerId: z.string().uuid('Invalid customer ID'),
-  saleId: z.string().uuid().optional().nullable(),
-  status: z.enum(['DRAFT', 'ISSUED']).default('ISSUED').optional(),
-  invoiceDate: z.string().optional(),
-  dueDate: z.string().optional(),
-  discountAmount: z.coerce.number().min(0).default(0).optional(),
-  items: z.array(CreateInvoiceItemSchema).min(1, 'At least one invoice item is required'),
-  notes: z.string().optional().nullable(),
-  terms: z.string().optional().nullable(),
-  termsAndConditions: z.string().optional().nullable(),
-});
+export const CreateInvoiceSchema = z
+  .object({
+    customerId: z.string().uuid('Invalid customer ID'),
+    saleId: z.string().uuid().optional().nullable(),
+    status: z.enum(['DRAFT', 'ISSUED']).default('ISSUED').optional(),
+    invoiceDate: z.string().optional(),
+    dueDate: z.string().optional(),
+    poNumber: z.string().optional().nullable(),
+    discountAmount: z.coerce.number().min(0).default(0).optional(),
+    items: z
+      .array(CreateInvoiceItemSchema)
+      .min(1, 'At least one invoice item is required')
+      .max(10, 'Maximum 10 items allowed'),
+    notes: z.string().optional().nullable(),
+    terms: z.string().optional().nullable(),
+    termsAndConditions: z.string().optional().nullable(),
+  })
+  .refine(
+    (data) => {
+      if (data.invoiceDate && data.dueDate) {
+        const invTime = new Date(data.invoiceDate).getTime();
+        const dueTime = new Date(data.dueDate).getTime();
+        if (isNaN(invTime) || isNaN(dueTime)) return false;
+        const invDateOnly = new Date(data.invoiceDate).setHours(0, 0, 0, 0);
+        const dueDateOnly = new Date(data.dueDate).setHours(0, 0, 0, 0);
+        return dueDateOnly >= invDateOnly;
+      }
+      return true;
+    },
+    {
+      message: 'Due Date cannot be before Invoice Date',
+      path: ['dueDate'],
+    }
+  );
 export type CreateInvoiceInput = z.infer<typeof CreateInvoiceSchema>;
 
 export const CreateInvoiceFromSaleSchema = z.object({
   dueDate: z.string().optional(),
+  poNumber: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   termsAndConditions: z.string().optional().nullable(),
 });
 export type CreateInvoiceFromSaleInput = z.infer<typeof CreateInvoiceFromSaleSchema>;
 
-export const UpdateInvoiceSchema = z.object({
-  dueDate: z.string().optional(),
-  notes: z.string().optional().nullable(),
-  termsAndConditions: z.string().optional().nullable(),
-  discountAmount: z.coerce.number().min(0).optional(),
-  items: z.array(CreateInvoiceItemSchema).min(1).optional(),
-});
+export const UpdateInvoiceSchema = z
+  .object({
+    invoiceDate: z.string().optional(),
+    dueDate: z.string().optional(),
+    poNumber: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+    termsAndConditions: z.string().optional().nullable(),
+    discountAmount: z.coerce.number().min(0).optional(),
+    items: z
+      .array(CreateInvoiceItemSchema)
+      .min(1)
+      .max(10, 'Maximum 10 items allowed')
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.invoiceDate && data.dueDate) {
+        const invTime = new Date(data.invoiceDate).getTime();
+        const dueTime = new Date(data.dueDate).getTime();
+        if (isNaN(invTime) || isNaN(dueTime)) return false;
+        const invDateOnly = new Date(data.invoiceDate).setHours(0, 0, 0, 0);
+        const dueDateOnly = new Date(data.dueDate).setHours(0, 0, 0, 0);
+        return dueDateOnly >= invDateOnly;
+      }
+      return true;
+    },
+    {
+      message: 'Due Date cannot be before Invoice Date',
+      path: ['dueDate'],
+    }
+  );
 export type UpdateInvoiceInput = z.infer<typeof UpdateInvoiceSchema>;
 
 export const FinalizeInvoiceSchema = z.object({

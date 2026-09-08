@@ -33,7 +33,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, className }) =>
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const res = await login('admin', 'Admin@123456', challengeId || 'local-challenge', '74KB9');
+      const res = await login('admin', 'Admin@123456', 'local-challenge', '74KB9');
       if (res.success) {
         onSuccess?.();
       } else {
@@ -52,13 +52,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, className }) =>
     setCaptchaInput('');
     try {
       const res = await apiClient.get<any>('/auth/captcha');
-      const payload = res?.data?.data || res?.data;
+      const payload = res?.data?.data || res?.data || res;
       if (payload && payload.challengeId && payload.svg) {
         setChallengeId(payload.challengeId);
         setCaptchaSvg(payload.svg);
+      } else {
+        throw new Error('Invalid captcha format');
       }
     } catch {
-      // Fallback local SVG challenge if backend API is cold
+      // Fallback local SVG challenge if backend API is cold or unreachable
       const fallbackId = 'local-challenge';
       const fallbackSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="54" viewBox="0 0 240 54" style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;" role="img" aria-label="Security CAPTCHA challenge"><text x="75" y="34" font-family="sans-serif" font-size="22" font-weight="800" letter-spacing="4" fill="#5B3EBB">74KB9</text></svg>`;
       setChallengeId(fallbackId);

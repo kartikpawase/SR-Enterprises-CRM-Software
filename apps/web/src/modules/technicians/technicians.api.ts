@@ -135,3 +135,19 @@ export function useUpdateTechnicianMutation() {
     },
   });
 }
+
+/**
+ * Mutation to delete a technician
+ */
+export function useDeleteTechnicianMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.delete<{ success: boolean; data: any; message?: string }>(`/technicians/${id}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['technicians'] });
+    },
+  });
+}

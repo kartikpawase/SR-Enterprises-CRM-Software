@@ -58,7 +58,7 @@ describe('Phase 15 — Master Blaster Sales + Invoice Persistence Integration Te
 
     // Verify invoice linkage
     expect(sale?.invoice).toBeDefined();
-    expect(sale?.invoice?.invoiceNumber).toMatch(/^INV-\d{4}-\d+/);
+    expect(sale?.invoice?.invoiceNumber).toMatch(/^(INV-\d{4}-\d+|\d{6,8})/);
     expect(sale?.invoice?.status).toBe('ISSUED');
   });
 

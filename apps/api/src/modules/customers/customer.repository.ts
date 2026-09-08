@@ -1,6 +1,7 @@
 import { db } from '../../database/client';
 import {
   customers,
+  customerCustomLabels,
   customerAddresses,
   customerAssets,
   users,
@@ -183,6 +184,25 @@ export class CustomerRepository {
     }
 
     const customerIds = records.map((r) => r.id);
+    const customLabelIds = records.map((r) => r.customLabelId).filter(Boolean);
+
+    const customLabelsById: Record<string, any> = {};
+    if (customLabelIds.length > 0) {
+      try {
+        const customLabelsList = await database
+          .select()
+          .from(customerCustomLabels)
+          .where(inArray(customerCustomLabels.id, customLabelIds));
+        for (const cl of customLabelsList) {
+          customLabelsById[cl.id] = {
+            id: cl.id,
+            name: cl.name,
+            color: cl.color,
+            description: cl.description,
+          };
+        }
+      } catch {}
+    }
 
     const servicesByCustomer: Record<string, any[]> = {};
     const invoicesByCustomer: Record<string, any[]> = {};
@@ -302,6 +322,7 @@ export class CustomerRepository {
 
       return {
         ...cust,
+        customLabel: cust.customLabelId ? customLabelsById[cust.customLabelId] || null : null,
         assets: custAssets,
         assetsCount: custAssets.length,
         services: custServices,
@@ -345,6 +366,24 @@ export class CustomerRepository {
 
       if (dbCustomer) {
         customer = dbCustomer;
+        let customLabelObj: any = null;
+        if (dbCustomer.customLabelId) {
+          try {
+            const [cLabel] = await database
+              .select()
+              .from(customerCustomLabels)
+              .where(eq(customerCustomLabels.id, dbCustomer.customLabelId));
+            if (cLabel) {
+              customLabelObj = {
+                id: cLabel.id,
+                name: cLabel.name,
+                color: cLabel.color,
+                description: cLabel.description,
+              };
+            }
+          } catch {}
+        }
+        customer.customLabel = customLabelObj;
         try {
           addresses = await database
             .select()
@@ -832,6 +871,7 @@ export class CustomerRepository {
       if (data.status !== undefined) updateValues.status = data.status;
       if (data.notes !== undefined) updateValues.notes = data.notes ? data.notes.trim() : null;
       if ((data as any).customerLabel !== undefined) updateValues.customerLabel = (data as any).customerLabel;
+      if ((data as any).customLabelId !== undefined) updateValues.customLabelId = (data as any).customLabelId;
 
       await tx.update(customers).set(updateValues).where(eq(customers.id, id));
 
@@ -1741,6 +1781,107 @@ export class CustomerRepository {
         withWarranty: 0,
         dueForService: 0,
       };
+    }
+  }
+
+  /**
+   * Custom Customer Label management methods
+   */
+  async getAllCustomLabels(database = db) {
+    try {
+      return await database
+        .select()
+        .from(customerCustomLabels)
+        .orderBy(asc(customerCustomLabels.name));
+    } catch (err: any) {
+      console.warn('[getAllCustomLabels] Notice:', err?.message);
+      return [];
+    }
+  }
+
+  async getCustomLabelById(id: string, database = db) {
+    try {
+      const [label] = await database
+        .select()
+        .from(customerCustomLabels)
+        .where(eq(customerCustomLabels.id, id));
+      return label || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async createCustomLabel(
+    data: { name: string; color: string; description?: string | null },
+    database = db
+  ) {
+    const trimmedName = data.name.trim();
+    const trimmedColor = data.color.trim();
+
+    try {
+      // Check if one already exists with the same name (case-insensitive)
+      const existing = await database
+        .select()
+        .from(customerCustomLabels)
+        .where(sql`lower(${customerCustomLabels.name}) = lower(${trimmedName})`);
+
+      if (existing.length > 0) {
+        return existing[0];
+      }
+
+      const [created] = await database
+        .insert(customerCustomLabels)
+        .values({
+          name: trimmedName,
+          color: trimmedColor,
+          description: data.description ? data.description.trim() : null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      return created;
+    } catch (err: any) {
+      console.error('[createCustomLabel] Error:', err?.message);
+      throw err;
+    }
+  }
+
+  async updateCustomLabel(
+    id: string,
+    data: { name?: string; color?: string; description?: string | null },
+    database = db
+  ) {
+    try {
+      const updateValues: Record<string, any> = { updatedAt: new Date() };
+      if (data.name !== undefined) updateValues.name = data.name.trim();
+      if (data.color !== undefined) updateValues.color = data.color.trim();
+      if (data.description !== undefined) {
+        updateValues.description = data.description ? data.description.trim() : null;
+      }
+
+      const [updated] = await database
+        .update(customerCustomLabels)
+        .set(updateValues)
+        .where(eq(customerCustomLabels.id, id))
+        .returning();
+
+      return updated;
+    } catch (err: any) {
+      console.error('[updateCustomLabel] Error:', err?.message);
+      throw err;
+    }
+  }
+
+  async deleteCustomLabel(id: string, database = db) {
+    try {
+      await database
+        .delete(customerCustomLabels)
+        .where(eq(customerCustomLabels.id, id));
+      return { success: true };
+    } catch (err: any) {
+      console.error('[deleteCustomLabel] Error:', err?.message);
+      throw err;
     }
   }
 }

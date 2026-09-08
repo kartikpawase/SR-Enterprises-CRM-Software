@@ -6,6 +6,7 @@ import {
   invoiceItems,
   payments,
   customers,
+  customerAssets,
   services,
   jobCards,
   technicians,
@@ -47,6 +48,8 @@ export class AnalyticsRepository {
    * Sales Aggregations
    */
   async getSalesMetrics(bounds: DateRangeBounds) {
+    const saleDateCol = sql`COALESCE(${sales.saleDate}, ${sales.createdAt})`;
+
     const [summary] = await db
       .select({
         totalAmount: sql<string>`COALESCE(SUM(${sales.totalAmount}), 0)`,
@@ -55,28 +58,28 @@ export class AnalyticsRepository {
       .from(sales)
       .where(
         and(
-          gte(sales.createdAt, bounds.startDate),
-          lte(sales.createdAt, bounds.endDate),
+          gte(saleDateCol, bounds.startDate),
+          lte(saleDateCol, bounds.endDate),
           eq(sales.status, 'COMPLETED')
         )
       );
 
     const trendRaw = await db
       .select({
-        date: sql<string>`TO_CHAR(DATE_TRUNC('day', ${sales.createdAt}), 'YYYY-MM-DD')`,
+        date: sql<string>`TO_CHAR(DATE_TRUNC('day', ${saleDateCol}), 'YYYY-MM-DD')`,
         value: sql<string>`COALESCE(SUM(${sales.totalAmount}), 0)`,
         secondaryValue: sql<string>`COUNT(${sales.id})`,
       })
       .from(sales)
       .where(
         and(
-          gte(sales.createdAt, bounds.startDate),
-          lte(sales.createdAt, bounds.endDate),
+          gte(saleDateCol, bounds.startDate),
+          lte(saleDateCol, bounds.endDate),
           eq(sales.status, 'COMPLETED')
         )
       )
-      .groupBy(sql`DATE_TRUNC('day', ${sales.createdAt})`)
-      .orderBy(sql`DATE_TRUNC('day', ${sales.createdAt}) ASC`);
+      .groupBy(sql`DATE_TRUNC('day', ${saleDateCol})`)
+      .orderBy(sql`DATE_TRUNC('day', ${saleDateCol}) ASC`);
 
     // Ensure continuous date timeline
     const dateMap = new Map<string, { value: number; secondaryValue: number }>();
@@ -109,8 +112,8 @@ export class AnalyticsRepository {
       .innerJoin(sales, eq(saleItems.saleId, sales.id))
       .where(
         and(
-          gte(sales.createdAt, bounds.startDate),
-          lte(sales.createdAt, bounds.endDate),
+          gte(saleDateCol, bounds.startDate),
+          lte(saleDateCol, bounds.endDate),
           eq(sales.status, 'COMPLETED')
         )
       )
@@ -128,12 +131,51 @@ export class AnalyticsRepository {
       .innerJoin(customers, eq(sales.customerId, customers.id))
       .where(
         and(
-          gte(sales.createdAt, bounds.startDate),
-          lte(sales.createdAt, bounds.endDate),
+          gte(saleDateCol, bounds.startDate),
+          lte(saleDateCol, bounds.endDate),
           eq(sales.status, 'COMPLETED')
         )
       )
       .groupBy(customers.customerType);
+
+    // Real database breakdown by product category joining products
+    const byCategoryRaw = await db
+      .select({
+        productType: products.productType,
+        count: count(saleItems.id),
+        totalAmount: sql<string>`COALESCE(SUM(${saleItems.lineTotal}), 0)`,
+      })
+      .from(saleItems)
+      .innerJoin(sales, eq(saleItems.saleId, sales.id))
+      .innerJoin(products, eq(saleItems.productId, products.id))
+      .where(
+        and(
+          gte(saleDateCol, bounds.startDate),
+          lte(saleDateCol, bounds.endDate),
+          eq(sales.status, 'COMPLETED')
+        )
+      )
+      .groupBy(products.productType);
+
+    const categoryMap: Record<string, { count: number; totalAmount: number }> = {
+      'RO Machines': { count: 0, totalAmount: 0 },
+      'Filters & Spares': { count: 0, totalAmount: 0 },
+    };
+
+    byCategoryRaw.forEach((cat) => {
+      const catName = cat.productType === 'RO_MACHINE' ? 'RO Machines' : 'Filters & Spares';
+      if (!categoryMap[catName]) {
+        categoryMap[catName] = { count: 0, totalAmount: 0 };
+      }
+      categoryMap[catName].count += Number(cat.count || 0);
+      categoryMap[catName].totalAmount += Number(cat.totalAmount || 0);
+    });
+
+    const byCategory = Object.entries(categoryMap).map(([category, data]) => ({
+      category,
+      count: data.count,
+      totalAmount: data.totalAmount,
+    }));
 
     const totalSalesAmount = Number(summary?.totalAmount || 0);
     const totalSalesCount = Number(summary?.count || 0);
@@ -147,11 +189,7 @@ export class AnalyticsRepository {
         count: Number(p.count || 0),
         totalAmount: Number(p.totalAmount || 0),
       })),
-      byCategory: [
-        { category: 'RO Machines', count: Math.round(totalSalesCount * 0.65), totalAmount: Math.round(totalSalesAmount * 0.75) },
-        { category: 'Filters & Spares', count: Math.round(totalSalesCount * 0.25), totalAmount: Math.round(totalSalesAmount * 0.18) },
-        { category: 'AMC & Services', count: Math.round(totalSalesCount * 0.10), totalAmount: Math.round(totalSalesAmount * 0.07) },
-      ],
+      byCategory,
       byCustomerType: byCustomerType.map((c) => ({
         type: c.type || 'INDIVIDUAL',
         count: Number(c.count || 0),
@@ -164,6 +202,9 @@ export class AnalyticsRepository {
    * Revenue & Billing Aggregations (Authoritative Gross Billed vs Collected vs Outstanding)
    */
   async getRevenueMetrics(bounds: DateRangeBounds) {
+    const invoiceDateCol = sql`COALESCE(${invoices.invoiceDate}, ${invoices.createdAt})`;
+    const paymentDateCol = sql`COALESCE(${payments.paymentDate}, ${payments.createdAt})`;
+
     // Invoices issued/finalized in period (Excludes DRAFT and CANCELLED)
     const [invoiceSummary] = await db
       .select({
@@ -173,8 +214,8 @@ export class AnalyticsRepository {
       .from(invoices)
       .where(
         and(
-          gte(invoices.createdAt, bounds.startDate),
-          lte(invoices.createdAt, bounds.endDate),
+          gte(invoiceDateCol, bounds.startDate),
+          lte(invoiceDateCol, bounds.endDate),
           sql`${invoices.status} IN ('ISSUED', 'PAID', 'PARTIALLY_PAID', 'OVERDUE')`,
           sql`${invoices.cancelledAt} IS NULL`
         )
@@ -189,16 +230,16 @@ export class AnalyticsRepository {
       .from(payments)
       .where(
         and(
-          gte(payments.createdAt, bounds.startDate),
-          lte(payments.createdAt, bounds.endDate),
+          gte(paymentDateCol, bounds.startDate),
+          lte(paymentDateCol, bounds.endDate),
           eq(payments.status, 'COMPLETED')
         )
       );
 
-    // Overall outstanding / overdue calculations: invoice total
-    const [outstandingSummary] = await db
+    // Overall outstanding calculations: active invoices billed minus payments received
+    const [billedAll] = await db
       .select({
-        outstanding: sql<string>`COALESCE(SUM(${invoices.totalAmount}), 0)`,
+        total: sql<string>`COALESCE(SUM(${invoices.totalAmount}), 0)`,
       })
       .from(invoices)
       .where(
@@ -207,6 +248,24 @@ export class AnalyticsRepository {
           sql`${invoices.cancelledAt} IS NULL`
         )
       );
+
+    const [paidAll] = await db
+      .select({
+        total: sql<string>`COALESCE(SUM(${payments.amount}), 0)`,
+      })
+      .from(payments)
+      .innerJoin(invoices, eq(payments.invoiceId, invoices.id))
+      .where(
+        and(
+          eq(payments.status, 'COMPLETED'),
+          sql`${invoices.status} IN ('ISSUED', 'PARTIALLY_PAID', 'OVERDUE')`,
+          sql`${invoices.cancelledAt} IS NULL`
+        )
+      );
+
+    const totalBilledActive = Number(billedAll?.total || 0);
+    const totalPaidActive = Number(paidAll?.total || 0);
+    const outstanding = Math.max(0, totalBilledActive - totalPaidActive);
 
     const [overdueSummary] = await db
       .select({
@@ -225,16 +284,16 @@ export class AnalyticsRepository {
     const [serviceInvoiceSummary] = await db
       .select({
         partsRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${invoiceItems.itemType} = 'SPARE_PART' THEN ${invoiceItems.lineTotal} ELSE 0 END), 0)`,
-        labourRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${invoiceItems.itemType} = 'LABOUR_FEE' THEN ${invoiceItems.lineTotal} ELSE 0 END), 0)`,
-        feesRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${invoiceItems.itemType} IN ('SERVICE_FEE', 'AMC_PACKAGE') THEN ${invoiceItems.lineTotal} ELSE 0 END), 0)`,
+        labourRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${invoiceItems.itemType} = 'SERVICE' THEN ${invoiceItems.lineTotal} ELSE 0 END), 0)`,
+        feesRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${invoiceItems.itemType} = 'CUSTOM' THEN ${invoiceItems.lineTotal} ELSE 0 END), 0)`,
         totalServiceRevenue: sql<string>`COALESCE(SUM(${invoiceItems.lineTotal}), 0)`,
       })
       .from(invoiceItems)
       .innerJoin(invoices, eq(invoiceItems.invoiceId, invoices.id))
       .where(
         and(
-          gte(invoices.createdAt, bounds.startDate),
-          lte(invoices.createdAt, bounds.endDate),
+          gte(invoiceDateCol, bounds.startDate),
+          lte(invoiceDateCol, bounds.endDate),
           sql`${invoices.status} IN ('ISSUED', 'PAID', 'PARTIALLY_PAID', 'OVERDUE')`,
           sql`${invoices.cancelledAt} IS NULL`,
           sql`(${invoices.jobCardId} IS NOT NULL OR ${invoices.serviceId} IS NOT NULL)`
@@ -250,8 +309,8 @@ export class AnalyticsRepository {
       .from(invoices)
       .where(
         and(
-          gte(invoices.createdAt, bounds.startDate),
-          lte(invoices.createdAt, bounds.endDate),
+          gte(invoiceDateCol, bounds.startDate),
+          lte(invoiceDateCol, bounds.endDate),
           sql`${invoices.cancelledAt} IS NULL`
         )
       )
@@ -264,34 +323,34 @@ export class AnalyticsRepository {
     // Daily revenue trend (Billed vs Collected)
     const billedTrend = await db
       .select({
-        date: sql<string>`TO_CHAR(DATE_TRUNC('day', ${invoices.createdAt}), 'YYYY-MM-DD')`,
+        date: sql<string>`TO_CHAR(DATE_TRUNC('day', ${invoiceDateCol}), 'YYYY-MM-DD')`,
         billed: sql<string>`COALESCE(SUM(${invoices.totalAmount}), 0)`,
       })
       .from(invoices)
       .where(
         and(
-          gte(invoices.createdAt, bounds.startDate),
-          lte(invoices.createdAt, bounds.endDate),
+          gte(invoiceDateCol, bounds.startDate),
+          lte(invoiceDateCol, bounds.endDate),
           sql`${invoices.status} IN ('ISSUED', 'PAID', 'PARTIALLY_PAID', 'OVERDUE')`,
           sql`${invoices.cancelledAt} IS NULL`
         )
       )
-      .groupBy(sql`DATE_TRUNC('day', ${invoices.createdAt})`);
+      .groupBy(sql`DATE_TRUNC('day', ${invoiceDateCol})`);
 
     const collectedTrend = await db
       .select({
-        date: sql<string>`TO_CHAR(DATE_TRUNC('day', ${payments.createdAt}), 'YYYY-MM-DD')`,
+        date: sql<string>`TO_CHAR(DATE_TRUNC('day', ${paymentDateCol}), 'YYYY-MM-DD')`,
         collected: sql<string>`COALESCE(SUM(${payments.amount}), 0)`,
       })
       .from(payments)
       .where(
         and(
-          gte(payments.createdAt, bounds.startDate),
-          lte(payments.createdAt, bounds.endDate),
+          gte(paymentDateCol, bounds.startDate),
+          lte(paymentDateCol, bounds.endDate),
           eq(payments.status, 'COMPLETED')
         )
       )
-      .groupBy(sql`DATE_TRUNC('day', ${payments.createdAt})`);
+      .groupBy(sql`DATE_TRUNC('day', ${paymentDateCol})`);
 
     // Continuous date series
     const dateMap = new Map<string, { billed: number; collected: number }>();
@@ -320,7 +379,6 @@ export class AnalyticsRepository {
 
     const grossBilled = Number(invoiceSummary?.grossBilled || 0);
     const amountCollected = Number(paymentSummary?.amountCollected || 0);
-    const outstanding = Number(outstandingSummary?.outstanding || 0);
     const overdue = Number(overdueSummary?.overdue || 0);
 
     return {
@@ -347,6 +405,8 @@ export class AnalyticsRepository {
    * Payment Collections Aggregations
    */
   async getPaymentMetrics(bounds: DateRangeBounds) {
+    const paymentDateCol = sql`COALESCE(${payments.paymentDate}, ${payments.createdAt})`;
+
     const [summary] = await db
       .select({
         totalAmount: sql<string>`COALESCE(SUM(${payments.amount}), 0)`,
@@ -355,8 +415,8 @@ export class AnalyticsRepository {
       .from(payments)
       .where(
         and(
-          gte(payments.createdAt, bounds.startDate),
-          lte(payments.createdAt, bounds.endDate),
+          gte(paymentDateCol, bounds.startDate),
+          lte(paymentDateCol, bounds.endDate),
           eq(payments.status, 'COMPLETED')
         )
       );
@@ -373,8 +433,8 @@ export class AnalyticsRepository {
       .from(payments)
       .where(
         and(
-          gte(payments.createdAt, bounds.startDate),
-          lte(payments.createdAt, bounds.endDate),
+          gte(paymentDateCol, bounds.startDate),
+          lte(paymentDateCol, bounds.endDate),
           eq(payments.status, 'COMPLETED')
         )
       )
@@ -382,20 +442,20 @@ export class AnalyticsRepository {
 
     const trendRaw = await db
       .select({
-        date: sql<string>`TO_CHAR(DATE_TRUNC('day', ${payments.createdAt}), 'YYYY-MM-DD')`,
+        date: sql<string>`TO_CHAR(DATE_TRUNC('day', ${paymentDateCol}), 'YYYY-MM-DD')`,
         value: sql<string>`COALESCE(SUM(${payments.amount}), 0)`,
         secondaryValue: sql<string>`COUNT(${payments.id})`,
       })
       .from(payments)
       .where(
         and(
-          gte(payments.createdAt, bounds.startDate),
-          lte(payments.createdAt, bounds.endDate),
+          gte(paymentDateCol, bounds.startDate),
+          lte(paymentDateCol, bounds.endDate),
           eq(payments.status, 'COMPLETED')
         )
       )
-      .groupBy(sql`DATE_TRUNC('day', ${payments.createdAt})`)
-      .orderBy(sql`DATE_TRUNC('day', ${payments.createdAt}) ASC`);
+      .groupBy(sql`DATE_TRUNC('day', ${paymentDateCol})`)
+      .orderBy(sql`DATE_TRUNC('day', ${paymentDateCol}) ASC`);
 
     const dateMap = new Map<string, { value: number; secondaryValue: number }>();
     const dateSeries = generateDateSeries(bounds.startDate, bounds.endDate);
@@ -417,6 +477,20 @@ export class AnalyticsRepository {
       secondaryValue: val.secondaryValue,
     }));
 
+    // Real count of partially paid invoices in period
+    const invoiceDateCol = sql`COALESCE(${invoices.invoiceDate}, ${invoices.createdAt})`;
+    const [partialSummary] = await db
+      .select({ count: count(invoices.id) })
+      .from(invoices)
+      .where(
+        and(
+          gte(invoiceDateCol, bounds.startDate),
+          lte(invoiceDateCol, bounds.endDate),
+          eq(invoices.status, 'PARTIALLY_PAID'),
+          sql`${invoices.cancelledAt} IS NULL`
+        )
+      );
+
     return {
       totalPayments: totalAmount,
       paymentCount: totalCount,
@@ -428,7 +502,7 @@ export class AnalyticsRepository {
         percentage: totalAmount > 0 ? Math.round((Number(m.totalAmount || 0) / totalAmount) * 100) : 0,
       })),
       collectionTrend,
-      partialPaymentsCount: Math.round(totalCount * 0.35),
+      partialPaymentsCount: Number(partialSummary?.count || 0),
     };
   }
 
@@ -497,12 +571,29 @@ export class AnalyticsRepository {
 
     const total = Number(totalCust?.count || 0);
 
+    // Real active assets count grouped by customer
+    const [activeAssetsSummary] = await db
+      .select({ count: sql<string>`COUNT(DISTINCT ${customerAssets.customerId})` })
+      .from(customerAssets)
+      .where(eq(customerAssets.status, 'ACTIVE'));
+
+    // Real count of distinct customers with outstanding dues
+    const [outstandingBalanceSummary] = await db
+      .select({ count: sql<string>`COUNT(DISTINCT ${invoices.customerId})` })
+      .from(invoices)
+      .where(
+        and(
+          sql`${invoices.status} IN ('ISSUED', 'PARTIALLY_PAID', 'OVERDUE')`,
+          sql`${invoices.cancelledAt} IS NULL`
+        )
+      );
+
     return {
       totalCustomers: total,
       newCustomers: Number(newCust?.count || 0),
       activeCustomers: total,
-      customersWithActiveAssets: Math.round(total * 0.85),
-      customersWithOutstandingBalance: Math.round(total * 0.22),
+      customersWithActiveAssets: Number(activeAssetsSummary?.count || 0),
+      customersWithOutstandingBalance: Number(outstandingBalanceSummary?.count || 0),
       customersWithActiveServices: Number(activeServicesCust?.count || 0),
       acquisitionTrend,
       customerTypeDistribution: typeBreakdown.map((b) => ({
@@ -787,6 +878,76 @@ export class AnalyticsRepository {
     const cancelledCount = Number(statuses.find((s) => (s.status as string) === 'CANCELLED')?.count || 0);
     const openCount = Math.max(0, total - completedCount - cancelledCount);
 
+    // Real service type distribution from database joins
+    const typeBreakdown = await db
+      .select({
+        serviceType: services.serviceType,
+        count: count(jobCards.id),
+      })
+      .from(jobCards)
+      .innerJoin(services, eq(jobCards.serviceId, services.id))
+      .where(
+        and(
+          gte(jobCards.createdAt, bounds.startDate),
+          lte(jobCards.createdAt, bounds.endDate)
+        )
+      )
+      .groupBy(services.serviceType);
+
+    const jobsByType = typeBreakdown.map((t) => ({
+      type: (t.serviceType || 'GENERAL_SERVICE').replace(/_/g, ' '),
+      count: Number(t.count || 0),
+    }));
+
+    // Real timeline daily job trends
+    const trendRaw = await db
+      .select({
+        date: sql<string>`TO_CHAR(DATE_TRUNC('day', ${jobCards.createdAt}), 'YYYY-MM-DD')`,
+        value: count(jobCards.id),
+      })
+      .from(jobCards)
+      .where(
+        and(
+          gte(jobCards.createdAt, bounds.startDate),
+          lte(jobCards.createdAt, bounds.endDate)
+        )
+      )
+      .groupBy(sql`DATE_TRUNC('day', ${jobCards.createdAt})`)
+      .orderBy(sql`DATE_TRUNC('day', ${jobCards.createdAt}) ASC`);
+
+    const dateMap = new Map<string, number>();
+    const dateSeries = generateDateSeries(bounds.startDate, bounds.endDate);
+    for (const d of dateSeries) {
+      dateMap.set(d, 0);
+    }
+    trendRaw.forEach((t) => {
+      if (t.date) {
+        dateMap.set(t.date, Number(t.value || 0));
+      }
+    });
+
+    const jobStatusTrend = Array.from(dateMap.entries()).map(([date, value]) => ({
+      date,
+      value,
+    }));
+
+    // Real SLA average completion duration in hours from startedAt and completedAt
+    const [avgDuration] = await db
+      .select({
+        avgHours: sql<string>`COALESCE(AVG(EXTRACT(EPOCH FROM (${jobCards.completedAt} - ${jobCards.startedAt})) / 3600), 0)`,
+      })
+      .from(jobCards)
+      .where(
+        and(
+          gte(jobCards.createdAt, bounds.startDate),
+          lte(jobCards.createdAt, bounds.endDate),
+          eq(jobCards.status, 'COMPLETED'),
+          sql`${jobCards.startedAt} IS NOT NULL`,
+          sql`${jobCards.completedAt} IS NOT NULL`
+        )
+      );
+    const averageCompletionHours = Math.round(Number(avgDuration?.avgHours || 0) * 10) / 10;
+
     return {
       totalJobCards: total,
       openJobs: openCount,
@@ -795,23 +956,13 @@ export class AnalyticsRepository {
       completedJobs: completedCount,
       cancelledJobs: cancelledCount,
       reopenedJobs: 0,
-      averageCompletionHours: 4.2, // Authoritative SLA average
+      averageCompletionHours,
       jobsByPriority: priorityBreakdown.map((p) => ({
         priority: p.priority || 'NORMAL',
         count: Number(p.count || 0),
       })),
-      jobsByType: [
-        { type: 'Doorstep Service', count: Math.round(total * 0.72) },
-        { type: 'In-Shop Overhaul', count: Math.round(total * 0.18) },
-        { type: 'Urgent Breakdown', count: Math.round(total * 0.10) },
-      ],
-      jobStatusTrend: [
-        { date: 'Mon', value: Math.round(total * 0.2) },
-        { date: 'Tue', value: Math.round(total * 0.25) },
-        { date: 'Wed', value: Math.round(total * 0.18) },
-        { date: 'Thu', value: Math.round(total * 0.22) },
-        { date: 'Fri', value: Math.round(total * 0.15) },
-      ],
+      jobsByType,
+      jobStatusTrend,
     };
   }
 

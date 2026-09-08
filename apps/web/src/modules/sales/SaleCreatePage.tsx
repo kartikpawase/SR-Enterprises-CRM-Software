@@ -75,6 +75,7 @@ export const SaleCreatePage: React.FC = () => {
   const [documentDiscount, setDocumentDiscount] = useState<number>(0);
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<FormLineItem[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Draft product state for manual entry
   const [draftSpecifier, setDraftSpecifier] = useState<ProductSpecifier>('RO_MACHINE');
@@ -333,6 +334,8 @@ export const SaleCreatePage: React.FC = () => {
   }, [items, documentDiscount]);
 
   const handleSubmit = async (targetStatus: 'DRAFT' | 'COMPLETED') => {
+    if (isSubmitting || createSaleMutation.isPending) return;
+
     if (!customerId) {
       toast.error('Please select a customer for this sale.', 'Customer Required');
       return;
@@ -343,6 +346,7 @@ export const SaleCreatePage: React.FC = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const payload = {
         customerId,
@@ -379,9 +383,15 @@ export const SaleCreatePage: React.FC = () => {
         targetStatus === 'COMPLETED' ? 'Sale Confirmed & Invoice Issued' : 'Draft Sale Saved'
       );
 
-      navigate(`/sales/${result?.id}`);
+      if (result?.id) {
+        navigate(`/sales/${result.id}`);
+      } else {
+        navigate('/sales');
+      }
     } catch (err: any) {
       toast.error(err.message || 'Failed to save sale transaction.', 'Sale Creation Failed');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1134,7 +1144,8 @@ export const SaleCreatePage: React.FC = () => {
               <Button
                 variant="primary"
                 className="w-full"
-                isLoading={createSaleMutation.isPending}
+                isLoading={isSubmitting || createSaleMutation.isPending}
+                disabled={isSubmitting || createSaleMutation.isPending}
                 onClick={() => handleSubmit('COMPLETED')}
                 leftIcon={<CheckCircle2 className="w-4 h-4" />}
               >
@@ -1144,7 +1155,7 @@ export const SaleCreatePage: React.FC = () => {
               <Button
                 variant="outline"
                 className="w-full"
-                disabled={createSaleMutation.isPending}
+                disabled={isSubmitting || createSaleMutation.isPending}
                 onClick={() => handleSubmit('DRAFT')}
               >
                 Save as Draft Order

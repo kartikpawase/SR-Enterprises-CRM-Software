@@ -119,7 +119,7 @@ export const RentalPaymentReceiptModal: React.FC<RentalPaymentReceiptModalProps>
                   Shop A6 SaiPritam Nagari, Chatrapati Chowk Rahatani. Mo.7385059197, Pimpri-Chinchwad, Pune., Maharashtra, 411017
                 </p>
                 <p className="text-[11px] font-bold text-black mt-1">
-                  Mobile: 9766039197 &nbsp;&nbsp;&nbsp;&nbsp; Email: srenterprises02015@gmail.com
+                  Mobile: 7385059197 &nbsp;&nbsp;&nbsp;&nbsp; Email: srenterprises02015@gmail.com
                 </p>
               </div>
 

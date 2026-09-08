@@ -21,38 +21,54 @@ import type {
 } from '@crm/types';
 
 export const ORDERED_DOMAIN_TABLES = [
-  'users',
   'roles',
   'permissions',
   'role_permissions',
+  'users',
   'customers',
   'customer_addresses',
+  'customer_custom_labels',
   'customer_activities',
+  'technicians',
   'products',
+  'inventory_items',
+  'inventory_purchases',
+  'inventory_sales',
   'inventory_balances',
   'inventory_transactions',
+  'customer_assets',
   'sales',
   'sale_items',
   'invoices',
   'invoice_items',
   'payments',
-  'customer_assets',
+  'rentals',
+  'rental_payments',
+  'rental_events',
   'services',
+  'service_schedules',
   'job_cards',
-  'technicians',
   'warranties',
   'warranty_events',
   'reminders',
   'inquiries',
-  'business_sequences',
-  'business_settings',
-  'numbering_rules',
-  'tax_configurations',
-  'system_settings',
-  'workflow_definitions',
+  'inquiry_events',
+  'whatsapp_contacts',
+  'whatsapp_conversations',
+  'whatsapp_messages',
+  'whatsapp_events',
+  'email_notifications',
+  'email_queue',
   'documents',
   'document_attachments',
+  'outbox_events',
+  'workflow_definitions',
+  'workflow_executions',
+  'workflow_action_executions',
+  'business_sequences',
+  'app_settings',
   'notifications',
+  'notification_preferences',
   'audit_logs',
 ];
 
@@ -194,6 +210,29 @@ export class BackupService {
               // Non-fatal if single physical file missing
             }
           }
+        }
+
+        // Also scan physical storage on disk to ensure any unindexed invoice/receipt PDFs are preserved
+        try {
+          const physicalDocs = await this.storage.scanPhysicalFiles();
+          for (const relPath of physicalDocs.files) {
+            if (!documentsPayload[relPath] && this.storage.fileExists(relPath)) {
+              try {
+                const fileBuf = await this.storage.readFile(relPath);
+                documentsPayload[relPath] = {
+                  originalFilename: path.basename(relPath),
+                  mimeType: 'application/octet-stream',
+                  dataBase64: fileBuf.toString('base64'),
+                };
+                documentCount++;
+                documentStorageSizeBytes += fileBuf.length;
+              } catch {
+                // Non-fatal if single read fails
+              }
+            }
+          }
+        } catch {
+          // Non-fatal if physical scan fails
         }
       }
 
@@ -354,13 +393,23 @@ export class BackupService {
         });
       }
 
-      // Legacy format fallback
+      // Legacy format fallback: require valid backup manifest properties
+      if (parsed && typeof parsed === 'object' && parsed.backupId && parsed.checksumSha256 && parsed.tableCounts) {
+        return {
+          manifest: parsed,
+          isValid: true,
+          integrityStatus: 'VALID',
+          schemaCompatible: true,
+          validationErrors: [],
+        };
+      }
+
       return {
-        manifest: parsed,
-        isValid: true,
-        integrityStatus: 'VALID',
-        schemaCompatible: true,
-        validationErrors: [],
+        manifest: null,
+        isValid: false,
+        integrityStatus: 'CORRUPTED',
+        schemaCompatible: false,
+        validationErrors: ['Corrupted or invalid backup package: missing manifest or database snapshot.'],
       };
     } catch (err: any) {
       return {
@@ -472,6 +521,28 @@ export class BackupService {
     );
 
     return matched ? path.join(this.backupDir, matched) : path.join(this.backupDir, `${backupIdOrFilename}.srmbackup`);
+  }
+
+  /**
+   * Helper: Resolve and validate file path for secure download
+   */
+  public getBackupFilePath(backupIdOrFilename: string): { fullPath: string; filename: string } {
+    const fullPath = this.resolveBackupPath(backupIdOrFilename);
+    const resolvedPath = path.resolve(fullPath);
+    const resolvedBackupDir = path.resolve(this.backupDir);
+
+    if (!resolvedPath.startsWith(resolvedBackupDir)) {
+      throw new Error('Access Denied: Path traversal detected.');
+    }
+
+    if (!fs.existsSync(resolvedPath)) {
+      throw new Error(`Backup file not found: ${backupIdOrFilename}`);
+    }
+
+    return {
+      fullPath: resolvedPath,
+      filename: path.basename(resolvedPath),
+    };
   }
 }
 
