@@ -47,68 +47,12 @@ export const SaleDetailPage: React.FC = () => {
   const [cancelReason, setCancelReason] = useState('');
   const [isRecordPaymentModalOpen, setIsRecordPaymentModalOpen] = useState(false);
 
-  const pageContainerRef = React.useRef<HTMLDivElement>(null);
-  const gridContainerRef = React.useRef<HTMLDivElement>(null);
-  const leftPanelRef = React.useRef<HTMLDivElement>(null);
-
   const { data: sale, isLoading } = useSaleQuery(id);
   const confirmMutation = useConfirmSaleMutation();
   const cancelMutation = useCancelSaleMutation();
 
   const canConfirm = hasPermission('sales.confirm');
   const canCancel = hasPermission('sales.cancel');
-
-  // Page-local scroll coordination for desktop two-column split-scroll experience
-  React.useEffect(() => {
-    const pageEl = pageContainerRef.current;
-    if (!pageEl) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      // Only coordinate on desktop screens (>= 1024px)
-      if (window.innerWidth < 1024) return;
-
-      const leftPanel = leftPanelRef.current;
-      const grid = gridContainerRef.current;
-      const mainScrollEl = pageEl.closest('main');
-
-      if (!leftPanel || !grid || !mainScrollEl) return;
-
-      // Never intercept when scrolling inside modals, dropdowns, or overlays
-      if ((e.target as HTMLElement)?.closest?.('[role="dialog"], [role="menu"], .fixed')) {
-        return;
-      }
-
-      const gridRect = grid.getBoundingClientRect();
-      const mainRect = mainScrollEl.getBoundingClientRect();
-
-      // Check if the outer page has scrolled down to the sticky threshold beneath header
-      const isStickyReached = gridRect.top <= mainRect.top + 8;
-
-      if (e.deltaY > 0) {
-        // Scrolling DOWN
-        if (isStickyReached) {
-          const maxLeftScroll = leftPanel.scrollHeight - leftPanel.clientHeight;
-          if (maxLeftScroll > 0 && leftPanel.scrollTop < maxLeftScroll - 1) {
-            e.preventDefault();
-            leftPanel.scrollTop = Math.min(maxLeftScroll, leftPanel.scrollTop + e.deltaY);
-          }
-        }
-      } else if (e.deltaY < 0) {
-        // Scrolling UP
-        if (leftPanel.scrollTop > 0) {
-          e.preventDefault();
-          leftPanel.scrollTop = Math.max(0, leftPanel.scrollTop + e.deltaY);
-        }
-      }
-    };
-
-    // Scoped non-passive wheel listener on Sale Confirmation container
-    pageEl.addEventListener('wheel', handleWheel, { passive: false });
-
-    return () => {
-      pageEl.removeEventListener('wheel', handleWheel);
-    };
-  }, []);
 
   if (isLoading) {
     return (
@@ -215,7 +159,7 @@ export const SaleDetailPage: React.FC = () => {
   const isFullyPaid = (balanceDue <= 0.001 && paidAmount > 0) || sale.invoice?.status === 'PAID';
 
   return (
-    <div ref={pageContainerRef} className="space-y-6 max-w-6xl mx-auto pb-16 print:p-0 print:m-0 print:space-y-4">
+    <div className="space-y-6 max-w-6xl mx-auto pb-16 print:p-0 print:m-0 print:space-y-4">
       {/* Page Header (Hidden during Print) */}
       <div className="print:hidden">
         <PageHeader
@@ -360,12 +304,9 @@ export const SaleDetailPage: React.FC = () => {
         </Card>
       )}
 
-      <div ref={gridContainerRef} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Left Side Panel: QR for Payment, Record Payment Option, and Financial Summary (Independent Vertical Scroll on Desktop) */}
-        <div
-          ref={leftPanelRef}
-          className="space-y-6 lg:col-span-1 lg:sticky lg:top-0 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1"
-        >
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* Left Side Panel: QR for Payment, Record Payment Option, and Financial Summary */}
+        <div className="space-y-6 lg:col-span-1">
           {/* Financial Position Card */}
           <Card className="p-5 rounded-2xl border border-slate-200 shadow-xs bg-white">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
@@ -438,7 +379,7 @@ export const SaleDetailPage: React.FC = () => {
           </Card>
 
           {/* Online Payment & Dynamic UPI QR Code Card */}
-          <Card className="p-5 rounded-2xl border border-slate-200 shadow-xs bg-white overflow-hidden">
+          <Card className="p-5 rounded-2xl border border-slate-200 shadow-xs bg-white">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -552,8 +493,8 @@ export const SaleDetailPage: React.FC = () => {
           )}
         </div>
 
-        {/* Center / Main Information Panel: Customer Details and Line Items (Freezes on scroll) */}
-        <div className="lg:col-span-2 space-y-6 lg:sticky lg:top-0 lg:self-start lg:z-10">
+        {/* Center / Main Information Panel: Customer Details and Line Items */}
+        <div className="lg:col-span-2 space-y-6">
           {/* Customer Details Card */}
           <Card className="p-5 rounded-2xl border border-slate-200 shadow-xs bg-white">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
