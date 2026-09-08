@@ -8,6 +8,7 @@ import {
   customerAssets,
   products,
   auditLogs,
+  appSettings,
 } from '../../database/schema/index';
 import { randomUUID } from 'crypto';
 import { memoryJobCards } from '../job-cards/job-cards.repository';
@@ -86,17 +87,47 @@ export const INITIAL_TECHNICIANS = [
 ];
 
 // In-memory mirror for offline fallback
-export const memoryTechnicians: any[] = [...INITIAL_TECHNICIANS];
+export const memoryTechnicians: any[] = [];
 
 export class TechniciansRepository {
   private hasEnsuredInitial = false;
 
   /**
-   * Ensure default 5 workforce technicians exist in the database
+   * Ensure default 5 workforce technicians exist in the database on initial system setup.
+   * Uses persistent app_settings flag so deleted technicians are never resurrected upon restart.
    */
   async ensureDefaultTechnicians(database = db) {
     if (this.hasEnsuredInitial) return;
     try {
+      // 1. Check persistent database flag in app_settings
+      const [initFlag] = await database
+        .select()
+        .from(appSettings)
+        .where(eq(appSettings.category, 'TECHNICIANS_INITIALIZED'));
+
+      if (initFlag) {
+        this.hasEnsuredInitial = true;
+        return;
+      }
+
+      // 2. Check if any technicians already exist in the database
+      const [techCount] = await database
+        .select({ count: sql<number>`count(*)` })
+        .from(technicians);
+
+      if (Number(techCount?.count || 0) > 0) {
+        await database
+          .insert(appSettings)
+          .values({
+            category: 'TECHNICIANS_INITIALIZED',
+            value: { initializedAt: new Date().toISOString() },
+          })
+          .onConflictDoNothing();
+        this.hasEnsuredInitial = true;
+        return;
+      }
+
+      // 3. Database is completely uninitialized - seed initial default workforce once
       for (const t of INITIAL_TECHNICIANS) {
         await database
           .insert(technicians)
@@ -115,6 +146,15 @@ export class TechniciansRepository {
           })
           .onConflictDoNothing();
       }
+
+      await database
+        .insert(appSettings)
+        .values({
+          category: 'TECHNICIANS_INITIALIZED',
+          value: { initializedAt: new Date().toISOString() },
+        })
+        .onConflictDoNothing();
+
       this.hasEnsuredInitial = true;
     } catch (err: any) {
       console.warn('[TechniciansRepository.ensureDefaultTechnicians] Note:', err?.message);
@@ -624,8 +664,6 @@ export class TechniciansRepository {
    * Delete technician if no protected dependent records exist
    */
   async delete(id: string, actorId?: string, database = db) {
-    await this.ensureDefaultTechnicians(database);
-
     const existing = await this.findById(id, database);
     if (!existing) {
       throw new Error('Technician not found');

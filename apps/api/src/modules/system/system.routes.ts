@@ -34,6 +34,12 @@ export const systemRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: [authenticate, requirePermission('settings.manage')] },
     async (_request, reply) => {
       const tablesToClean = [
+        'rental_events',
+        'rental_payments',
+        'rentals',
+        'inventory_sales',
+        'inventory_purchases',
+        'inventory_items',
         'reminders',
         'payments',
         'invoice_items',

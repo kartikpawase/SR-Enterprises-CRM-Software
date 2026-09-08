@@ -1229,67 +1229,10 @@ export class ServicesRepository {
         .where(eq(technicians.status, 'ACTIVE'))
         .orderBy(asc(technicians.fullName));
 
-      if (rows && rows.length > 0) {
-        return rows;
-      }
-
-      // Seed active technicians into database if none exist
-      const defaultTechs = [
-        {
-          id: '11111111-1111-1111-1111-111111111111',
-          fullName: 'Aakash Sharma',
-          phone: '9820011223',
-          email: 'aakash.sharma@srenterprises.com',
-          status: 'ACTIVE' as const,
-        },
-        {
-          id: '22222222-2222-2222-2222-222222222222',
-          fullName: 'Ramesh Kumar',
-          phone: '9833445566',
-          email: 'ramesh.kumar@srenterprises.com',
-          status: 'ACTIVE' as const,
-        },
-        {
-          id: '33333333-3333-3333-3333-333333333333',
-          fullName: 'Priya Verma',
-          phone: '9844556677',
-          email: 'priya.verma@srenterprises.com',
-          status: 'ACTIVE' as const,
-        },
-      ];
-
-      for (const t of defaultTechs) {
-        try {
-          await database.insert(technicians).values(t).onConflictDoNothing();
-        } catch {}
-      }
-
-      return defaultTechs;
+      return rows || [];
     } catch (err) {
       console.warn('[ServicesRepository.listTechnicians] DB query notice:', err);
-      return [
-        {
-          id: '11111111-1111-1111-1111-111111111111',
-          fullName: 'Aakash Sharma',
-          phone: '9820011223',
-          email: 'aakash.sharma@srenterprises.com',
-          status: 'ACTIVE',
-        },
-        {
-          id: '22222222-2222-2222-2222-222222222222',
-          fullName: 'Ramesh Kumar',
-          phone: '9833445566',
-          email: 'ramesh.kumar@srenterprises.com',
-          status: 'ACTIVE',
-        },
-        {
-          id: '33333333-3333-3333-3333-333333333333',
-          fullName: 'Priya Verma',
-          phone: '9844556677',
-          email: 'priya.verma@srenterprises.com',
-          status: 'ACTIVE',
-        },
-      ];
+      return [];
     }
   }
 }
