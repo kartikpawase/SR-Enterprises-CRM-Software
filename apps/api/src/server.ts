@@ -60,6 +60,23 @@ export async function startServer() {
     console.log(`📋 Health check: ${address}/health`);
     console.log(`📋 Readiness probe: ${address}/ready`);
     console.log(`🔗 API v1 root: ${address}/api/v1\n`);
+
+    // 24/7 Keep-Alive heartbeat for Render Free Tier (pings every 10 minutes to prevent idle sleep)
+    const keepAliveUrl = process.env.RENDER_EXTERNAL_URL || process.env.KEEP_ALIVE_URL;
+    if (keepAliveUrl) {
+      const cleanUrl = keepAliveUrl.replace(/\/+$/, '');
+      const pingInterval = 10 * 60 * 1000; // 10 minutes
+      setInterval(async () => {
+        try {
+          const res = await fetch(`${cleanUrl}/health`);
+          console.log(`[KeepAlive] 24/7 heartbeat ping to ${cleanUrl}/health -> Status ${res.status}`);
+        } catch (pingErr: any) {
+          console.warn(`[KeepAlive] 24/7 heartbeat ping notice: ${pingErr?.message || pingErr}`);
+        }
+      }, pingInterval);
+      console.log(`⏱️ 24/7 Keep-Alive heartbeat active for Render: ${cleanUrl}/health`);
+    }
+
     return app;
   } catch (err) {
     app.log.error(err);

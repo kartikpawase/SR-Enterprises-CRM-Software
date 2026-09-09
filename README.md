@@ -8,7 +8,7 @@ Commercial-grade, security-conscious, scalable SaaS for RO water purifier sales,
 
 The master product and flow specifications for this system are:
 
-1. [`requirements.txt`](./requirements.txt) — WHAT the product contains (Product & Engineering Requirements).
+1. [`PRODUCT_REQUIREMENTS.txt`](./PRODUCT_REQUIREMENTS.txt) — WHAT the product contains (Product & Engineering Requirements).
 2. [`AppFlow.md`](./AppFlow.md) — HOW users and business workflows move through the system (User Journey & Application Flow).
 
 *These two documents are authoritative and govern all architectural and domain implementations.*
