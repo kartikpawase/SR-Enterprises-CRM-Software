@@ -22,6 +22,44 @@ export interface RequestOptions extends RequestInit {
 }
 
 /**
+ * Resolves the backend base URL from environment variables
+ * Configured in Vercel as VITE_API_URL (e.g., https://api.srenterprises.com)
+ */
+export function getApiBaseUrl(): string {
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    const envBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
+    if (envBase && typeof envBase === 'string' && envBase.trim() !== '') {
+      return envBase.trim().replace(/\/+$/, '');
+    }
+  }
+  return '';
+}
+
+/**
+ * Resolves any API endpoint against configured base URL and API prefix
+ */
+export function resolveApiUrl(endpoint: string): string {
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+    return endpoint;
+  }
+
+  const baseUrl = getApiBaseUrl();
+  const cleanEndpoint = endpoint.startsWith(API_PREFIX)
+    ? endpoint
+    : `${API_PREFIX}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+
+  if (baseUrl) {
+    return `${baseUrl}${cleanEndpoint.startsWith('/') ? '' : '/'}${cleanEndpoint}`;
+  }
+
+  if (typeof window !== 'undefined' && (!window.location?.origin || window.location.origin === 'null')) {
+    return `http://localhost:3000${cleanEndpoint.startsWith('/') ? '' : '/'}${cleanEndpoint}`;
+  }
+
+  return cleanEndpoint;
+}
+
+/**
  * Standard typed HTTP client for SR Enterprises CRM
  */
 export async function apiRequest<T>(
@@ -30,12 +68,7 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const { params, headers, ...customConfig } = options;
 
-  let url = endpoint.startsWith('http') ? endpoint : `${API_PREFIX}${endpoint}`;
-  if (typeof window !== 'undefined' && (!window.location?.origin || window.location.origin === 'null')) {
-    if (!url.startsWith('http')) {
-      url = `http://localhost:3000${url.startsWith('/') ? '' : '/'}${url}`;
-    }
-  }
+  let url = resolveApiUrl(endpoint);
 
   if (params) {
     const searchParams = new URLSearchParams();

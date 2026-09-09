@@ -71,8 +71,8 @@ export class DocumentService {
     const mimeType = mimeMap[safeExt] || 'application/octet-stream';
     const checksum = this.storage.calculateSha256(fileBuffer);
 
-    // Save physical file
-    const stored = await this.storage.storeFile(fileBuffer, safeExt);
+    // Save physical file and persist to Supabase cloud storage
+    const stored = await this.storage.storeFile(fileBuffer, safeExt, mimeType);
 
     const category: DocumentCategory = payload.category || 'GENERAL';
 
@@ -80,6 +80,7 @@ export class DocumentService {
     const [record] = await db
       .insert(documents)
       .values({
+        fileKey: stored.storagePath,
         originalFilename: sanitizedFilename,
         storedFilename: stored.storedFilename,
         storagePath: stored.storagePath,
@@ -91,7 +92,10 @@ export class DocumentService {
         status: 'ACTIVE',
         uploadedByUserId: user?.userId || null,
         version: 1,
-        metadata: payload.metadata || null,
+        metadata: {
+          ...(payload.metadata || {}),
+          publicUrl: stored.publicUrl || undefined,
+        },
       })
       .returning();
 
@@ -237,12 +241,25 @@ export class DocumentService {
       throw new Error(`Download Error: Document '${documentId}' not found or is inactive.`);
     }
 
-    if (!this.storage.fileExists(doc.storagePath)) {
-      await db.update(documents).set({ status: 'STORAGE_MISSING' }).where(eq(documents.id, documentId));
-      throw new Error(`Download Error: Physical file is missing from storage.`);
+    let stream: NodeJS.ReadableStream;
+    try {
+      if (this.storage.fileExists(doc.storagePath)) {
+        try {
+          stream = this.storage.createReadStream(doc.storagePath);
+        } catch {
+          const buf = await this.storage.readFile(doc.storagePath);
+          const { Readable } = await import('node:stream');
+          stream = Readable.from(buf);
+        }
+      } else {
+        await db.update(documents).set({ status: 'STORAGE_MISSING' }).where(eq(documents.id, documentId));
+        throw new Error(`Download Error: Physical file is missing from storage.`);
+      }
+    } catch (err: any) {
+      if (err.message.includes('Download Error')) throw err;
+      throw new Error(`Download Error: ${err.message}`);
     }
 
-    const stream = this.storage.createReadStream(doc.storagePath);
     return {
       document: doc as unknown as DocumentDTO,
       stream,

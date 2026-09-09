@@ -10,14 +10,16 @@ export const LEGACY_AUTH_COOKIE_NAME = 'sr_crm_session';
  */
 export function getCookieOptions(maxAgeSeconds = env.SESSION_TTL_SECONDS): CookieSerializeOptions {
   const isProduction = env.NODE_ENV === 'production';
+  // Use explicit COOKIE_SAME_SITE if configured, otherwise default to 'none' in production for Vercel cross-site HTTPS
+  const sameSiteSetting: 'lax' | 'strict' | 'none' = env.COOKIE_SAME_SITE || (isProduction ? 'none' : 'lax');
 
   return {
     path: '/',
     httpOnly: true,
-    secure: isProduction, // HTTPS only in production
-    sameSite: 'lax', // Lax enables reliable top-level navigation behind Cloudflare/reverse proxy
+    secure: isProduction || sameSiteSetting === 'none', // SameSite=None requires Secure=true
+    sameSite: sameSiteSetting,
     maxAge: maxAgeSeconds,
-    signed: false, // Opaque session ID stored in Redis
+    signed: false, // Opaque session ID stored in Redis / Session store
   };
 }
 
@@ -30,12 +32,13 @@ export function getSessionCookieOptions(): CookieSerializeOptions {
  */
 export function getClearCookieOptions(): CookieSerializeOptions {
   const isProduction = env.NODE_ENV === 'production';
+  const sameSiteSetting: 'lax' | 'strict' | 'none' = env.COOKIE_SAME_SITE || (isProduction ? 'none' : 'lax');
 
   return {
     path: '/',
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'strict' : 'lax',
+    secure: isProduction || sameSiteSetting === 'none',
+    sameSite: sameSiteSetting,
     maxAge: 0,
     expires: new Date(0),
   };

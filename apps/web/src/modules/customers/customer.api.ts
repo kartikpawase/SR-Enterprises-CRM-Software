@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../../lib/api-client';
+import { apiClient, resolveApiUrl } from '../../lib/api-client';
 import type {
   CreateCustomerInput,
   UpdateCustomerInput,
@@ -488,7 +488,9 @@ export async function exportCustomersApi(filters?: Partial<CustomerQueryFilterIn
   const queryString = params.toString();
   const url = `/data-movement/export/customers${queryString ? `?${queryString}` : ''}`;
 
-  const response = await fetch(url.startsWith('http') ? url : `/api/v1${url}`, {
+  const targetUrl = resolveApiUrl(url);
+
+  const response = await fetch(targetUrl, {
     method: 'GET',
     credentials: 'include',
   });

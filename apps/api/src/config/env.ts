@@ -76,8 +76,18 @@ const envSchema = z.object({
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_BUCKET: z.string().optional(),
-  S3_REGION: z.string().default('auto'),
   SENTRY_DSN: z.string().optional(),
+
+  // Supabase Database & Persistent Object Storage
+  SUPABASE_URL: z.string().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  SUPABASE_ANON_KEY: z.string().optional(),
+  SUPABASE_STORAGE_BUCKET: z.string().default('crm-documents'),
+
+  // Production CORS & Cross-Site Cookies for Vercel <-> Oracle Cloud
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
+  COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).optional(),
+
 
   // WhatsApp Business Integration
   WHATSAPP_PROVIDER: z.enum(['META', 'DEV', 'MOCK']).default('META'),

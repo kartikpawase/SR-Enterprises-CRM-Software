@@ -8,6 +8,7 @@ import { invoices, invoiceItems } from '../../database/schema/invoices';
 import { eq } from 'drizzle-orm';
 import { CreateInvoiceSchema, CreateSaleSchema } from '@crm/validation';
 import { execSync } from 'child_process';
+import path from 'path';
 
 describe('SR Enterprises CRM Invoice Format + End-to-End Logic Tests', () => {
   let testCustomerId: string;
@@ -280,8 +281,9 @@ describe('SR Enterprises CRM Invoice Format + End-to-End Logic Tests', () => {
       echo json_encode($checks);
     '`;
 
+    const repoRoot = path.resolve(process.cwd(), '../..');
     const rawOutput = execSync(phpCommand, {
-      cwd: '/home/kartik/Desktop/SR-Enterprises-CRM-Software (Copy)',
+      cwd: repoRoot,
     }).toString();
 
     const results = JSON.parse(rawOutput);

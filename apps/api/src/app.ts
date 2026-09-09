@@ -67,18 +67,47 @@ export function buildApp(opts: FastifyServerOptions = {}): FastifyInstance {
     crossOriginResourcePolicy: { policy: 'same-site' },
   });
 
-  // 2. CORS
+  // 2. CORS: Production-safe validation allowing Vercel frontend & configured origins
+  const allowedOrigins = new Set<string>();
+  if (env.WEB_URL) {
+    allowedOrigins.add(env.WEB_URL.replace(/\/+$/, ''));
+  }
+  if (env.CORS_ALLOWED_ORIGINS) {
+    env.CORS_ALLOWED_ORIGINS.split(',')
+      .map((o) => o.trim().replace(/\/+$/, ''))
+      .filter(Boolean)
+      .forEach((o) => allowedOrigins.add(o));
+  }
+
   fastify.register(cors, {
     origin: (origin, cb) => {
-      // Allow requests with no origin (like desktop shell, mobile apps, curl) or matching web url
-      if (!origin || origin === env.WEB_URL || env.NODE_ENV !== 'production') {
+      // Allow requests with no origin (like desktop shell, mobile apps, server-to-server)
+      if (!origin) {
         cb(null, true);
         return;
       }
-      cb(new Error('CORS Not Allowed'), false);
+      const cleanOrigin = origin.replace(/\/+$/, '');
+      let isAllowed = env.NODE_ENV !== 'production' || allowedOrigins.has(cleanOrigin);
+
+      if (!isAllowed) {
+        try {
+          const parsed = new URL(origin);
+          // Allow Vercel preview/production deployments
+          if (parsed.hostname.endsWith('.vercel.app')) {
+            isAllowed = true;
+          }
+        } catch {}
+      }
+
+      if (isAllowed) {
+        cb(null, true);
+        return;
+      }
+      cb(new Error(`CORS Not Allowed for origin: ${origin}`), false);
     },
     credentials: true,
   });
+
 
   // 3. Cookies
   fastify.register(cookie, {
