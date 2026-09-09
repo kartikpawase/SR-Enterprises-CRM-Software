@@ -7,7 +7,7 @@
   "main": "./dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "node --max-old-space-size=4096 ../../node_modules/typescript/bin/tsc",
+    "build": "tsc",
     "start": "tsx src/server.ts",
     "test": "vitest run",
     "test:watch": "vitest",
