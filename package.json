@@ -11,6 +11,7 @@
     "dev:web": "pnpm --filter @crm/web dev",
     "dev:desktop": "pnpm --filter @crm/desktop dev",
     "build": "pnpm --recursive --filter @crm/* run build",
+    "build:web": "pnpm --filter @crm/web build",
     "build:api": "pnpm --filter @crm/api build",
     "start": "pnpm --filter @crm/api start",
     "build:desktop": "pnpm --recursive --filter @crm/* run build",
