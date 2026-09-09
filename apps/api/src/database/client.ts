@@ -126,6 +126,27 @@ export function getDatabaseClient() {
     return { sql: pgClient || pgliteClient, db: dbInstance };
   }
 
+  // Production or explicit PostgreSQL mode: Connect directly to PostgreSQL 18
+  const usePostgres = env.NODE_ENV === 'production' || process.env.USE_POSTGRES === 'true';
+
+  if (usePostgres) {
+    try {
+      pgClient = postgres(env.DATABASE_URL, {
+        max: env.DB_MAX_CONNECTIONS,
+        idle_timeout: Math.floor(env.DB_IDLE_TIMEOUT_MS / 1000),
+        connect_timeout: 10,
+        onnotice: () => {},
+      });
+      dbInstance = drizzlePg(pgClient, { schema });
+      console.log(`[Database] Connected to PostgreSQL 18 engine at: ${env.DATABASE_URL.replace(/:[^:@]+@/, ':****@')}`);
+      return { sql: pgClient, db: dbInstance };
+    } catch (pgErr) {
+      console.error('[Database] PostgreSQL connection initialization error:', pgErr);
+      throw pgErr;
+    }
+  }
+
+  // Development/offline fallback: PGlite
   const storageDir = resolveDatabaseStorageDir();
   fs.mkdirSync(storageDir, { recursive: true });
 
@@ -143,9 +164,9 @@ export function getDatabaseClient() {
     // Initialize persistent PGlite engine stored on disk
     pgliteClient = new PGlite(storageDir);
     dbInstance = drizzlePglite(pgliteClient, { schema });
-    console.log(`[Database] Connected to persistent database engine at: ${storageDir}`);
+    console.log(`[Database] Connected to persistent local database engine at: ${storageDir}`);
   } catch (err) {
-    console.warn('[Database] PGlite initialization notice:', err);
+    console.warn('[Database] PGlite initialization notice, attempting PostgreSQL fallback:', err);
     try {
       pgClient = postgres(env.DATABASE_URL, {
         max: env.DB_MAX_CONNECTIONS,
@@ -770,6 +791,64 @@ export async function ensureInquiryColumns(targetPg: PGlite | postgres.Sql): Pro
 }
 
 /**
+ * Ensures chatbot_knowledge, chatbot_conversations, and chatbot_messages tables exist
+ */
+export async function ensureChatbotTables(targetPg: PGlite | postgres.Sql): Promise<void> {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS "chatbot_knowledge" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "title" text DEFAULT '',
+      "category" text DEFAULT '',
+      "question" text DEFAULT '',
+      "answer" text DEFAULT '',
+      "is_active" boolean DEFAULT true NOT NULL,
+      "is_published" boolean DEFAULT true NOT NULL,
+      "created_by" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`,
+    `ALTER TABLE "chatbot_knowledge" ALTER COLUMN "title" DROP NOT NULL;`,
+    `ALTER TABLE "chatbot_knowledge" ALTER COLUMN "category" DROP NOT NULL;`,
+    `ALTER TABLE "chatbot_knowledge" ALTER COLUMN "question" DROP NOT NULL;`,
+    `ALTER TABLE "chatbot_knowledge" ALTER COLUMN "answer" DROP NOT NULL;`,
+    `CREATE INDEX IF NOT EXISTS "chatbot_knowledge_category_idx" ON "chatbot_knowledge" ("category");`,
+    `CREATE INDEX IF NOT EXISTS "chatbot_knowledge_is_active_idx" ON "chatbot_knowledge" ("is_active");`,
+    `CREATE INDEX IF NOT EXISTS "chatbot_knowledge_is_published_idx" ON "chatbot_knowledge" ("is_published");`,
+    `CREATE TABLE IF NOT EXISTS "chatbot_conversations" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" uuid REFERENCES "users"("id") ON DELETE CASCADE,
+      "title" text DEFAULT 'New Conversation' NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS "chatbot_conversations_user_id_idx" ON "chatbot_conversations" ("user_id");`,
+    `CREATE TABLE IF NOT EXISTS "chatbot_messages" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "conversation_id" uuid NOT NULL REFERENCES "chatbot_conversations"("id") ON DELETE CASCADE,
+      "role" text NOT NULL,
+      "content" text NOT NULL,
+      "sources" jsonb,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS "chatbot_messages_conversation_id_idx" ON "chatbot_messages" ("conversation_id");`,
+  ];
+
+  if ('exec' in targetPg) {
+    for (const stmt of statements) {
+      try {
+        await targetPg.exec(stmt);
+      } catch {}
+    }
+  } else {
+    for (const stmt of statements) {
+      try {
+        await targetPg.unsafe(stmt);
+      } catch {}
+    }
+  }
+}
+
+/**
  * Ensures migrations and initial database initialization is executed once on server startup
  */
 export async function ensureDatabaseInitialized(): Promise<void> {
@@ -780,20 +859,40 @@ export async function ensureDatabaseInitialized(): Promise<void> {
     try {
       getDatabaseClient();
 
-      if (pgliteClient) {
+      if (pgClient) {
+        // In PostgreSQL production mode, retry connection if container is still booting
+        let connected = false;
+        let attempts = 0;
+        const maxAttempts = 10;
+        while (!connected && attempts < maxAttempts) {
+          try {
+            attempts++;
+            await pgClient.unsafe('SELECT 1');
+            connected = true;
+          } catch (connErr: any) {
+            if (attempts >= maxAttempts) {
+              throw connErr;
+            }
+            console.warn(`[Database] Waiting for PostgreSQL readiness (attempt ${attempts}/${maxAttempts}): ${connErr?.message || connErr}...`);
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+        }
+
+        await applySqlMigrations(pgClient);
+        await ensureEmailTables(pgClient);
+        await ensureGoogleDriveColumns(pgClient);
+        await ensureRentalTables(pgClient);
+        await ensureSaleColumns(pgClient);
+        await ensureCustomerLabelColumn(pgClient);
+        await ensureInventoryTables(pgClient);
+        await ensureWhatsAppTables(pgClient);
+        await ensureInquiryColumns(pgClient);
+        await ensureChatbotTables(pgClient);
+      } else if (pgliteClient) {
         try {
           await pgliteClient.waitReady;
         } catch (readyErr) {
-          console.warn('[Database] Storage lock or state issue detected on startup, performing clean recovery...', readyErr);
-          const storageDir = resolveDatabaseStorageDir();
-          try {
-            await pgliteClient.close();
-          } catch {}
-          fs.rmSync(storageDir, { recursive: true, force: true });
-          fs.mkdirSync(storageDir, { recursive: true });
-          pgliteClient = new PGlite(storageDir);
-          await pgliteClient.waitReady;
-          dbInstance = drizzlePglite(pgliteClient, { schema });
+          console.warn('[Database] Storage lock or state issue detected on local startup:', readyErr);
         }
 
         await applySqlMigrations(pgliteClient);
@@ -805,16 +904,7 @@ export async function ensureDatabaseInitialized(): Promise<void> {
         await ensureInventoryTables(pgliteClient);
         await ensureWhatsAppTables(pgliteClient);
         await ensureInquiryColumns(pgliteClient);
-      } else if (pgClient) {
-        await applySqlMigrations(pgClient);
-        await ensureEmailTables(pgClient);
-        await ensureGoogleDriveColumns(pgClient);
-        await ensureRentalTables(pgClient);
-        await ensureSaleColumns(pgClient);
-        await ensureCustomerLabelColumn(pgClient);
-        await ensureInventoryTables(pgClient);
-        await ensureWhatsAppTables(pgClient);
-        await ensureInquiryColumns(pgClient);
+        await ensureChatbotTables(pgliteClient);
       }
 
       isInitialized = true;

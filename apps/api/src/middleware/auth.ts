@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { getRedisClient } from '../redis/client';
 import { getSession, type SessionData } from '../security/session';
-import { AUTH_COOKIE_NAME } from '../security/cookies';
+import { AUTH_COOKIE_NAME, LEGACY_AUTH_COOKIE_NAME } from '../security/cookies';
 import { HTTP_STATUS } from '@crm/shared';
 
 declare module 'fastify' {
@@ -20,7 +20,7 @@ export async function authenticate(
   reply: FastifyReply
 ): Promise<void> {
   // 1. Extract session token from cookie or Authorization header
-  let sessionToken = request.cookies?.[AUTH_COOKIE_NAME];
+  let sessionToken = request.cookies?.[AUTH_COOKIE_NAME] || request.cookies?.[LEGACY_AUTH_COOKIE_NAME];
 
   if (!sessionToken && request.headers.authorization) {
     const parts = request.headers.authorization.split(' ');

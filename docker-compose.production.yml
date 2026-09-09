@@ -1,0 +1,90 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: sr_crm_postgres
+    restart: unless-stopped
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_DB: ${POSTGRES_DB:-sr_enterprises_crm}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Database password required}
+    volumes:
+      - sr_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-sr_enterprises_crm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - crm-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: sr_crm_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - sr_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - crm-network
+
+  crm:
+    image: sr-enterprises-crm:production
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+    container_name: sr_crm_app
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sr_enterprises_crm}
+      REDIS_URL: redis://redis:6379
+      PORT: 4000
+      HOST: 0.0.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  reverse-proxy:
+    image: nginx:1.27-alpine
+    container_name: sr_crm_reverse_proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/crm.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infrastructure/nginx/certs/:/etc/nginx/certs/:ro
+    depends_on:
+      - crm
+    networks:
+      - crm-network
+
+volumes:
+  sr_postgres_data:
+    name: sr_crm_postgres_data
+  sr_redis_data:
+    name: sr_crm_redis_data
+
+networks:
+  crm-network:
+    name: sr_crm_network

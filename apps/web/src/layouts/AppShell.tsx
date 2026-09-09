@@ -15,6 +15,7 @@ import { DropdownMenu } from '../components/ui/DropdownMenu';
 import { CommandPalette } from '../components/search/CommandPalette';
 import { NotificationCenter } from '../components/notifications/NotificationCenter';
 import { GlobalSidebar } from '../components/navigation/GlobalSidebar';
+import { ChatbotWidget } from '../components/chatbot/ChatbotWidget';
 import { useUnreadNotificationCountQuery } from '../modules/notifications/notifications.api';
 import { cn } from '../lib/utils';
 
@@ -202,10 +203,11 @@ export function AppShell({ children, activePath = '/dashboard', onNavigate }: Ap
         </main>
       </div>
 
-      {/* Global Overlays: Command Palette & Notification Center */}
+      {/* Global Overlays: Command Palette, Notification Center & Chatbot Widget */}
       <div className="print:hidden">
         <CommandPalette onNavigate={handleNavClick} />
         <NotificationCenter />
+        <ChatbotWidget />
       </div>
     </div>
   );

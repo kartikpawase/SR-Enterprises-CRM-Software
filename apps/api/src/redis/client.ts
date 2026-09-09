@@ -161,10 +161,13 @@ class ResilientRedisProxy {
   constructor() {
     try {
       this.client = new Redis(env.REDIS_URL, {
-        maxRetriesPerRequest: 1,
-        connectTimeout: 1000,
-        retryStrategy() {
-          return null; // Don't hang indefinitely if offline
+        maxRetriesPerRequest: null,
+        connectTimeout: 5000,
+        retryStrategy(times) {
+          if (env.NODE_ENV === 'test') {
+            return null;
+          }
+          return Math.min(times * 150, 3000);
         },
         lazyConnect: false,
       });

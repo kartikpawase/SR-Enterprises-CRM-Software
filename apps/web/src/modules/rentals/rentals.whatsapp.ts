@@ -103,7 +103,7 @@ SR ENTERPRISES`;
     ? 'Active / Paid'
     : (rental.paymentStatus === 'DUE' ? 'Payment Due' : 'Pending Payment');
 
-  return `Hello ${customerName},
+  return `Dear Customer,
 
 This is a reminder from SR ENTERPRISES regarding your upcoming RO rental payment.
 

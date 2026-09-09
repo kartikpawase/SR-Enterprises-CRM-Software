@@ -1,8 +1,9 @@
 import type { CookieSerializeOptions } from '@fastify/cookie';
 import { env } from '../config/env';
 
-export const AUTH_COOKIE_NAME = 'sr_crm_session';
+export const AUTH_COOKIE_NAME = 'sr_crm_sid';
 export const SESSION_COOKIE_NAME = AUTH_COOKIE_NAME;
+export const LEGACY_AUTH_COOKIE_NAME = 'sr_crm_session';
 
 /**
  * Standard secure cookie options for session management
@@ -14,7 +15,7 @@ export function getCookieOptions(maxAgeSeconds = env.SESSION_TTL_SECONDS): Cooki
     path: '/',
     httpOnly: true,
     secure: isProduction, // HTTPS only in production
-    sameSite: isProduction ? 'strict' : 'lax',
+    sameSite: 'lax', // Lax enables reliable top-level navigation behind Cloudflare/reverse proxy
     maxAge: maxAgeSeconds,
     signed: false, // Opaque session ID stored in Redis
   };

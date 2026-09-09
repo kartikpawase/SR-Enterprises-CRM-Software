@@ -2,6 +2,7 @@ import React from 'react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Building2, Mail, Phone, ShieldCheck, Database, Sliders } from 'lucide-react';
 import { BackupRestoreSection } from './components/BackupRestoreSection';
+import { TrainChatbotSection } from './components/TrainChatbotSection';
 
 export const SettingsPage: React.FC = () => {
   return (
@@ -119,6 +120,9 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Train Chatbot — Authoritative Knowledge Training */}
+      <TrainChatbotSection />
 
       {/* Backup, Automatic Scheduler & Disaster Recovery Engine */}
       <BackupRestoreSection />

@@ -1555,9 +1555,78 @@ export interface StagedRestoreState {
   error?: string;
 }
 
+// ==========================================
+// 34. CHATBOT & ADMIN TRAINING DOMAIN TYPES
+// ==========================================
 
+export type ChatbotCategory =
+  | 'Services'
+  | 'Products'
+  | 'Warranty'
+  | 'AMC'
+  | 'Rentals'
+  | 'Payments'
+  | 'Installation'
+  | 'Maintenance'
+  | 'Contact'
+  | 'General FAQ'
+  | 'Custom';
 
+export interface ChatbotKnowledge {
+  id: string;
+  title: string;
+  category: string;
+  question: string;
+  answer: string;
+  isActive: boolean;
+  isPublished: boolean;
+  createdBy?: string | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}
 
+export interface CreateChatbotKnowledgeInput {
+  title?: string | null;
+  category?: string | null;
+  question?: string | null;
+  answer?: string | null;
+  isActive?: boolean;
+}
 
+export interface UpdateChatbotKnowledgeInput {
+  title?: string | null;
+  category?: string | null;
+  question?: string | null;
+  answer?: string | null;
+  isActive?: boolean;
+  isPublished?: boolean;
+}
 
+export interface ChatbotQueryPayload {
+  message: string;
+  conversationId?: string;
+}
+
+export interface ChatbotSourceItem {
+  id: string;
+  title: string;
+  category: string;
+  question: string;
+}
+
+export interface ChatbotResponse {
+  answer: string;
+  matched: boolean;
+  sources: ChatbotSourceItem[];
+  conversationId?: string;
+}
+
+export interface ChatbotMessageItem {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: ChatbotSourceItem[] | null;
+  createdAt: string | Date;
+}
 

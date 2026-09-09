@@ -488,7 +488,7 @@ export async function exportCustomersApi(filters?: Partial<CustomerQueryFilterIn
   const queryString = params.toString();
   const url = `/data-movement/export/customers${queryString ? `?${queryString}` : ''}`;
 
-  const response = await fetch(url.startsWith('http') ? url : `http://localhost:4000/api/v1${url}`, {
+  const response = await fetch(url.startsWith('http') ? url : `/api/v1${url}`, {
     method: 'GET',
     credentials: 'include',
   });

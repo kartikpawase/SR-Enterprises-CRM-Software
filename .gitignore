@@ -54,3 +54,13 @@ scratch/
 cookies.txt
 scripts/mailer/outbox/
 D:/
+
+# Production SSL certs and Database backups
+infrastructure/nginx/certs/*.crt
+infrastructure/nginx/certs/*.key
+infrastructure/nginx/certs/*.pem
+backups/
+*.sql.gz
+*.sql.gz.sha256
+.directory
+

@@ -46,12 +46,12 @@ test.describe('SR Enterprises CRM — Comprehensive Pre-Deployment QA Audit', ()
 
     // 5. Verify successful navigation to Dashboard
     await expect(page).toHaveURL(/.*dashboard/, { timeout: 15000 });
-    await expect(page.locator('text=SR 𝔼𝕟𝕥𝕖𝕣𝕡𝕣𝕚𝕤𝕖𝕤')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=SR Enterprises')).toBeVisible({ timeout: 10000 });
 
     // 6. Session persistence after browser reload
     await page.reload();
     await expect(page).toHaveURL(/.*dashboard/);
-    await expect(page.locator('text=SR 𝔼𝕟𝕥𝕖𝕣𝕡𝕣𝕚𝕤𝕖𝕤')).toBeVisible();
+    await expect(page.locator('text=SR Enterprises')).toBeVisible();
   });
 
   // =========================================================================
@@ -63,7 +63,7 @@ test.describe('SR Enterprises CRM — Comprehensive Pre-Deployment QA Audit', ()
     await expect(page).toHaveURL(/.*dashboard/, { timeout: 15000 });
 
     // Verify brand typography and animation class
-    const brandElement = page.locator('text=SR 𝔼𝕟𝕥𝕖𝕣𝕡𝕣𝕚𝕤𝕖𝕤');
+    const brandElement = page.locator('text=SR Enterprises');
     await expect(brandElement).toBeVisible();
     await expect(brandElement).toHaveClass(/animate-subtle-fade-up/);
 
@@ -219,15 +219,15 @@ test.describe('SR Enterprises CRM — Comprehensive Pre-Deployment QA Audit', ()
 
     // 1. Laptop (1024x768)
     await page.setViewportSize({ width: 1024, height: 768 });
-    await expect(page.locator('text=SR 𝔼𝕟𝕥𝕖𝕣𝕡𝕣𝕚𝕤𝕖𝕤')).toBeVisible();
+    await expect(page.locator('text=SR Enterprises')).toBeVisible();
 
     // 2. Tablet (768x1024)
     await page.setViewportSize({ width: 768, height: 1024 });
-    await expect(page.locator('text=SR 𝔼𝕟𝕥𝕖𝕣𝕡𝕣𝕚𝕤𝕖𝕤')).toBeVisible();
+    await expect(page.locator('text=SR Enterprises')).toBeVisible();
 
     // 3. Mobile Portrait (375x667)
     await page.setViewportSize({ width: 375, height: 667 });
-    await expect(page.locator('text=SR 𝔼𝕟𝕥𝕖𝕣𝕡𝕣𝕚𝕤𝕖𝕤')).toBeVisible();
+    await expect(page.locator('text=SR Enterprises')).toBeVisible();
 
     // Verify no unexpected horizontal document overflow on mobile
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);

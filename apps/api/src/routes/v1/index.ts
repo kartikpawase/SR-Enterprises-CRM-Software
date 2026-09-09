@@ -137,4 +137,8 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
   // Backup + Restore + Disaster Recovery Engine (Phase 32)
   const { backupRoutes } = await import('../../modules/backup/backup.routes');
   await fastify.register(backupRoutes, { prefix: '/backups' });
+
+  // Trainable Knowledge Chatbot Engine
+  const { chatbotRoutes } = await import('../../modules/chatbot/chatbot.routes');
+  await fastify.register(chatbotRoutes, { prefix: '/chatbot' });
 };

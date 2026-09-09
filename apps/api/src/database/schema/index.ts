@@ -29,6 +29,7 @@ export * from './settings';
 export * from './workflows';
 export * from './rentals';
 export * from './inventory-items';
+export * from './chatbot';
 
 // Export all Relations
 export * from './relations';

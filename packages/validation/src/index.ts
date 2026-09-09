@@ -1346,4 +1346,42 @@ export const InventoryProfitLedgerFilterSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 export type InventoryProfitLedgerFilter = z.infer<typeof InventoryProfitLedgerFilterSchema>;
+ 
+// ==========================================
+// 34. CHATBOT SCHEMAS
+// ==========================================
+
+export const CreateChatbotKnowledgeSchema = z.object({
+  title: z.string().max(200, 'Title cannot exceed 200 characters').trim().optional().default(''),
+  category: z.string().max(100).trim().optional().default(''),
+  question: z.string().max(1000, 'Question cannot exceed 1000 characters').trim().optional().default(''),
+  answer: z.string().max(10000, 'Answer cannot exceed 10000 characters').trim().optional().default(''),
+  isActive: z.boolean().default(true).optional(),
+});
+export type CreateChatbotKnowledgeSchemaInput = z.infer<typeof CreateChatbotKnowledgeSchema>;
+
+export const UpdateChatbotKnowledgeSchema = z.object({
+  title: z.string().max(200).trim().optional().nullable(),
+  category: z.string().max(100).trim().optional().nullable(),
+  question: z.string().max(1000).trim().optional().nullable(),
+  answer: z.string().max(10000).trim().optional().nullable(),
+  isActive: z.boolean().optional(),
+  isPublished: z.boolean().optional(),
+});
+export type UpdateChatbotKnowledgeSchemaInput = z.infer<typeof UpdateChatbotKnowledgeSchema>;
+
+export const ChatbotKnowledgeFilterSchema = z.object({
+  search: z.string().optional(),
+  category: z.string().optional(),
+  isActive: z.enum(['true', 'false', 'all']).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type ChatbotKnowledgeFilter = z.infer<typeof ChatbotKnowledgeFilterSchema>;
+
+export const ChatbotMessageQuerySchema = z.object({
+  message: z.string().trim().min(1, 'Message cannot be empty').max(2000, 'Message cannot exceed 2000 characters'),
+  conversationId: z.string().uuid('Invalid conversation UUID').optional(),
+});
+export type ChatbotMessageQueryInput = z.infer<typeof ChatbotMessageQuerySchema>;
 
