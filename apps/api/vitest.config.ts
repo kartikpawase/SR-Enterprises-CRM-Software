@@ -10,6 +10,7 @@ export default defineConfig({
         singleFork: true,
       },
     },
+    fileParallelism: false,
     include: ['src/**/*.spec.ts'],
     coverage: {
       provider: 'v8',
