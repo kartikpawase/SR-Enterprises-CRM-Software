@@ -30,13 +30,12 @@
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "build:cloudflare": "pnpm run build:web",
-    "deploy:cloudflare": "wrangler pages deploy dist --project-name=sr-enterprises-crm"
+    "deploy:cloudflare": "npx wrangler pages deploy dist --project-name=sr-enterprises-crm"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.1",
     "@types/node": "^22.13.4",
     "prettier": "^3.5.1",
-    "typescript": "^5.7.3",
-    "wrangler": "^3.109.2"
+    "typescript": "^5.7.3"
   }
 }
