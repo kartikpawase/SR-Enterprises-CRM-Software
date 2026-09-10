@@ -1785,6 +1785,18 @@ export class CustomerRepository {
       console.warn('[CustomerRepository] dueForService metric notice:', e);
     }
 
+    if (totalCustomers === 0 && memoryCustomers.length > 0) {
+      const activeMems = memoryCustomers.filter((c) => !c.archivedAt);
+      totalCustomers = activeMems.length;
+      activeCustomers = activeMems.filter((c) => c.status === 'ACTIVE').length;
+      newThisMonth = activeMems.filter((c) => {
+        const d = new Date(c.createdAt || now);
+        return d >= startOfCurrentMonth && d <= endOfCurrentMonth;
+      }).length;
+      withWarranty = activeMems.filter((c) => c.summary?.activeWarranty === 'Yes' || c.overview?.activeWarranty).length;
+      dueForService = activeMems.filter((c) => c.nextServiceDate !== null).length;
+    }
+
     return {
       totalCustomers,
       activeCustomers,
