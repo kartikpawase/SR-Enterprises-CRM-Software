@@ -49,11 +49,15 @@ export const CustomerDirectory: React.FC = () => {
     sortOrder: 'asc',
   });
 
-  // Query aggregated customer stats with baseline isolation
+  // Query aggregated customer stats from live CRM database
   const { data: stats } = useCustomerStatsQuery();
 
-  const totalCustomers = stats?.totalCustomers ?? response?.pagination?.total ?? 0;
-  const activeCustomers = stats?.activeCustomers ?? totalCustomers;
+  const totalCustomers = (stats?.totalCustomers !== undefined && stats.totalCustomers > 0)
+    ? stats.totalCustomers
+    : (response?.pagination?.total ?? 0);
+  const activeCustomers = (stats?.activeCustomers !== undefined && stats.activeCustomers > 0)
+    ? stats.activeCustomers
+    : totalCustomers;
 
   // Transform live database records to table model
   const customerList: CustomerRecord[] = useMemo(() => {

@@ -121,7 +121,7 @@ export const servicesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/', { preHandler: [requirePermission('services.create')] }, async (request, reply) => {
     const body = CreateServiceSchema.parse(request.body);
     const user = (request as any).user;
-    const result = await servicesService.createService(body, user?.id);
+    const result = await servicesService.createService(body, user?.userId || user?.id);
     return reply.status(201).send({
       success: true,
       data: result,

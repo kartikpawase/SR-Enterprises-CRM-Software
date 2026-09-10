@@ -1695,10 +1695,9 @@ export class CustomerRepository {
   }
 
   /**
-   * Calculates real-time customer dashboard metrics with strict legacy data isolation
+   * Calculates real-time customer dashboard metrics reflecting real CRM database records
    */
   async getCustomerDashboardStats(database = db) {
-    const baselineDate = await this.getMetricsBaseline(database);
     const now = new Date();
 
     // Start & End of current calendar month
@@ -1706,82 +1705,93 @@ export class CustomerRepository {
     const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
+    let totalCustomers = 0;
+    let activeCustomers = 0;
+    let newThisMonth = 0;
+    let withWarranty = 0;
+    let dueForService = 0;
+
     try {
-      // 1. Total & Active Customers (All records)
+      // 1. Total & Active Customers (All non-archived records)
       const [totalCountRes] = await database
         .select({ count: count(customers.id) })
         .from(customers)
         .where(sql`${customers.archivedAt} IS NULL`);
+      totalCustomers = Number(totalCountRes?.count || 0);
+    } catch (e) {
+      console.warn('[CustomerRepository] totalCustomers metric notice:', e);
+    }
 
+    try {
       const [activeCountRes] = await database
         .select({ count: count(customers.id) })
         .from(customers)
         .where(and(eq(customers.status, 'ACTIVE'), sql`${customers.archivedAt} IS NULL`));
+      activeCustomers = Number(activeCountRes?.count || 0);
+    } catch (e) {
+      console.warn('[CustomerRepository] activeCustomers metric notice:', e);
+    }
 
-      const totalCustomers = Number(totalCountRes?.count || 0);
-      const activeCustomers = Number(activeCountRes?.count || 0);
-
-      // 2. New This Month (Only genuine new customer creations strictly after baseline in current calendar month)
+    try {
+      // 2. New This Month (Genuine customer registrations in current calendar month)
       const [newThisMonthRes] = await database
         .select({ count: count(customers.id) })
         .from(customers)
         .where(
           and(
-            gt(customers.createdAt, baselineDate),
             gte(customers.createdAt, startOfCurrentMonth),
             lte(customers.createdAt, endOfCurrentMonth),
             sql`${customers.archivedAt} IS NULL`
           )
         );
-      const newThisMonth = Number(newThisMonthRes?.count || 0);
+      newThisMonth = Number(newThisMonthRes?.count || 0);
+    } catch (e) {
+      console.warn('[CustomerRepository] newThisMonth metric notice:', e);
+    }
 
-      // 3. With Active Warranty (Distinct customers registered strictly after baseline possessing valid active warranty)
+    try {
+      // 3. With Active Warranty (Distinct customers possessing valid active warranty)
       const [withWarrantyRes] = await database
         .select({ count: sql<number>`count(distinct ${customers.id})` })
         .from(customers)
         .innerJoin(warranties, eq(warranties.customerId, customers.id))
         .where(
           and(
-            gt(customers.createdAt, baselineDate),
             sql`${customers.archivedAt} IS NULL`,
             inArray(warranties.status, ['ACTIVE', 'EXPIRING_SOON']),
             gte(warranties.endDate, now)
           )
         );
-      const withWarranty = Number(withWarrantyRes?.count || 0);
+      withWarranty = Number(withWarrantyRes?.count || 0);
+    } catch (e) {
+      console.warn('[CustomerRepository] withWarranty metric notice:', e);
+    }
 
-      // 4. Due for Service (Distinct customers registered strictly after baseline possessing upcoming or assigned service)
+    try {
+      // 4. Due for Service (Distinct customers possessing scheduled or assigned upcoming service)
       const [dueForServiceRes] = await database
         .select({ count: sql<number>`count(distinct ${customers.id})` })
         .from(customers)
         .innerJoin(services, eq(services.customerId, customers.id))
         .where(
           and(
-            gt(customers.createdAt, baselineDate),
             sql`${customers.archivedAt} IS NULL`,
             inArray(services.status, ['SCHEDULED', 'ASSIGNED']),
             gte(services.scheduledDate, startOfToday)
           )
         );
-      const dueForService = Number(dueForServiceRes?.count || 0);
-
-      return {
-        totalCustomers,
-        activeCustomers,
-        newThisMonth,
-        withWarranty,
-        dueForService,
-      };
-    } catch (err) {
-      console.error('[CustomerRepository] Error computing customer dashboard stats:', err);
-      return {
-        totalCustomers: 0,
-        activeCustomers: 0,
-        newThisMonth: 0,
-        withWarranty: 0,
-        dueForService: 0,
-      };
+      dueForService = Number(dueForServiceRes?.count || 0);
+    } catch (e) {
+      console.warn('[CustomerRepository] dueForService metric notice:', e);
     }
+
+    return {
+      totalCustomers,
+      activeCustomers,
+      newThisMonth,
+      withWarranty,
+      dueForService,
+    };
   }
 
   /**

@@ -752,11 +752,20 @@ export class ServicesRepository {
    * Create a new scheduled service with strict Customer-Asset validation and permanent DB persistence
    */
   async createService(input: CreateServiceInput, createdById?: string) {
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (!input.customerId || !UUID_REGEX.test(input.customerId.trim())) {
+      const err: any = new Error('Invalid customer ID provided');
+      err.statusCode = 400;
+      throw err;
+    }
+    const customerId = input.customerId.trim();
+
     // 1. Verify customer existence
     const [customerRecord] = await db
       .select({ id: customers.id, fullName: customers.fullName })
       .from(customers)
-      .where(eq(customers.id, input.customerId));
+      .where(eq(customers.id, customerId));
 
     if (!customerRecord) {
       const err: any = new Error('Selected customer does not exist in the database');
@@ -765,7 +774,7 @@ export class ServicesRepository {
     }
 
     // 2. Resolve Customer Machine / Asset
-    let finalAssetId = input.assetId && input.assetId.trim() !== '' ? input.assetId.trim() : null;
+    let finalAssetId = input.assetId && UUID_REGEX.test(input.assetId.trim()) ? input.assetId.trim() : null;
     let resolvedAsset: any = null;
 
     if (finalAssetId) {
@@ -774,7 +783,7 @@ export class ServicesRepository {
         .from(customerAssets)
         .where(eq(customerAssets.id, finalAssetId));
 
-      if (directAsset && directAsset.customerId === input.customerId) {
+      if (directAsset && directAsset.customerId === customerId) {
         resolvedAsset = directAsset;
       }
     }
@@ -784,7 +793,7 @@ export class ServicesRepository {
       const existingCustAssets = await db
         .select()
         .from(customerAssets)
-        .where(eq(customerAssets.customerId, input.customerId))
+        .where(eq(customerAssets.customerId, customerId))
         .orderBy(desc(customerAssets.createdAt));
 
       if (existingCustAssets.length > 0) {
@@ -817,7 +826,7 @@ export class ServicesRepository {
           .insert(customerAssets)
           .values({
             assetNumber: assetSeq.sequenceNumber,
-            customerId: input.customerId,
+            customerId: customerId,
             productId: defaultProduct.id,
             customName: 'Customer RO Water Purifier',
             assetType: 'RO_MACHINE',
@@ -837,15 +846,35 @@ export class ServicesRepository {
       throw err;
     }
 
-    // 3. Timezone-safe date parsing (e.g. YYYY-MM-DD -> noon UTC prevents any day rollback)
+    // 3. Timezone-safe date parsing (handles YYYY-MM-DD, DD/MM/YYYY, ISO strings, etc.)
     let parsedScheduledDate: Date;
-    if (typeof input.scheduledDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.scheduledDate.trim())) {
-      parsedScheduledDate = new Date(`${input.scheduledDate.trim()}T10:00:00.000Z`);
+    if (typeof input.scheduledDate === 'string') {
+      const trimmed = input.scheduledDate.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        parsedScheduledDate = new Date(`${trimmed}T10:00:00.000Z`);
+      } else if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(trimmed)) {
+        const parts = trimmed.split(/[-/]/);
+        const p0 = parseInt(parts[0], 10);
+        const p1 = parseInt(parts[1], 10);
+        const p2 = parseInt(parts[2], 10);
+        if (p0 > 12) {
+          parsedScheduledDate = new Date(`${p2}-${String(p1).padStart(2, '0')}-${String(p0).padStart(2, '0')}T10:00:00.000Z`);
+        } else {
+          parsedScheduledDate = new Date(trimmed);
+        }
+      } else {
+        parsedScheduledDate = new Date(trimmed);
+      }
     } else {
       parsedScheduledDate = new Date(input.scheduledDate);
     }
+    if (isNaN(parsedScheduledDate.getTime())) {
+      parsedScheduledDate = new Date();
+    }
 
-    const technicianId = input.technicianId && input.technicianId.trim() !== '' ? input.technicianId.trim() : null;
+    const technicianId = input.technicianId && UUID_REGEX.test(input.technicianId.trim()) ? input.technicianId.trim() : null;
+    const warrantyId = input.warrantyId && UUID_REGEX.test(input.warrantyId.trim()) ? input.warrantyId.trim() : null;
+    const validCreatedById = createdById && UUID_REGEX.test(createdById.trim()) ? createdById.trim() : null;
     const initialStatus = technicianId ? 'ASSIGNED' : 'SCHEDULED';
 
     try {
@@ -858,9 +887,9 @@ export class ServicesRepository {
         .insert(services)
         .values({
           serviceNumber: srvSeq.sequenceNumber,
-          customerId: input.customerId,
+          customerId: customerId,
           assetId: finalAssetId!,
-          warrantyId: input.warrantyId || null,
+          warrantyId: warrantyId,
           technicianId: technicianId,
           serviceType: input.serviceType,
           serviceLocation: input.serviceLocation,
@@ -871,7 +900,7 @@ export class ServicesRepository {
           priority: input.priority,
           customerNotes: input.customerNotes || null,
           internalNotes: input.internalNotes || null,
-          createdBy: createdById || null,
+          createdBy: validCreatedById,
         })
         .returning();
 
