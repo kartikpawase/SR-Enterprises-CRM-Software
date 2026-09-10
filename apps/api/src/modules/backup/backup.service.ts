@@ -282,6 +282,18 @@ export class BackupService {
       await fs.promises.writeFile(tempFilePath, JSON.stringify(packageContainer), 'utf8');
       await fs.promises.rename(tempFilePath, finalFilePath);
 
+      // 5b. Persist to Supabase Cloud Storage
+      try {
+        const { supabaseStorage } = await import('../documents/supabase-storage.service');
+        if (supabaseStorage.isConfigured()) {
+          const backupBuffer = Buffer.from(JSON.stringify(packageContainer), 'utf8');
+          await supabaseStorage.uploadFile(`backups/${filename}`, backupBuffer, 'application/json');
+          console.log(`[BackupService] Backup successfully persisted to Supabase Cloud: backups/${filename}`);
+        }
+      } catch (cloudErr) {
+        // Non-blocking cloud backup notice
+      }
+
       // 6. Record Audit Log
       try {
         if (user?.userId) {

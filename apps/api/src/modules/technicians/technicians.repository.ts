@@ -398,7 +398,9 @@ export class TechniciansRepository {
       console.warn('[TechniciansRepository.findById] DB query fallback:', err?.message);
     }
 
-    const tech = memoryTechnicians.find((t) => t.id === id || t.phone === id);
+    const tech =
+      memoryTechnicians.find((t) => t.id === id || t.phone === id) ||
+      INITIAL_TECHNICIANS.find((t) => t.id === id || t.phone === id);
     if (!tech) return null;
 
     const recentJobs = memoryJobCards

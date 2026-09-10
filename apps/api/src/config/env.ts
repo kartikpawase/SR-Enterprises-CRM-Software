@@ -83,6 +83,10 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_ANON_KEY: z.string().optional(),
   SUPABASE_STORAGE_BUCKET: z.string().default('crm-documents'),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().optional(),
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().optional(),
+  PUBLIC_ANON_KEY: z.string().optional(),
+  SERVICE_ROLE_SECREAT: z.string().optional(),
 
   // Production CORS & Cross-Site Cookies for Vercel <-> Oracle Cloud
   CORS_ALLOWED_ORIGINS: z.string().optional(),
@@ -116,7 +120,22 @@ const envSchema = z.object({
 export type EnvConfig = z.infer<typeof envSchema>;
 
 export function parseEnv(customEnv?: Record<string, string | undefined>): EnvConfig {
-  const source = customEnv || process.env;
+  const raw = customEnv || process.env;
+  const source = { ...raw };
+
+  // Normalize Supabase credentials across naming conventions
+  if (!source.SUPABASE_URL && source.NEXT_PUBLIC_SUPABASE_URL) {
+    source.SUPABASE_URL = source.NEXT_PUBLIC_SUPABASE_URL;
+  }
+  if (!source.SUPABASE_SERVICE_ROLE_KEY) {
+    source.SUPABASE_SERVICE_ROLE_KEY =
+      source.SERVICE_ROLE_SECREAT || (source as any).SERVICE_ROLE_SECRET;
+  }
+  if (!source.SUPABASE_ANON_KEY) {
+    source.SUPABASE_ANON_KEY =
+      source.PUBLIC_ANON_KEY || source.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  }
+
   const result = envSchema.safeParse(source);
 
   if (!result.success) {

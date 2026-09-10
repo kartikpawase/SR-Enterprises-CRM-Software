@@ -898,7 +898,7 @@ export async function ensureDatabaseInitialized(): Promise<void> {
         try {
           await pgliteClient.waitReady;
         } catch (readyErr) {
-          console.warn('[Database] Storage lock or state issue detected on local startup, initializing fresh clean storage:', readyErr);
+          console.warn('[Database] Storage lock or state issue detected on local startup, initializing clean storage:', readyErr);
           try {
             await pgliteClient.close();
           } catch {}
@@ -912,7 +912,7 @@ export async function ensureDatabaseInitialized(): Promise<void> {
           try {
             await pgliteClient.waitReady;
           } catch (retryErr) {
-            console.error('[Database] Fresh database initialization failed:', retryErr);
+            console.error('[Database] Database re-initialization notice:', retryErr);
           }
         }
 
@@ -930,6 +930,16 @@ export async function ensureDatabaseInitialized(): Promise<void> {
 
       isInitialized = true;
       console.log('✅ [Database] All database tables, sequences, and indexes verified successfully.');
+
+      // Check and auto-sync with Supabase Cloud Persistent Storage (skip in test runner to keep test fixtures isolated)
+      if (process.env.NODE_ENV !== 'test') {
+        try {
+          const { supabaseDbPersistence } = await import('./supabase-db-persistence');
+          await supabaseDbPersistence.ensureDatabaseRestoredFromCloud();
+        } catch (cloudSyncErr) {
+          // Non-blocking cloud persistence notice
+        }
+      }
     } catch (err) {
       console.error('[Database] Error verifying database schema:', err);
     }

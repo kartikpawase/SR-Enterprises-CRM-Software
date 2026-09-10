@@ -48,11 +48,42 @@ export class SupabaseStorageService {
   }
 
   public isConfigured(): boolean {
+    if (!this.client) {
+      this.initClient();
+    }
     return Boolean(this.client);
+  }
+
+  public getClient(): SupabaseClient | null {
+    if (!this.client) {
+      this.initClient();
+    }
+    return this.client;
   }
 
   public getBucket(): string {
     return this.bucket;
+  }
+
+  /**
+   * List objects in bucket with optional folder prefix
+   */
+  public async listObjects(prefix = ''): Promise<{ name: string; id?: string | null; updated_at?: string | null; metadata?: any }[]> {
+    if (!this.isConfigured() || !this.client) return [];
+    try {
+      const { data, error } = await this.client.storage.from(this.bucket).list(prefix, {
+        limit: 100,
+        sortBy: { column: 'created_at', order: 'desc' },
+      });
+      if (error) {
+        console.warn('[Supabase Storage] listObjects error:', error.message);
+        return [];
+      }
+      return data || [];
+    } catch (err: any) {
+      console.warn('[Supabase Storage] listObjects exception:', err?.message || err);
+      return [];
+    }
   }
 
   /**
