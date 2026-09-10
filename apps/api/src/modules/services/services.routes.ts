@@ -184,14 +184,27 @@ export const servicesRoutes: FastifyPluginAsync = async (fastify) => {
    * Complete Service & save Job Card diagnostic details + replaced parts
    */
   fastify.post('/:id/complete', { preHandler: [requirePermission('services.complete')] }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const body = CompleteServiceSchema.parse(request.body);
-    const user = (request as any).user;
-    const result = await servicesService.completeService(id, body, user?.id);
-    return reply.send({
-      success: true,
-      data: result,
-      message: 'Service completed successfully',
-    });
+    try {
+      const { id } = request.params as { id: string };
+      const body = CompleteServiceSchema.parse(request.body);
+      const user = (request as any).user;
+      const result = await servicesService.completeService(id, body, user?.userId || user?.id);
+      return reply.send({
+        success: true,
+        data: result,
+        message: 'Service completed successfully',
+      });
+    } catch (err: any) {
+      if (err?.statusCode === 404) {
+        return reply.status(404).send({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: err.message || 'Service record not found',
+          },
+        });
+      }
+      throw err;
+    }
   });
 };

@@ -717,7 +717,13 @@ export const CompleteServiceSchema = z.object({
   nextServiceRecommendationMonths: z.coerce.number().optional().nullable(),
   scheduleNextService: z.boolean().optional(),
   nextServiceDate: z.string().optional().nullable(),
-});
+  initialPayment: z.object({
+    amount: z.coerce.number(),
+    paymentMethod: z.string().optional(),
+    referenceNumber: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+  }).optional(),
+}).passthrough();
 export type CompleteServiceInput = z.infer<typeof CompleteServiceSchema>;
 
 export const ServiceQueryFilterSchema = PaginationQuerySchema.extend({

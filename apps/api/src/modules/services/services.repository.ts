@@ -1181,20 +1181,101 @@ export class ServicesRepository {
     }
 
     const now = new Date();
+    let completedService: any = null;
+    let updatedJobCard: any = null;
 
-    const [completedService] = await database
-      .update(services)
-      .set({
+    // 1. Update service record in database
+    try {
+      const [dbUpdated] = await database
+        .update(services)
+        .set({
+          status: 'COMPLETED',
+          completedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(services.id, id))
+        .returning();
+
+      if (dbUpdated) {
+        completedService = dbUpdated;
+      }
+    } catch (err) {
+      console.warn('[ServicesRepository.completeService] DB service update notice:', err);
+    }
+
+    // Always update in-memory services to keep all CRM data in sync
+    const memIndex = memoryServices.findIndex((s) => s.id === id);
+    if (memIndex !== -1) {
+      memoryServices[memIndex] = {
+        ...memoryServices[memIndex],
         status: 'COMPLETED',
-        completedAt: now,
-        updatedAt: now,
-      })
-      .where(eq(services.id, id))
-      .returning();
+        completedAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+        workPerformed: input.workPerformed || memoryServices[memIndex].workPerformed,
+        diagnosis: input.diagnosis || memoryServices[memIndex].diagnosis,
+        partsReplaced: input.partsReplaced || memoryServices[memIndex].partsReplaced || [],
+        laborCharges: String(input.laborCharges || 0),
+        partsCharges: String(input.partsCharges || 0),
+        totalCharges: String(input.totalCharges || 0),
+        technicianNotes: input.technicianNotes || memoryServices[memIndex].technicianNotes,
+        customerRemarks: input.customerRemarks || memoryServices[memIndex].customerRemarks,
+        nextServiceRecommendationMonths:
+          input.nextServiceRecommendationMonths || memoryServices[memIndex].nextServiceRecommendationMonths,
+      };
+      if (!completedService) {
+        completedService = memoryServices[memIndex];
+      }
+    } else if (!completedService) {
+      completedService = {
+        ...existing,
+        status: 'COMPLETED',
+        completedAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+        workPerformed: input.workPerformed,
+        diagnosis: input.diagnosis || existing.diagnosis,
+        partsReplaced: input.partsReplaced || [],
+        laborCharges: String(input.laborCharges || 0),
+        partsCharges: String(input.partsCharges || 0),
+        totalCharges: String(input.totalCharges || 0),
+      };
+      memoryServices.unshift(completedService);
+    }
 
-    const [updatedJobCard] = await database
-      .update(jobCards)
-      .set({
+    // 2. Update or create job card in database
+    try {
+      const [dbJobCard] = await database
+        .update(jobCards)
+        .set({
+          workPerformed: input.workPerformed,
+          diagnosis: input.diagnosis || existing.diagnosis,
+          partsReplaced: input.partsReplaced || [],
+          laborCharges: String(input.laborCharges || 0),
+          partsCharges: String(input.partsCharges || 0),
+          totalCharges: String(input.totalCharges || 0),
+          technicianNotes: input.technicianNotes || null,
+          customerRemarks: input.customerRemarks || null,
+          nextServiceRecommendationMonths: input.nextServiceRecommendationMonths || null,
+          status: 'COMPLETED',
+          completedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(jobCards.serviceId, id))
+        .returning();
+
+      if (dbJobCard) {
+        updatedJobCard = dbJobCard;
+      }
+    } catch (err) {
+      console.warn('[ServicesRepository.completeService] DB job card update notice:', err);
+    }
+
+    // Always update in-memory job cards
+    const memJcIndex = memoryJobCards.findIndex(
+      (j) => j.serviceId === id || (existing.jobCardId && j.id === existing.jobCardId)
+    );
+    if (memJcIndex !== -1) {
+      memoryJobCards[memJcIndex] = {
+        ...memoryJobCards[memJcIndex],
         workPerformed: input.workPerformed,
         diagnosis: input.diagnosis || existing.diagnosis,
         partsReplaced: input.partsReplaced || [],
@@ -1205,12 +1286,41 @@ export class ServicesRepository {
         customerRemarks: input.customerRemarks || null,
         nextServiceRecommendationMonths: input.nextServiceRecommendationMonths || null,
         status: 'COMPLETED',
-        completedAt: now,
-        updatedAt: now,
-      })
-      .where(eq(jobCards.serviceId, id))
-      .returning();
+        completedAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+      if (!updatedJobCard) {
+        updatedJobCard = memoryJobCards[memJcIndex];
+      }
+    } else {
+      const fallbackJobCard = {
+        id: existing.jobCardId || randomUUID(),
+        serviceId: id,
+        jobCardNumber: existing.jobCardNumber || `JC-${Date.now().toString().slice(-6)}`,
+        customerId: existing.customerId,
+        assetId: existing.assetId || null,
+        technicianId: existing.technicianId || null,
+        workPerformed: input.workPerformed,
+        diagnosis: input.diagnosis || existing.diagnosis,
+        partsReplaced: input.partsReplaced || [],
+        laborCharges: String(input.laborCharges || 0),
+        partsCharges: String(input.partsCharges || 0),
+        totalCharges: String(input.totalCharges || 0),
+        technicianNotes: input.technicianNotes || null,
+        customerRemarks: input.customerRemarks || null,
+        nextServiceRecommendationMonths: input.nextServiceRecommendationMonths || null,
+        status: 'COMPLETED',
+        completedAt: now.toISOString(),
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+      memoryJobCards.unshift(fallbackJobCard);
+      if (!updatedJobCard) {
+        updatedJobCard = fallbackJobCard;
+      }
+    }
 
+    // 3. Record customer activity audit log
     try {
       await database.insert(customerActivities).values({
         customerId: existing.customerId,
@@ -1227,9 +1337,14 @@ export class ServicesRepository {
       });
     } catch {}
 
+    // 4. Invoicing and billing synchronization
     let serviceInvoice: any = null;
     const totalChargesNum = parseFloat(String(input.totalCharges || 0));
     if (totalChargesNum > 0) {
+      const subtotalNum = (Number(input.laborCharges) || 0) + (Number(input.partsCharges) || 0);
+      const taxAmountNum = Math.max(0, totalChargesNum - subtotalNum);
+      const due = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+
       try {
         const [existingInvoice] = await database
           .select()
@@ -1248,12 +1363,7 @@ export class ServicesRepository {
         if (existingInvoice) {
           serviceInvoice = existingInvoice;
         } else {
-          const now = new Date();
           const invoiceNumber = await generateInvoiceNumber(database, now);
-          const subtotalNum = (Number(input.laborCharges) || 0) + (Number(input.partsCharges) || 0);
-          const taxAmountNum = Math.max(0, totalChargesNum - subtotalNum);
-          const due = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
-
           const [newInvoice] = await database
             .insert(invoices)
             .values({
@@ -1269,7 +1379,12 @@ export class ServicesRepository {
               totalAmount: String(totalChargesNum.toFixed(2)),
               status: 'ISSUED',
               poNumber: (input as any).poNumber || null,
-              notes: (input as any).notes || input.customerRemarks || input.technicianNotes || existing.description || null,
+              notes:
+                (input as any).notes ||
+                input.customerRemarks ||
+                input.technicianNotes ||
+                existing.description ||
+                null,
               createdBy: actorId || null,
             })
             .returning();
@@ -1293,7 +1408,7 @@ export class ServicesRepository {
             if (input.partsReplaced && Array.isArray(input.partsReplaced) && input.partsReplaced.length > 0) {
               for (const part of input.partsReplaced) {
                 const qty = Number(part.quantity || 1);
-                const unitPrice = parseFloat(String(part.cost || 0));
+                const unitPrice = parseFloat(String(part.unitPrice ?? part.price ?? part.cost ?? 0));
                 const total = (qty * unitPrice).toFixed(2);
                 itemsToInsert.push({
                   invoiceId: newInvoice.id,
@@ -1327,24 +1442,120 @@ export class ServicesRepository {
       } catch (invErr) {
         console.warn('[ServicesRepository.completeService] Service invoice auto-creation notice:', invErr);
       }
+
+      // Ensure invoice is tracked in memoryInvoices
+      let memInv = memoryInvoices.find(
+        (i) => i.serviceId === id || (existing.jobCardId && i.jobCardId === existing.jobCardId)
+      );
+      if (!memInv) {
+        const seq = (memoryInvoices.length + 1).toString().padStart(4, '0');
+        memInv = {
+          id: serviceInvoice?.id || randomUUID(),
+          invoiceNumber: serviceInvoice?.invoiceNumber || `INV-2026-${seq}`,
+          customerId: existing.customerId,
+          customerName: existing.customerName || (existing as any).customer?.fullName,
+          serviceId: id,
+          jobCardId: existing.jobCardId || updatedJobCard?.id || null,
+          invoiceDate: now.toISOString(),
+          dueDate: due.toISOString(),
+          subtotal: subtotalNum.toFixed(2),
+          discountAmount: '0.00',
+          taxAmount: taxAmountNum.toFixed(2),
+          totalAmount: totalChargesNum.toFixed(2),
+          status: 'ISSUED',
+          notes:
+            (input as any).notes ||
+            input.customerRemarks ||
+            input.technicianNotes ||
+            existing.description ||
+            null,
+          termsAndConditions: 'Payment due upon receipt of service.',
+          poNumber: (input as any).poNumber || null,
+          createdBy: actorId || null,
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        };
+        memoryInvoices.unshift(memInv);
+      }
+      if (!serviceInvoice) {
+        serviceInvoice = memInv;
+      }
     }
 
+    // 5. Record initial payment if submitted
     if ((input as any).initialPayment && serviceInvoice && (input as any).initialPayment.amount > 0) {
+      const payAmount = Number((input as any).initialPayment.amount) || 0;
+      const payMethod = (input as any).initialPayment.paymentMethod || 'CASH';
+      const refNum = (input as any).initialPayment.referenceNumber || null;
+      const payNotes = (input as any).initialPayment.notes || null;
+
       try {
         const { paymentsRepository } = await import('../payments/payments.repository');
         await paymentsRepository.recordPayment(
           {
             invoiceId: serviceInvoice.id,
-            amount: (input as any).initialPayment.amount,
-            paymentMethod: (input as any).initialPayment.paymentMethod || 'CASH',
-            referenceNumber: (input as any).initialPayment.referenceNumber,
-            notes: (input as any).initialPayment.notes,
+            amount: payAmount,
+            paymentMethod: payMethod,
+            referenceNumber: refNum,
+            notes: payNotes,
           },
           actorId,
           database
         );
       } catch (payErr) {
-        console.warn('[ServicesRepository.completeService] Service initial payment notice:', payErr);
+        console.warn('[ServicesRepository.completeService] Service initial payment DB notice:', payErr);
+      }
+
+      // Record in memoryPayments
+      const memPayIndex = memoryPayments.findIndex((p) => p.invoiceId === serviceInvoice.id);
+      if (memPayIndex === -1) {
+        memoryPayments.unshift({
+          id: randomUUID(),
+          paymentNumber: `PAY-${Date.now().toString().slice(-6)}`,
+          invoiceId: serviceInvoice.id,
+          customerId: existing.customerId,
+          amount: String(payAmount.toFixed(2)),
+          paymentMethod: payMethod,
+          paymentDate: now.toISOString(),
+          status: 'COMPLETED',
+          referenceNumber: refNum,
+          notes: payNotes,
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        });
+      }
+
+      // Update invoice status in memory
+      const invToUpdate = memoryInvoices.find((i) => i.id === serviceInvoice.id);
+      if (invToUpdate) {
+        const invTotal = parseFloat(invToUpdate.totalAmount || '0');
+        invToUpdate.status = payAmount >= invTotal ? 'PAID' : 'PARTIALLY_PAID';
+        invToUpdate.updatedAt = now.toISOString();
+      }
+    }
+
+    // 6. Schedule next recommended service if opted
+    if (input.scheduleNextService) {
+      try {
+        const months = Number(input.nextServiceRecommendationMonths) || 3;
+        const nextDate = new Date(now.getTime() + months * 30 * 24 * 60 * 60 * 1000);
+        const dateStr = nextDate.toISOString().split('T')[0];
+        await this.createService(
+          {
+            customerId: existing.customerId,
+            assetId: existing.assetId || undefined,
+            serviceType: 'PERIODIC_MAINTENANCE',
+            serviceLocation: existing.serviceLocation || 'DOORSTEP',
+            serviceClassification: existing.serviceClassification || 'GENERAL',
+            scheduledDate: dateStr,
+            scheduledTimeSlot: '10:00 AM - 12:00 PM',
+            priority: 'NORMAL',
+            customerNotes: `Scheduled periodic maintenance follow-up after service ${existing.serviceNumber}`,
+          },
+          actorId
+        );
+      } catch (schedErr) {
+        console.warn('[ServicesRepository.completeService] Next service scheduling notice:', schedErr);
       }
     }
 
