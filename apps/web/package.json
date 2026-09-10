@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node -e \"const fs=require('fs'); if(fs.existsSync('dist')){fs.cpSync('dist','../../dist',{recursive:true});}\"",
     "preview": "vite preview",
     "test": "vitest run --no-file-parallelism",
     "test:watch": "vitest",
