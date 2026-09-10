@@ -40,6 +40,9 @@ export function normalizeWhatsAppPhone(phone: string | null | undefined): string
   if (cleaned.length === 10) {
     // Prefix India country code 91
     cleaned = `91${cleaned}`;
+  } else if (cleaned.length === 11 && !cleaned.startsWith('91')) {
+    // Prefix India country code 91 if omitted
+    cleaned = `91${cleaned}`;
   }
 
   // 5. Final validation: must be 10 to 15 digits

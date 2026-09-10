@@ -180,6 +180,24 @@ export const servicesRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
+   * POST /api/v1/services/:id/notify-customer
+   * Manually trigger or open WhatsApp service visit notification to client
+   */
+  fastify.post('/:id/notify-customer', { preHandler: [requirePermission('services.update')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = (request as any).user;
+    const actorId = user?.userId || user?.id;
+    const result = await servicesService.resendCustomerNotification(id, actorId);
+    return reply.send({
+      success: result.success,
+      data: result,
+      message: result.success
+        ? 'WhatsApp notification sent to customer'
+        : (result.error || 'Failed to send WhatsApp notification'),
+    });
+  });
+
+  /**
    * POST /api/v1/services/:id/complete
    * Complete Service & save Job Card diagnostic details + replaced parts
    */

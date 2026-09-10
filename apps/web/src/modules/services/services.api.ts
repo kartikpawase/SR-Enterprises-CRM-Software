@@ -320,14 +320,47 @@ export function useNotifyServiceTechnicianWhatsAppMutation() {
   return useMutation({
     mutationFn: async (serviceId: string) => {
       const response = await apiClient.post<{ success: boolean; message: string; data?: any }>(
-        `/services/${serviceId}/notify-technician`
+        `/services/${serviceId}/notify-technician`,
+        {}
       );
-      return ((response as any)?.data ?? response) as { success: boolean; message?: string; data?: any };
+      const resData = (response as any)?.data || response;
+      return {
+        success: response?.success ?? resData?.success ?? true,
+        message: (response as any)?.message || resData?.message,
+        directUrl: resData?.directUrl || (response as any)?.directUrl,
+        data: resData,
+      } as { success: boolean; message?: string; directUrl?: string; data?: any };
     },
     onSuccess: (_, serviceId) => {
       queryClient.invalidateQueries({ queryKey: ['service', serviceId] });
       queryClient.invalidateQueries({ queryKey: ['services'] });
       queryClient.invalidateQueries({ queryKey: ['job-cards'] });
+    },
+  });
+}
+
+/**
+ * Mutation to manually trigger or open WhatsApp notification to client/customer
+ */
+export function useNotifyServiceCustomerWhatsAppMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (serviceId: string) => {
+      const response = await apiClient.post<{ success: boolean; message: string; data?: any }>(
+        `/services/${serviceId}/notify-customer`,
+        {}
+      );
+      const resData = (response as any)?.data || response;
+      return {
+        success: response?.success ?? resData?.success ?? true,
+        message: (response as any)?.message || resData?.message,
+        directUrl: resData?.directUrl || (response as any)?.directUrl,
+        data: resData,
+      } as { success: boolean; message?: string; directUrl?: string; data?: any };
+    },
+    onSuccess: (_, serviceId) => {
+      queryClient.invalidateQueries({ queryKey: ['service', serviceId] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
     },
   });
 }

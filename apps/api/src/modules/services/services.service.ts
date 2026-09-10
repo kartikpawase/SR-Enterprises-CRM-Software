@@ -105,10 +105,13 @@ export class ServicesService {
     const { whatsappService } = await import('../whatsapp/whatsapp.service');
 
     if (jobCardId) {
-      return whatsappService.notifyTechnicianJobAssignment(jobCardId, {
+      const res = await whatsappService.notifyTechnicianJobAssignment(jobCardId, {
         forceResend: true,
         actorUserId: actorId,
       });
+      if (res.success) {
+        return res;
+      }
     }
 
     const { jobCardsRepository } = await import('../job-cards/job-cards.repository');
@@ -123,16 +126,33 @@ export class ServicesService {
     });
     const match = linkedCards.data.find((jc: any) => jc.serviceId === serviceId) || linkedCards.data[0];
     if (match) {
-      return whatsappService.notifyTechnicianJobAssignment(match.id, {
+      const res = await whatsappService.notifyTechnicianJobAssignment(match.id, {
         forceResend: true,
         actorUserId: actorId,
       });
+      if (res.success) {
+        return res;
+      }
     }
 
-    return {
-      success: false,
-      error: 'No active job card found for this service to notify technician.',
-    };
+    // Direct fallback from authoritative service record
+    return whatsappService.notifyTechnicianServiceAssignment(service, {
+      forceResend: true,
+      actorUserId: actorId,
+    });
+  }
+
+  async resendCustomerNotification(serviceId: string, actorId?: string) {
+    const service = await servicesRepository.findById(serviceId);
+    if (!service) {
+      const error: any = new Error('Service record not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    const { whatsappService } = await import('../whatsapp/whatsapp.service');
+    return whatsappService.notifyCustomerServiceScheduled(service, {
+      actorUserId: actorId,
+    });
   }
 }
 

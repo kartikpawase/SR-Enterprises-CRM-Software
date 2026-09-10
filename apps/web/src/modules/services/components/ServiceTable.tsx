@@ -16,7 +16,11 @@ import {
   MessageSquare,
   Send,
 } from 'lucide-react';
-import { useNotifyServiceTechnicianWhatsAppMutation, type ServiceItem } from '../services.api';
+import {
+  useNotifyServiceTechnicianWhatsAppMutation,
+  useNotifyServiceCustomerWhatsAppMutation,
+  type ServiceItem,
+} from '../services.api';
 import { useToast } from '../../../providers/ToastProvider';
 
 export interface ServiceTableProps {
@@ -85,6 +89,38 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
   const navigate = useNavigate();
   const toast = useToast();
   const notifyWhatsAppMutation = useNotifyServiceTechnicianWhatsAppMutation();
+  const notifyCustomerWhatsAppMutation = useNotifyServiceCustomerWhatsAppMutation();
+
+  const handleNotifyCustomerWhatsApp = async (row: ServiceItem) => {
+    try {
+      const res = await notifyCustomerWhatsAppMutation.mutateAsync(row.id);
+      const resData = (res as any)?.data || res;
+      const directUrl = resData?.directUrl || res?.directUrl;
+      if (directUrl && typeof window !== 'undefined') {
+        window.open(directUrl, '_blank', 'noopener,noreferrer');
+      }
+      toast.success(
+        res?.message || `WhatsApp service details opened for client ${row.customerName || 'customer'}`,
+        'WhatsApp Sent'
+      );
+    } catch {
+      const phone = (row.customerPhone || '').replace(/[^0-9]/g, '');
+      if (phone) {
+        const cleanPhone = phone.length === 10 ? `91${phone}` : (phone.length === 11 && !phone.startsWith('91') ? `91${phone}` : phone);
+        const dateDisplay = formatSystemDate(row.scheduledDate);
+        const timeDisplay = formatSystemTime(row.scheduledDate, row.scheduledTimeSlot);
+        const techInfo = row.technicianPhone ? `${row.technicianName || 'Specialist'} (${row.technicianPhone})` : (row.technicianName || 'Assigned Technician');
+        const msg = `Hello ${row.customerName || 'Valued Customer'},\n\nYour service visit with SR Enterprises has been confirmed!\n\nService #: ${row.serviceNumber}\nMachine: ${row.productName || 'RO Purifier'}${row.serialNumber ? ` (SN: ${row.serialNumber})` : ''}\nDate: ${dateDisplay}\nTime Slot: ${timeDisplay}\nAssigned Technician: ${techInfo}\n\nOur technician will contact you prior to arrival. Thank you!`;
+        const directUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+        if (typeof window !== 'undefined') {
+          window.open(directUrl, '_blank', 'noopener,noreferrer');
+        }
+        toast.success(`Opened WhatsApp for client ${row.customerName || 'customer'}`, 'WhatsApp Opened');
+      } else {
+        toast.error('Customer phone number is missing.', 'WhatsApp Error');
+      }
+    }
+  };
 
   const priorityColors: Record<string, string> = {
     URGENT: 'bg-rose-100 text-rose-800 border-rose-200',
@@ -146,7 +182,23 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
             <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             {row.customerName}
           </div>
-          <div className="text-[11px] text-slate-500 font-mono mt-0.5">{row.customerPhone}</div>
+          <div className="flex items-center justify-between gap-1 mt-0.5">
+            <span className="text-[11px] text-slate-500 font-mono">{row.customerPhone}</span>
+            {row.customerPhone && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNotifyCustomerWhatsApp(row);
+                }}
+                disabled={notifyCustomerWhatsAppMutation.isPending}
+                className="p-1 text-emerald-700 hover:bg-emerald-50 bg-emerald-50/60 rounded-md border border-emerald-200 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                title={`Send WhatsApp service details to client ${row.customerName}`}
+              >
+                <MessageSquare className="w-3 h-3 text-emerald-600" />
+              </button>
+            )}
+          </div>
         </div>
       ),
     },
@@ -262,16 +314,30 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
                   e.stopPropagation();
                   try {
                     const res = await notifyWhatsAppMutation.mutateAsync(row.id);
-                    if (res?.success) {
-                      toast.success(res?.message || `Notified ${row.technicianName} on WhatsApp`, 'WhatsApp Sent');
-                    } else {
-                      toast.error(res?.message || (res as any)?.data?.error || 'Failed to dispatch WhatsApp message', 'WhatsApp Error');
+                    const resData = (res as any)?.data || res;
+                    const directUrl = resData?.directUrl || res?.directUrl;
+                    if (directUrl && typeof window !== 'undefined') {
+                      window.open(directUrl, '_blank', 'noopener,noreferrer');
                     }
-                  } catch (err: any) {
-                    toast.error(
-                      err?.response?.data?.message || err?.message || 'Failed to dispatch WhatsApp message',
-                      'WhatsApp Error'
+                    toast.success(
+                      res?.message || `WhatsApp notification opened for ${row.technicianName}`,
+                      'WhatsApp Sent'
                     );
+                  } catch {
+                    const phone = (row.technicianPhone || '').replace(/[^0-9]/g, '');
+                    if (phone) {
+                      const cleanPhone = phone.length === 10 ? `91${phone}` : (phone.length === 11 && !phone.startsWith('91') ? `91${phone}` : phone);
+                      const dateDisplay = formatSystemDate(row.scheduledDate);
+                      const timeDisplay = formatSystemTime(row.scheduledDate, row.scheduledTimeSlot);
+                      const msg = `New Service Job Assigned\n\nCustomer: ${row.customerName || 'Valued Customer'}\nCustomer Phone: ${row.customerPhone || 'N/A'}\nMachine/Product: ${row.productName || 'RO Purifier'}\nSerial Number: ${row.serialNumber || 'N/A'}\nService Type: ${row.serviceType || 'Periodic Maintenance'}\nVisit Date: ${dateDisplay}\nTime Slot: ${timeDisplay}\nLocation: ${row.serviceLocation === 'IN_SHOP' ? 'In-Shop' : 'Doorstep'}\nPriority: ${row.priority || 'Normal'}\n\nService #: ${row.serviceNumber}\n\nPlease check the CRM for complete job details.`;
+                      const directUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+                      if (typeof window !== 'undefined') {
+                        window.open(directUrl, '_blank', 'noopener,noreferrer');
+                      }
+                      toast.success(`Opened WhatsApp for ${row.technicianName}`, 'WhatsApp Opened');
+                    } else {
+                      toast.error('Technician phone number is missing.', 'WhatsApp Error');
+                    }
                   }
                 }}
                 disabled={notifyWhatsAppMutation.isPending}

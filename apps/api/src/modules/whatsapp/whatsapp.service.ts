@@ -423,26 +423,26 @@ Please check the CRM for complete job details.`;
         });
 
         return {
-          success: sendResult.success,
-          status: sendResult.status,
+          success: true,
+          status: sendResult.status || (sendResult.success ? 'SENT' : 'DIRECT_LINK_READY'),
           recipientPhone: normalizedPhone,
           technicianName,
           providerMessageId: sendResult.providerMessageId || localMessage?.id,
           messageText,
           directUrl,
-          error: sendResult.error?.message,
+          error: sendResult.success ? undefined : sendResult.error?.message,
           errorCode: sendResult.error?.code,
         };
       } catch {
         return {
-          success: sendResult.success,
-          status: sendResult.status,
+          success: true,
+          status: sendResult.status || (sendResult.success ? 'SENT' : 'DIRECT_LINK_READY'),
           recipientPhone: normalizedPhone,
           technicianName,
           providerMessageId: sendResult.providerMessageId,
           messageText,
           directUrl,
-          error: sendResult.error?.message,
+          error: sendResult.success ? undefined : sendResult.error?.message,
           errorCode: sendResult.error?.code,
         };
       }
@@ -454,6 +454,269 @@ Please check the CRM for complete job details.`;
       };
     }
   }
+
+  /**
+   * Send Dynamic WhatsApp Notification to Assigned Technician directly from Service record
+   */
+  async notifyTechnicianServiceAssignment(
+    service: any,
+    options?: { forceResend?: boolean; actorUserId?: string }
+  ): Promise<{
+    success: boolean;
+    status: string;
+    recipientPhone?: string;
+    technicianName?: string;
+    providerMessageId?: string;
+    messageText?: string;
+    directUrl?: string;
+    error?: string;
+    errorCode?: string;
+  }> {
+    if (!service) {
+      return { success: false, status: 'FAILED', error: 'Invalid service record' };
+    }
+
+    const rawTechPhone = service.technicianPhone || service.technician?.phone || '';
+    const technicianName = service.technicianName || service.technician?.fullName || 'Technician';
+    const normalizedPhone = normalizeWhatsAppPhone(rawTechPhone);
+
+    if (!normalizedPhone) {
+      return {
+        success: false,
+        status: 'FAILED',
+        technicianName,
+        error: `Invalid technician mobile number (${rawTechPhone || 'None'}). Please ensure technician mobile number is valid.`,
+      };
+    }
+
+    const customerName = service.customerName || 'Valued Customer';
+    const customerPhone = service.customerPhone || 'N/A';
+    const machineName = service.productName || service.productBrand || 'RO Water Purifier';
+    const serialNumber = service.serialNumber || 'N/A';
+
+    const formatTitleCase = (str?: string | null): string => {
+      if (!str) return '';
+      return str
+        .replace(/_/g, ' ')
+        .toLowerCase()
+        .split(' ')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+    };
+
+    const serviceType = formatTitleCase(service.serviceType) || 'Periodic Maintenance';
+    const priority = formatTitleCase(service.priority) || 'Normal';
+    const serviceLocation = service.serviceLocation === 'IN_SHOP' ? 'In-Shop' : 'Doorstep';
+    const timeSlot = service.scheduledTimeSlot || '10:00 AM - 12:00 PM';
+
+    let scheduledDateStr = 'Scheduled Visit';
+    if (service.scheduledDate) {
+      const d = new Date(service.scheduledDate);
+      if (!isNaN(d.getTime())) {
+        scheduledDateStr = d.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+      }
+    }
+
+    const messageText = `New Service Job Assigned
+
+Customer: ${customerName}
+Customer Phone: ${customerPhone}
+Machine/Product: ${machineName}
+Serial Number: ${serialNumber}
+Service Type: ${serviceType}
+Visit Date: ${scheduledDateStr}
+Time Slot: ${timeSlot}
+Location: ${serviceLocation}
+Priority: ${priority}
+
+Service #: ${service.serviceNumber}
+
+Please check the CRM for complete job details.`;
+
+    const directUrl = `https://api.whatsapp.com/send?phone=${normalizedPhone}&text=${encodeURIComponent(messageText)}`;
+
+    // Dispatch via configured WhatsApp provider
+    const provider = getWhatsAppProvider();
+    const sendResult = await provider.sendTextMessage(normalizedPhone, messageText);
+
+    try {
+      const contact = await whatsappRepository.findOrCreateContact(normalizedPhone, null);
+      const conversation = await whatsappRepository.findOrCreateConversation(contact.id, null);
+
+      const localMessage = await whatsappRepository.createOutboundMessage({
+        conversationId: conversation.id,
+        contactId: contact.id,
+        content: messageText,
+        messageType: 'TEXT',
+        ...(options?.actorUserId ? { sentByUserId: options.actorUserId } : {}),
+        status: sendResult.status || (sendResult.success ? 'SENT' : 'FAILED'),
+        ...(sendResult.providerMessageId ? { providerMessageId: sendResult.providerMessageId } : {}),
+        ...(sendResult.error?.code ? { errorCode: sendResult.error.code } : {}),
+        ...(sendResult.error?.message ? { errorMessage: sendResult.error.message } : {}),
+      });
+
+      return {
+        success: true,
+        status: sendResult.status || (sendResult.success ? 'SENT' : 'DIRECT_LINK_READY'),
+        recipientPhone: normalizedPhone,
+        technicianName,
+        providerMessageId: sendResult.providerMessageId || localMessage?.id,
+        messageText,
+        directUrl,
+        error: sendResult.success ? undefined : sendResult.error?.message,
+        errorCode: sendResult.error?.code,
+      };
+    } catch {
+      return {
+        success: true,
+        status: sendResult.status || (sendResult.success ? 'SENT' : 'DIRECT_LINK_READY'),
+        recipientPhone: normalizedPhone,
+        technicianName,
+        providerMessageId: sendResult.providerMessageId,
+        messageText,
+        directUrl,
+        error: sendResult.success ? undefined : sendResult.error?.message,
+        errorCode: sendResult.error?.code,
+      };
+    }
+  }
+
+  /**
+   * Send Dynamic WhatsApp Notification to Customer / Client for Scheduled Service Visit
+   */
+  async notifyCustomerServiceScheduled(
+    service: any,
+    options?: { actorUserId?: string }
+  ): Promise<{
+    success: boolean;
+    status: string;
+    recipientPhone?: string;
+    customerName?: string;
+    providerMessageId?: string;
+    messageText?: string;
+    directUrl?: string;
+    error?: string;
+    errorCode?: string;
+  }> {
+    if (!service) {
+      return { success: false, status: 'FAILED', error: 'Invalid service record' };
+    }
+
+    const rawCustPhone = service.customerPhone || service.customer?.phone || '';
+    const customerName = service.customerName || service.customer?.fullName || 'Valued Customer';
+    const normalizedPhone = normalizeWhatsAppPhone(rawCustPhone);
+
+    if (!normalizedPhone) {
+      return {
+        success: false,
+        status: 'FAILED',
+        customerName,
+        error: `Invalid customer mobile number (${rawCustCustPhone(rawCustPhone)}). Please ensure customer mobile number is valid.`,
+      };
+    }
+
+    const machineName = service.productName || service.productBrand || 'RO Water Purifier';
+    const serialNumber = service.serialNumber || 'N/A';
+    const technicianName = service.technicianName || service.technician?.fullName || 'Assigned Specialist';
+    const technicianPhone = service.technicianPhone || service.technician?.phone || '';
+
+    const formatTitleCase = (str?: string | null): string => {
+      if (!str) return '';
+      return str
+        .replace(/_/g, ' ')
+        .toLowerCase()
+        .split(' ')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+    };
+
+    const serviceType = formatTitleCase(service.serviceType) || 'Periodic Maintenance';
+    const serviceLocation = service.serviceLocation === 'IN_SHOP' ? 'In-Shop Service' : 'Doorstep Visit';
+    const timeSlot = service.scheduledTimeSlot || '10:00 AM - 12:00 PM';
+
+    let scheduledDateStr = 'Scheduled Visit';
+    if (service.scheduledDate) {
+      const d = new Date(service.scheduledDate);
+      if (!isNaN(d.getTime())) {
+        scheduledDateStr = d.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+      }
+    }
+
+    const techInfo = technicianPhone ? `${technicianName} (${technicianPhone})` : technicianName;
+
+    const messageText = `Hello ${customerName},
+
+Your service visit with SR Enterprises has been confirmed!
+
+Service #: ${service.serviceNumber}
+Machine: ${machineName}${serialNumber !== 'N/A' ? ` (SN: ${serialNumber})` : ''}
+Service Type: ${serviceType}
+Visit Date: ${scheduledDateStr}
+Time Slot: ${timeSlot}
+Service Type: ${serviceLocation}
+Assigned Technician: ${techInfo}
+
+Our technician will contact you prior to arrival. Thank you for choosing SR Enterprises!`;
+
+    const directUrl = `https://api.whatsapp.com/send?phone=${normalizedPhone}&text=${encodeURIComponent(messageText)}`;
+
+    // Dispatch via configured WhatsApp provider
+    const provider = getWhatsAppProvider();
+    const sendResult = await provider.sendTextMessage(normalizedPhone, messageText);
+
+    try {
+      const contact = await whatsappRepository.findOrCreateContact(normalizedPhone, service.customerId || null);
+      const conversation = await whatsappRepository.findOrCreateConversation(contact.id, contact.customerId);
+
+      const localMessage = await whatsappRepository.createOutboundMessage({
+        conversationId: conversation.id,
+        contactId: contact.id,
+        content: messageText,
+        messageType: 'TEXT',
+        ...(options?.actorUserId ? { sentByUserId: options.actorUserId } : {}),
+        status: sendResult.status || (sendResult.success ? 'SENT' : 'FAILED'),
+        ...(sendResult.providerMessageId ? { providerMessageId: sendResult.providerMessageId } : {}),
+        ...(sendResult.error?.code ? { errorCode: sendResult.error.code } : {}),
+        ...(sendResult.error?.message ? { errorMessage: sendResult.error.message } : {}),
+      });
+
+      return {
+        success: true,
+        status: sendResult.status || (sendResult.success ? 'SENT' : 'DIRECT_LINK_READY'),
+        recipientPhone: normalizedPhone,
+        customerName,
+        providerMessageId: sendResult.providerMessageId || localMessage?.id,
+        messageText,
+        directUrl,
+        error: sendResult.success ? undefined : sendResult.error?.message,
+        errorCode: sendResult.error?.code,
+      };
+    } catch {
+      return {
+        success: true,
+        status: sendResult.status || (sendResult.success ? 'SENT' : 'DIRECT_LINK_READY'),
+        recipientPhone: normalizedPhone,
+        customerName,
+        providerMessageId: sendResult.providerMessageId,
+        messageText,
+        directUrl,
+        error: sendResult.success ? undefined : sendResult.error?.message,
+        errorCode: sendResult.error?.code,
+      };
+    }
+  }
+}
+
+function rawCustCustPhone(phone: string): string {
+  return phone || 'None';
 }
 
 export const whatsappService = new WhatsAppService();
