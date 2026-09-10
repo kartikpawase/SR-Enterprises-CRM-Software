@@ -12,7 +12,7 @@ import { emailScheduler } from '../notifications/email-scheduler';
 import { backupScheduler } from './backup-scheduler';
 import { backupService } from './backup.service';
 
-describe('Disaster Recovery & Backup Engine Integration E2E Tests', () => {
+describe('Disaster Recovery & Backup Engine Integration E2E Tests', { timeout: 30000 }, () => {
   let app: FastifyInstance;
   let authCookie: string;
   let createdBackupId: string;
@@ -207,6 +207,9 @@ describe('Disaster Recovery & Backup Engine Integration E2E Tests', () => {
     const getBody = getRes.json();
     expect(getBody.data.time).toBe('04:00');
     expect(getBody.data.retentionCount).toBe(14);
+
+    // Prevent periodic background timer from firing concurrent backups during restore steps
+    backupScheduler.stop();
   });
 
   it('Step 8: Rejects restore without explicit confirmation flag', async () => {

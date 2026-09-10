@@ -13,6 +13,7 @@ import {
   payments,
   customerActivities,
   auditLogs,
+  users,
 } from '../../database/schema/index';
 import { generateBusinessNumber } from '../../database/sequences';
 import { generateInvoiceNumber } from '../invoices/invoices.numbering';
@@ -1067,9 +1068,43 @@ export class ServicesRepository {
       parsedScheduledDate = new Date();
     }
 
-    const technicianId = input.technicianId && UUID_REGEX.test(input.technicianId.trim()) ? input.technicianId.trim() : null;
+    let technicianId = input.technicianId && UUID_REGEX.test(input.technicianId.trim()) ? input.technicianId.trim() : null;
+    if (technicianId) {
+      try {
+        const [t] = await db.select({ id: technicians.id }).from(technicians).where(eq(technicians.id, technicianId)).limit(1);
+        if (!t) {
+          const memTech = memoryTechnicians.find((m) => m.id === technicianId) || INITIAL_TECHNICIANS.find((m) => m.id === technicianId);
+          if (memTech) {
+            await db
+              .insert(technicians)
+              .values({
+                id: technicianId,
+                fullName: memTech.fullName || (memTech as any).name || 'Technician',
+                phone: memTech.phone || '9800000000',
+                email: memTech.email || null,
+                status: 'ACTIVE',
+              })
+              .onConflictDoNothing();
+          } else {
+            technicianId = null;
+          }
+        }
+      } catch {
+        // Fallback gracefully
+      }
+    }
     const warrantyId = input.warrantyId && UUID_REGEX.test(input.warrantyId.trim()) ? input.warrantyId.trim() : null;
-    const validCreatedById = createdById && UUID_REGEX.test(createdById.trim()) ? createdById.trim() : null;
+    let validCreatedById = createdById && UUID_REGEX.test(createdById.trim()) ? createdById.trim() : null;
+    if (validCreatedById) {
+      try {
+        const [u] = await db.select({ id: users.id }).from(users).where(eq(users.id, validCreatedById)).limit(1);
+        if (!u) {
+          validCreatedById = null;
+        }
+      } catch {
+        validCreatedById = null;
+      }
+    }
     const initialStatus = technicianId ? 'ASSIGNED' : 'SCHEDULED';
 
     try {

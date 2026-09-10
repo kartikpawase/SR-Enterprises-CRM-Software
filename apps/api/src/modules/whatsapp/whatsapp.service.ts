@@ -476,8 +476,20 @@ Please check the CRM for complete job details.`;
       return { success: false, status: 'FAILED', error: 'Invalid service record' };
     }
 
-    const rawTechPhone = service.technicianPhone || service.technician?.phone || '';
-    const technicianName = service.technicianName || service.technician?.fullName || 'Technician';
+    let rawTechPhone = service.technicianPhone || service.technician?.phone || '';
+    let technicianName = service.technicianName || service.technician?.fullName || 'Technician';
+
+    if (!rawTechPhone && service.technicianId) {
+      try {
+        const { techniciansRepository } = await import('../technicians/technicians.repository');
+        const techRecord = await techniciansRepository.findById(service.technicianId);
+        if (techRecord) {
+          rawTechPhone = techRecord.phone;
+          technicianName = techRecord.fullName || technicianName;
+        }
+      } catch {}
+    }
+
     const normalizedPhone = normalizeWhatsAppPhone(rawTechPhone);
 
     if (!normalizedPhone) {

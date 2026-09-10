@@ -21,15 +21,17 @@ describe('Customer Label / Status Tags Integration Tests', () => {
     await closeDatabaseConnections();
   });
 
+  const runId = Math.floor(100000 + Math.random() * 900000);
+
   it('1. New customer defaults to null (No Label / Unassigned)', async () => {
     const custId = crypto.randomUUID();
     const [created] = await db
       .insert(customers)
       .values({
         id: custId,
-        customerNumber: 'CX-LBL-001',
+        customerNumber: `CX-LBL-${runId}-001`,
         fullName: 'Label Test Customer 1',
-        phone: '9880000001',
+        phone: `98${runId}01`,
         customerType: 'INDIVIDUAL',
         status: 'ACTIVE',
       })
@@ -47,9 +49,9 @@ describe('Customer Label / Status Tags Integration Tests', () => {
     const custId = crypto.randomUUID();
     await db.insert(customers).values({
       id: custId,
-      customerNumber: 'CX-LBL-002',
+      customerNumber: `CX-LBL-${runId}-002`,
       fullName: 'Label Test Customer 2',
-      phone: '9880000002',
+      phone: `98${runId}02`,
       customerType: 'INDIVIDUAL',
       status: 'ACTIVE',
     });
@@ -71,9 +73,9 @@ describe('Customer Label / Status Tags Integration Tests', () => {
     const custId = crypto.randomUUID();
     await db.insert(customers).values({
       id: custId,
-      customerNumber: 'CX-LBL-003',
+      customerNumber: `CX-LBL-${runId}-003`,
       fullName: 'Label Test Customer 3',
-      phone: '9880000003',
+      phone: `98${runId}03`,
       customerType: 'INDIVIDUAL',
       status: 'ACTIVE',
       customerLabel: 'GOOD',
@@ -95,9 +97,9 @@ describe('Customer Label / Status Tags Integration Tests', () => {
     const custId = crypto.randomUUID();
     await db.insert(customers).values({
       id: custId,
-      customerNumber: 'CX-LBL-004',
+      customerNumber: `CX-LBL-${runId}-004`,
       fullName: 'Label Test Customer 4',
-      phone: '9880000004',
+      phone: `98${runId}04`,
       customerType: 'INDIVIDUAL',
       status: 'ACTIVE',
       customerLabel: 'BAD',
@@ -123,27 +125,27 @@ describe('Customer Label / Status Tags Integration Tests', () => {
     await db.insert(customers).values([
       {
         id: custGood,
-        customerNumber: 'CX-FILTER-GOOD',
+        customerNumber: `CX-FLT-${runId}-G`,
         fullName: 'Filter Good Cust',
-        phone: '9881110001',
+        phone: `98${runId}05`,
         customerType: 'INDIVIDUAL',
         status: 'ACTIVE',
         customerLabel: 'GOOD',
       },
       {
         id: custBad,
-        customerNumber: 'CX-FILTER-BAD',
+        customerNumber: `CX-FLT-${runId}-B`,
         fullName: 'Filter Bad Cust',
-        phone: '9881110002',
+        phone: `98${runId}06`,
         customerType: 'INDIVIDUAL',
         status: 'ACTIVE',
         customerLabel: 'BAD',
       },
       {
         id: custNone,
-        customerNumber: 'CX-FILTER-NONE',
+        customerNumber: `CX-FLT-${runId}-N`,
         fullName: 'Filter None Cust',
-        phone: '9881110003',
+        phone: `98${runId}07`,
         customerType: 'INDIVIDUAL',
         status: 'ACTIVE',
         customerLabel: null,

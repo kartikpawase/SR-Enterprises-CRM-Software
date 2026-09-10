@@ -115,6 +115,17 @@ export class ServicesService {
     }
 
     const { jobCardsRepository } = await import('../job-cards/job-cards.repository');
+    const linkedCard = await jobCardsRepository.findByServiceId(serviceId);
+    if (linkedCard) {
+      const res = await whatsappService.notifyTechnicianJobAssignment(linkedCard.id, {
+        forceResend: true,
+        actorUserId: actorId,
+      });
+      if (res.success) {
+        return res;
+      }
+    }
+
     const linkedCards = await jobCardsRepository.findPaginated({
       page: 1,
       limit: 50,

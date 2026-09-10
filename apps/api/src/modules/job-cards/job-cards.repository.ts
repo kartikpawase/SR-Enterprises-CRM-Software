@@ -138,8 +138,8 @@ export class JobCardsRepository {
           .from(jobCards)
           .innerJoin(services, eq(jobCards.serviceId, services.id))
           .innerJoin(customers, eq(jobCards.customerId, customers.id))
-          .innerJoin(customerAssets, eq(jobCards.assetId, customerAssets.id))
-          .innerJoin(products, eq(customerAssets.productId, products.id))
+          .leftJoin(customerAssets, eq(jobCards.assetId, customerAssets.id))
+          .leftJoin(products, eq(customerAssets.productId, products.id))
           .leftJoin(technicians, eq(jobCards.technicianId, technicians.id))
           .where(whereClause)
           .orderBy(orderExpr)
@@ -150,7 +150,7 @@ export class JobCardsRepository {
           .from(jobCards)
           .innerJoin(services, eq(jobCards.serviceId, services.id))
           .innerJoin(customers, eq(jobCards.customerId, customers.id))
-          .innerJoin(customerAssets, eq(jobCards.assetId, customerAssets.id))
+          .leftJoin(customerAssets, eq(jobCards.assetId, customerAssets.id))
           .leftJoin(technicians, eq(jobCards.technicianId, technicians.id))
           .where(whereClause),
       ]);
@@ -254,8 +254,8 @@ export class JobCardsRepository {
         .from(jobCards)
         .innerJoin(services, eq(jobCards.serviceId, services.id))
         .innerJoin(customers, eq(jobCards.customerId, customers.id))
-        .innerJoin(customerAssets, eq(jobCards.assetId, customerAssets.id))
-        .innerJoin(products, eq(customerAssets.productId, products.id))
+        .leftJoin(customerAssets, eq(jobCards.assetId, customerAssets.id))
+        .leftJoin(products, eq(customerAssets.productId, products.id))
         .leftJoin(technicians, eq(jobCards.technicianId, technicians.id))
         .leftJoin(warranties, eq(services.warrantyId, warranties.id))
         .where(eq(jobCards.id, id))
@@ -269,6 +269,27 @@ export class JobCardsRepository {
       return rows[0];
     } catch {
       const mem = memoryJobCards.find((j) => j.id === id);
+      return mem || null;
+    }
+  }
+
+  /**
+   * Find job card linked to a specific service ID
+   */
+  async findByServiceId(serviceId: string, database = db) {
+    try {
+      const rows = await database
+        .select({ id: jobCards.id })
+        .from(jobCards)
+        .where(eq(jobCards.serviceId, serviceId))
+        .limit(1);
+      if (rows[0]?.id) {
+        return await this.findById(rows[0].id, database);
+      }
+      const mem = memoryJobCards.find((j) => j.serviceId === serviceId);
+      return mem || null;
+    } catch {
+      const mem = memoryJobCards.find((j) => j.serviceId === serviceId);
       return mem || null;
     }
   }
@@ -429,13 +450,28 @@ export class JobCardsRepository {
           })
           .where(eq(services.id, existing.serviceId));
 
+        if (!updated) {
+          const target = memoryJobCards.find((j) => j.id === id);
+          if (target) {
+            target.technicianId = input.technicianId;
+            target.status = 'ASSIGNED';
+            target.updatedAt = now;
+            return target;
+          }
+          return {
+            ...existing,
+            technicianId: input.technicianId,
+            status: 'ASSIGNED',
+            updatedAt: now,
+          };
+        }
+
         return updated;
       });
     } catch (err: any) {
-      if (err.statusCode) throw err;
-
       const target = memoryJobCards.find((j) => j.id === id);
       if (!target) {
+        if (err.statusCode) throw err;
         const notFound: any = new Error('Job Card not found');
         notFound.statusCode = 404;
         throw notFound;
@@ -457,6 +493,7 @@ export class JobCardsRepository {
       if (targetSrv) {
         targetSrv.technicianId = input.technicianId;
         targetSrv.technicianName = techName;
+        targetSrv.technicianPhone = techPhone;
         targetSrv.status = 'ASSIGNED';
         targetSrv.updatedAt = new Date();
       }

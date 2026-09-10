@@ -154,9 +154,16 @@ export class RestoreService {
               const keys = Object.keys(row);
               const values = Object.values(row);
               const columns = keys.map((k) => `"${k}"`).join(', ');
-              const formattedValues = values
-                .map((v) => {
+              const formattedValues = keys
+                .map((k) => {
+                  const v = row[k];
                   if (v === null || v === undefined) return 'NULL';
+                  if (table === 'technicians' && k === 'skills') {
+                    if (Array.isArray(v)) {
+                      if (v.length === 0) return 'ARRAY[]::text[]';
+                      return `ARRAY[${v.map((item) => `'${String(item).replace(/'/g, "''")}'`).join(', ')}]::text[]`;
+                    }
+                  }
                   if (typeof v === 'number' || typeof v === 'boolean') return `${v}`;
                   if (typeof v === 'object') return `'${JSON.stringify(v).replace(/'/g, "''")}'`;
                   return `'${String(v).replace(/'/g, "''")}'`;
