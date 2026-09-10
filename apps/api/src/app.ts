@@ -95,8 +95,13 @@ export function buildApp(opts: FastifyServerOptions = {}): FastifyInstance {
       if (!isAllowed) {
         try {
           const parsed = new URL(origin);
-          // Allow Vercel and Render preview/production deployments
-          if (parsed.hostname.endsWith('.vercel.app') || parsed.hostname.endsWith('.onrender.com')) {
+          // Allow Cloudflare Pages, Render, and preview/production deployments
+          if (
+            parsed.hostname.endsWith('.pages.dev') ||
+            parsed.hostname.endsWith('.workers.dev') ||
+            parsed.hostname.endsWith('.onrender.com') ||
+            parsed.hostname.endsWith('.vercel.app')
+          ) {
             isAllowed = true;
           }
         } catch {}

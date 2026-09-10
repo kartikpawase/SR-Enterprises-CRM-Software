@@ -1,0 +1,6 @@
+# Cloudflare Pages Routing & API Reverse Proxy
+# Ensures client-side React Router navigation works seamlessly on Cloudflare Pages
+/api/*  https://sr-enterprises-crm-software.onrender.com/api/:splat  200
+/health https://sr-enterprises-crm-software.onrender.com/health  200
+/ready  https://sr-enterprises-crm-software.onrender.com/ready  200
+/*      /index.html  200

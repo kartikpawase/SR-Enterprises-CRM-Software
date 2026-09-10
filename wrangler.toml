@@ -1,0 +1,10 @@
+# Cloudflare Pages / Workers Configuration for SR Enterprises CRM
+# Documentation: https://developers.cloudflare.com/pages/configuration/wrangler-configuration/
+
+name = "sr-enterprises-crm"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "dist"
+
+[vars]
+BACKEND_URL = "https://sr-enterprises-crm-software.onrender.com"
