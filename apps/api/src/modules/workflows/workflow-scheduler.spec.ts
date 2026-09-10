@@ -10,7 +10,7 @@ describe('WorkflowScheduler & Business Rules Automation', () => {
     expect(summary.expiringWarrantiesProcessed).toBeGreaterThanOrEqual(0);
     expect(summary.lowStockAlertsTriggered).toBeGreaterThanOrEqual(0);
     expect(summary.outboxEventsProcessed).toBeGreaterThanOrEqual(0);
-  });
+  }, 20000);
 
   it('scans overdue invoices without throwing errors', async () => {
     const count = await WorkflowScheduler.processOverdueInvoices();

@@ -23,6 +23,7 @@ import { memoryJobCards } from '../job-cards/job-cards.repository';
 import { memoryInvoices } from '../invoices/invoices.repository';
 import { memoryPayments } from '../payments/payments.repository';
 import { memoryCustomers } from '../customers/customer.repository';
+import { memoryTechnicians, INITIAL_TECHNICIANS } from '../technicians/technicians.repository';
 import type {
   ServiceQueryFilter,
   CreateServiceInput,
@@ -222,6 +223,13 @@ export class ServicesRepository {
         const current = paidByInvoiceId.get(p.invoiceId) || 0;
         paidByInvoiceId.set(p.invoiceId, current + (parseFloat(p.amount) || 0));
       }
+      for (const invId of invoiceIds) {
+        const memPays = memoryPayments.filter((p) => p.invoiceId === invId && p.status === 'COMPLETED');
+        if (memPays.length > 0 && !paidByInvoiceId.has(invId)) {
+          const memPaid = memPays.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+          paidByInvoiceId.set(invId, memPaid);
+        }
+      }
 
       const invoiceMap = new Map<string, any>(
         linkedInvoices.map((inv) => {
@@ -231,7 +239,7 @@ export class ServicesRepository {
           const computedStatus =
             inv.status === 'CANCELLED'
               ? 'CANCELLED'
-              : outstanding <= 0.001 && paid > 0
+              : inv.status === 'PAID' || (outstanding <= 0.001 && paid > 0)
               ? 'PAID'
               : paid > 0
               ? 'PARTIALLY_PAID'
@@ -259,14 +267,26 @@ export class ServicesRepository {
         const paymentStatus =
           total <= 0
             ? 'FREE'
-            : outstanding <= 0.001 && paid > 0
+            : inv?.status === 'PAID' || (outstanding <= 0.001 && paid > 0)
             ? 'PAID'
             : paid > 0
             ? 'PARTIALLY_PAID'
             : 'PENDING';
 
+        let techName = row.technicianName;
+        let techPhone = row.technicianPhone;
+        if (!techName && row.technicianId) {
+          const tech = memoryTechnicians.find((t) => t.id === row.technicianId) || INITIAL_TECHNICIANS.find((t) => t.id === row.technicianId);
+          if (tech) {
+            techName = tech.fullName || tech.name;
+            techPhone = tech.phone;
+          }
+        }
+
         return {
           ...row,
+          technicianName: techName,
+          technicianPhone: techPhone,
           invoice: inv,
           paidAmount: paid.toFixed(2),
           outstandingAmount: outstanding.toFixed(2),
@@ -319,8 +339,44 @@ export class ServicesRepository {
       }
 
       const total = filtered.length;
+      const enrichedMemRows = filtered.slice(offset, offset + limit).map((s) => {
+        const memInv = memoryInvoices.find((i) => i.serviceId === s.id || (s.jobCardId && i.jobCardId === s.jobCardId));
+        const memPays = memInv ? memoryPayments.filter((p) => p.invoiceId === memInv.id && p.status === 'COMPLETED') : [];
+        const paid = memPays.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+        const totalAmount = memInv ? parseFloat(memInv.totalAmount || '0') : parseFloat(s.totalCharges || '0');
+        const outstanding = Math.max(0, totalAmount - paid);
+        const paymentStatus =
+          totalAmount <= 0
+            ? 'FREE'
+            : memInv?.status === 'PAID' || (outstanding <= 0.001 && paid > 0)
+            ? 'PAID'
+            : paid > 0
+            ? 'PARTIALLY_PAID'
+            : 'PENDING';
+
+        let techName = s.technicianName;
+        let techPhone = s.technicianPhone;
+        if (!techName && s.technicianId) {
+          const tech = memoryTechnicians.find((t) => t.id === s.technicianId) || INITIAL_TECHNICIANS.find((t) => t.id === s.technicianId);
+          if (tech) {
+            techName = tech.fullName || tech.name;
+            techPhone = tech.phone;
+          }
+        }
+
+        return {
+          ...s,
+          technicianName: techName,
+          technicianPhone: techPhone,
+          invoice: memInv || null,
+          paidAmount: paid.toFixed(2),
+          outstandingAmount: outstanding.toFixed(2),
+          paymentStatus,
+        };
+      });
+
       return {
-        data: filtered.slice(offset, offset + limit),
+        data: enrichedMemRows,
         pagination: {
           page,
           limit,
@@ -480,7 +536,15 @@ export class ServicesRepository {
             .orderBy(desc(payments.paymentDate))
         : [];
 
-      const validPayments = linkedPayments.filter((p) => p.status === 'COMPLETED');
+      let allPayments = [...linkedPayments];
+      if (invoice) {
+        const memPays = memoryPayments.filter((p) => p.invoiceId === invoice.id);
+        if (allPayments.length === 0 && memPays.length > 0) {
+          allPayments = memPays;
+        }
+      }
+
+      const validPayments = allPayments.filter((p) => p.status === 'COMPLETED');
       const paidAmount = validPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
       const totalAmountNum = invoice
         ? parseFloat(invoice.totalAmount || '0')
@@ -489,7 +553,7 @@ export class ServicesRepository {
       const computedInvoiceStatus =
         invoice?.status === 'CANCELLED'
           ? 'CANCELLED'
-          : outstandingAmount <= 0.001 && paidAmount > 0
+          : invoice?.status === 'PAID' || (outstandingAmount <= 0.001 && paidAmount > 0)
           ? 'PAID'
           : paidAmount > 0
           ? 'PARTIALLY_PAID'
@@ -497,27 +561,39 @@ export class ServicesRepository {
       const paymentStatus =
         totalAmountNum <= 0
           ? 'FREE'
-          : outstandingAmount <= 0.001 && paidAmount > 0
+          : invoice?.status === 'PAID' || computedInvoiceStatus === 'PAID' || (outstandingAmount <= 0.001 && paidAmount > 0)
           ? 'PAID'
           : paidAmount > 0
           ? 'PARTIALLY_PAID'
           : 'PENDING';
 
+      let techName = rows[0].technicianName;
+      let techPhone = rows[0].technicianPhone;
+      if (!techName && rows[0].technicianId) {
+        const tech = memoryTechnicians.find((t) => t.id === rows[0].technicianId) || INITIAL_TECHNICIANS.find((t) => t.id === rows[0].technicianId);
+        if (tech) {
+          techName = tech.fullName || tech.name;
+          techPhone = tech.phone;
+        }
+      }
+
       return {
         ...rows[0],
+        technicianName: techName,
+        technicianPhone: techPhone,
         invoice: invoice
           ? {
               ...invoice,
               status: computedInvoiceStatus,
               paidAmount: paidAmount.toFixed(2),
               outstandingAmount: outstandingAmount.toFixed(2),
-              payments: linkedPayments,
+              payments: allPayments,
             }
           : null,
         paidAmount: paidAmount.toFixed(2),
         outstandingAmount: outstandingAmount.toFixed(2),
         paymentStatus,
-        payments: linkedPayments,
+        payments: allPayments,
       };
     } catch {
       const mem = memoryServices.find((s) => s.id === id);
@@ -533,13 +609,26 @@ export class ServicesRepository {
       const memTotal = memInv ? parseFloat(memInv.totalAmount || '0') : parseFloat(mem.totalCharges || '0');
       const memOutstanding = Math.max(0, memTotal - memPaid);
 
+      let techName = mem.technicianName;
+      let techPhone = mem.technicianPhone;
+      if (!techName && mem.technicianId) {
+        const tech = memoryTechnicians.find((t) => t.id === mem.technicianId) || INITIAL_TECHNICIANS.find((t) => t.id === mem.technicianId);
+        if (tech) {
+          techName = tech.fullName || tech.name;
+          techPhone = tech.phone;
+        }
+      }
+
       return {
         ...mem,
+        technicianName: techName,
+        technicianPhone: techPhone,
         productName: asset?.customName || asset?.productName || 'RO Machine',
         serialNumber: asset?.serialNumber || '',
         invoice: memInv
           ? {
               ...memInv,
+              status: memInv.status === 'PAID' || (memOutstanding <= 0.001 && memPaid > 0) ? 'PAID' : memInv.status,
               paidAmount: memPaid.toFixed(2),
               outstandingAmount: memOutstanding.toFixed(2),
               payments: memPayments,
@@ -550,7 +639,7 @@ export class ServicesRepository {
         paymentStatus:
           memTotal <= 0
             ? 'FREE'
-            : memOutstanding <= 0.001 && memPaid > 0
+            : memInv?.status === 'PAID' || (memOutstanding <= 0.001 && memPaid > 0)
             ? 'PAID'
             : memPaid > 0
             ? 'PARTIALLY_PAID'
@@ -570,11 +659,58 @@ export class ServicesRepository {
     database = db
   ) {
     const now = new Date();
-    const startDate = dateFrom ? new Date(dateFrom) : new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    const endDate = dateTo ? new Date(dateTo) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    let startDate: Date;
+    let endDate: Date;
+
+    if (dateFrom && dateTo) {
+      startDate = new Date(dateFrom);
+      endDate = new Date(dateTo);
+    } else if (period === 'year') {
+      startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+    } else if (period === 'month') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    } else if (period === 'week') {
+      const day = now.getDay();
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - day);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - 3);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now);
+      endDate.setDate(now.getDate() + 3);
+      endDate.setHours(23, 59, 59, 999);
+    }
 
     try {
-      const allServices = await database.select().from(services);
+      const seenIds = new Set<string>();
+      const allServices: any[] = [];
+
+      try {
+        const dbRows = await database.select().from(services);
+        for (const r of dbRows) {
+          if (r && r.id && !seenIds.has(r.id)) {
+            seenIds.add(r.id);
+            allServices.push(r);
+          }
+        }
+      } catch (err) {
+        console.warn('[getHeatmapData] DB query failed, fallback to memory store:', err);
+      }
+
+      for (const m of memoryServices) {
+        if (m && m.id && !seenIds.has(m.id)) {
+          seenIds.add(m.id);
+          allServices.push(m);
+        }
+      }
+
       const map = new Map<string, {
         date_str: string;
         count: number;
@@ -586,15 +722,16 @@ export class ServicesRepository {
       }>();
 
       for (const s of allServices) {
-        if (!s.scheduledDate) continue;
-        const d = new Date(s.scheduledDate);
+        const rawDate = s.scheduledDate || s.completedAt || s.createdAt;
+        if (!rawDate) continue;
+        const d = new Date(rawDate);
         if (isNaN(d.getTime())) continue;
         if (d < startDate || d > endDate) continue;
 
-        const date_str = s.scheduledDate instanceof Date
-          ? s.scheduledDate.toISOString().split('T')[0]
-          : typeof s.scheduledDate === 'string'
-          ? s.scheduledDate.split('T')[0]
+        const date_str = rawDate instanceof Date
+          ? rawDate.toISOString().split('T')[0]
+          : typeof rawDate === 'string'
+          ? rawDate.split('T')[0]
           : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
         if (!map.has(date_str)) {
@@ -1116,11 +1253,27 @@ export class ServicesRepository {
       updateData.status = 'CANCELLED';
     }
 
-    const [updated] = await database
-      .update(services)
-      .set(updateData)
-      .where(eq(services.id, id))
-      .returning();
+    let updated: any = null;
+    try {
+      const [res] = await database
+        .update(services)
+        .set(updateData)
+        .where(eq(services.id, id))
+        .returning();
+      updated = res;
+    } catch (dbErr: any) {
+      console.warn('[ServicesRepository.updateService] DB update notice, using memory fallback:', dbErr?.message);
+    }
+
+    // Always keep memoryServices mirror in sync
+    const memService = memoryServices.find((s) => s.id === id);
+    if (memService) {
+      Object.assign(memService, updateData);
+      if (!updated) updated = memService;
+    } else if (!updated) {
+      updated = { ...existing, ...updateData };
+      memoryServices.unshift(updated);
+    }
 
     if (input.technicianId !== undefined || input.status !== undefined) {
       const jcUpdate: Record<string, any> = { updatedAt: new Date() };
@@ -1137,6 +1290,14 @@ export class ServicesRepository {
           .where(eq(jobCards.serviceId, id));
       } catch (jcErr) {
         console.warn('[ServicesRepository] Job card update notice:', jcErr);
+      }
+
+      // Also sync memoryJobCards
+      const memJob = memoryJobCards.find((j) => j.serviceId === id);
+      if (memJob) {
+        if (input.technicianId !== undefined) memJob.technicianId = input.technicianId;
+        if (input.status !== undefined) memJob.status = input.status;
+        memJob.updatedAt = new Date();
       }
     }
 
@@ -1570,6 +1731,27 @@ export class ServicesRepository {
    * List active technicians for assignment dropdowns
    */
   async listTechnicians(database = db) {
+    const list: any[] = [];
+    const seen = new Set<string>();
+
+    const addTech = (t: any) => {
+      if (!t || !t.id) return;
+      const status = t.status || 'ACTIVE';
+      if (status !== 'ACTIVE') return;
+      if (!seen.has(t.id)) {
+        seen.add(t.id);
+        const name = t.fullName || t.name || 'Technician';
+        list.push({
+          id: t.id,
+          fullName: name,
+          name: name,
+          phone: t.phone || '',
+          email: t.email || '',
+          status: 'ACTIVE',
+        });
+      }
+    };
+
     try {
       const rows = await database
         .select({
@@ -1583,11 +1765,27 @@ export class ServicesRepository {
         .where(eq(technicians.status, 'ACTIVE'))
         .orderBy(asc(technicians.fullName));
 
-      return rows || [];
+      for (const r of rows || []) {
+        addTech(r);
+      }
     } catch (err) {
       console.warn('[ServicesRepository.listTechnicians] DB query notice:', err);
-      return [];
     }
+
+    // Merge in-memory active technicians
+    for (const mt of memoryTechnicians) {
+      addTech(mt);
+    }
+
+    // If completely empty, provide fallback workforce
+    if (list.length === 0) {
+      for (const it of INITIAL_TECHNICIANS) {
+        addTech(it);
+      }
+    }
+
+    list.sort((a, b) => a.fullName.localeCompare(b.fullName));
+    return list;
   }
 }
 

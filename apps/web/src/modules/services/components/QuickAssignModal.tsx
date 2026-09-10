@@ -65,17 +65,27 @@ export const QuickAssignModal: React.FC<QuickAssignModalProps> = ({
 
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-slate-700">Choose Technician</label>
-          <Select
-            options={[
-              { value: '', label: '— Unassign Technician —' },
-              ...(technicians || []).map((t: any) => ({
-                value: t.id,
-                label: `${t.name || t.fullName} (${t.phone})`,
-              })),
-            ]}
-            value={selectedTechId}
-            onChange={(e) => setSelectedTechId(e.target.value)}
-          />
+          {(() => {
+            const techList: any[] = Array.isArray(technicians)
+              ? technicians
+              : Array.isArray((technicians as any)?.data)
+              ? (technicians as any).data
+              : [];
+
+            return (
+              <Select
+                options={[
+                  { value: '', label: '— Unassign Technician —' },
+                  ...techList.map((t: any) => ({
+                    value: t.id,
+                    label: `${t.fullName || t.name} (${t.phone || 'No phone'})`,
+                  })),
+                ]}
+                value={selectedTechId}
+                onChange={(e) => setSelectedTechId(e.target.value)}
+              />
+            );
+          })()}
         </div>
 
         <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">

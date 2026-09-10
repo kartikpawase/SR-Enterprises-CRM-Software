@@ -43,7 +43,7 @@ export const CompleteServiceModal: React.FC<CompleteServiceModalProps> = ({
     },
   ]);
 
-  const [scheduleNextService, setScheduleNextService] = useState(true);
+  const [scheduleNextService, setScheduleNextService] = useState(false);
   const [recommendationMonths, setRecommendationMonths] = useState(3);
   const [paymentOption, setPaymentOption] = useState<'PENDING' | 'FULL' | 'PARTIAL'>('PENDING');
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CHEQUE'>('CASH');

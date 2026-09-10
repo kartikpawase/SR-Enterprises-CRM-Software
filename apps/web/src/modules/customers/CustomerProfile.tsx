@@ -16,6 +16,7 @@ import {
   useCustomerFinancialSummaryQuery,
   useAddCustomerNoteMutation,
   useDeleteCustomerMutation,
+  useCustomerActivitiesQuery,
 } from './customer.api';
 import { usePayments, type PaymentItem } from '../payments/payments.api';
 import { useInvoicesQuery, type InvoiceSummaryData } from '../invoices/invoices.api';
@@ -95,6 +96,7 @@ export const CustomerProfile: React.FC = () => {
   });
   const addNoteMutation = useAddCustomerNoteMutation(id || '');
   const deleteCustomerMutation = useDeleteCustomerMutation(id || '');
+  const { data: customerActivitiesData } = useCustomerActivitiesQuery(id || '');
 
   const [hoveredTrendIndex, setHoveredTrendIndex] = useState<number | null>(null);
 
@@ -1194,9 +1196,24 @@ export const CustomerProfile: React.FC = () => {
                   </div>
                   <div>
                     <div className="text-2xs text-slate-400 font-medium">Last Interaction</div>
-                    <div className="font-bold text-slate-800">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                    <div className="text-2xs text-slate-500 mt-0.5 font-medium">
-                      Service &amp; Maintenance <span className="font-bold text-slate-700">{customerServicesList[0]?.machineName || (customer as any).assets?.[0]?.customName || (customer as any).assets?.[0]?.product?.name || 'RO Water Purifier System'}</span>
+                    <div className="font-bold text-slate-800">
+                      {customerActivitiesData?.data?.[0]?.timestamp
+                        ? new Date(customerActivitiesData.data[0].timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : allCustomerPayments.length > 0
+                        ? new Date(allCustomerPayments[0].paymentDate || allCustomerPayments[0].createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : customerServicesList.length > 0
+                        ? new Date(customerServicesList[0].scheduledDate || customerServicesList[0].createdAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : customer?.createdAt
+                        ? new Date(customer.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : 'No interactions yet'}
+                    </div>
+                    <div className="text-2xs text-slate-500 mt-0.5 font-medium line-clamp-1">
+                      {customerActivitiesData?.data?.[0]?.description ||
+                        (customerServicesList[0]
+                          ? `Service: ${customerServicesList[0].title || 'Maintenance'}`
+                          : customer?.createdAt
+                          ? 'Customer profile registered'
+                          : 'No recent interactions')}
                     </div>
                   </div>
                 </div>

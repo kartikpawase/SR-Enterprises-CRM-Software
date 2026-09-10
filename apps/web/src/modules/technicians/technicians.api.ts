@@ -115,6 +115,7 @@ export function useCreateTechnicianMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['technicians'] });
+      queryClient.invalidateQueries({ queryKey: ['services', 'technicians'] });
     },
   });
 }
@@ -131,6 +132,7 @@ export function useUpdateTechnicianMutation() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['technicians'] });
+      queryClient.invalidateQueries({ queryKey: ['services', 'technicians'] });
       queryClient.invalidateQueries({ queryKey: ['technician', variables.id] });
     },
   });
@@ -148,6 +150,7 @@ export function useDeleteTechnicianMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['technicians'] });
+      queryClient.invalidateQueries({ queryKey: ['services', 'technicians'] });
     },
   });
 }

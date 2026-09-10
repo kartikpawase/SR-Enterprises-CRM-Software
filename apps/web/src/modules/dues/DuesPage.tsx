@@ -54,7 +54,7 @@ export const DuesPage: React.FC = () => {
 
   // Determine which sections to display
   const showDoorstep =
-    (activeCategory === 'ALL' || activeCategory === 'DOORSTEP') &&
+    (activeCategory === 'ALL' || activeCategory === 'DOORSTEP' || activeCategory === 'SERVICES') &&
     (data?.doorstepVisits?.length ?? 0) > 0;
 
   const showServices =

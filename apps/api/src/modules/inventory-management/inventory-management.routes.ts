@@ -50,13 +50,25 @@ export const inventoryManagementRoutes: FastifyPluginAsync = async (fastify) => 
    * Create new inventory item
    */
   fastify.post('/items', async (request, reply) => {
-    const body = CreateInventoryItemSchema.parse(request.body);
-    const item = await inventoryManagementService.createItem(body);
-    return reply.status(HTTP_STATUS.CREATED).send({
-      success: true,
-      data: item,
-      message: 'Inventory item created successfully',
-    });
+    try {
+      const body = CreateInventoryItemSchema.parse(request.body);
+      const item = await inventoryManagementService.createItem(body);
+      return reply.status(HTTP_STATUS.CREATED).send({
+        success: true,
+        data: item,
+        message: 'Inventory item created successfully',
+      });
+    } catch (err: any) {
+      console.error('*** INVENTORY CREATE ITEM ERROR ***', err);
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: err?.message,
+          stack: err?.stack,
+        },
+      });
+    }
   });
 
   /**

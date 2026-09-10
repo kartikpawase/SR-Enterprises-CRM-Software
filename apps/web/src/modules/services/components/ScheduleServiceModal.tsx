@@ -453,17 +453,27 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
         {/* 5. Assigned Technician */}
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-slate-700">Assign Technician (Optional)</label>
-          <Select
-            options={[
-              { value: '', label: '— Unassigned / Assign Later —' },
-              ...(technicians || []).map((t: any) => ({
-                value: t.id,
-                label: `${t.name || t.fullName} (${t.phone})`,
-              })),
-            ]}
-            value={formData.technicianId || ''}
-            onChange={(e) => setFormData((prev) => ({ ...prev, technicianId: e.target.value }))}
-          />
+          {(() => {
+            const techList: any[] = Array.isArray(technicians)
+              ? technicians
+              : Array.isArray((technicians as any)?.data)
+              ? (technicians as any).data
+              : [];
+
+            return (
+              <Select
+                options={[
+                  { value: '', label: '— Unassigned / Assign Later —' },
+                  ...techList.map((t: any) => ({
+                    value: t.id,
+                    label: `${t.fullName || t.name} (${t.phone || 'No phone'})`,
+                  })),
+                ]}
+                value={formData.technicianId || ''}
+                onChange={(e) => setFormData((prev) => ({ ...prev, technicianId: e.target.value }))}
+              />
+            );
+          })()}
         </div>
 
         {/* 6. Customer & Internal Notes */}

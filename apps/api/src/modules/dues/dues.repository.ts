@@ -14,6 +14,9 @@ import {
   invoices,
   serviceSchedules,
 } from '../../database/schema';
+import { memoryServices } from '../services/services.repository';
+import { memoryRentals } from '../rentals/rental.repository';
+import { memoryInvoices } from '../invoices/invoices.repository';
 
 export interface DueServiceItem {
   id: string;
@@ -102,86 +105,130 @@ export class DuesRepository {
     const database = db;
 
     // 1. Query Services and Doorstep visits scheduled on targetDate
-    const rawServices = await database
-      .select({
-        id: services.id,
-        serviceNumber: services.serviceNumber,
-        serviceType: services.serviceType,
-        serviceLocation: services.serviceLocation,
-        serviceClassification: services.serviceClassification,
-        scheduledDate: services.scheduledDate,
-        scheduledTimeSlot: services.scheduledTimeSlot,
-        status: services.status,
-        priority: services.priority,
-        customerNotes: services.customerNotes,
-        internalNotes: services.internalNotes,
-        customerId: customers.id,
-        customerName: customers.fullName,
-        customerPhone: customers.phone,
-        customerNumber: customers.customerNumber,
-        addressLine1: customerAddresses.addressLine1,
-        addressCity: customerAddresses.city,
-        addressPostalCode: customerAddresses.postalCode,
-        productName: sql<string>`COALESCE(${customerAssets.customName}, ${products.name}, 'Water Purifier RO')`,
-        serialNumber: customerAssets.serialNumber,
-        technicianId: technicians.id,
-        technicianName: technicians.fullName,
-        technicianPhone: technicians.phone,
-        jobCardNumber: jobCards.jobCardNumber,
-      })
-      .from(services)
-      .innerJoin(customers, eq(services.customerId, customers.id))
-      .leftJoin(
-        customerAddresses,
-        and(eq(customerAddresses.customerId, customers.id), eq(customerAddresses.isDefault, true))
-      )
-      .leftJoin(customerAssets, eq(services.assetId, customerAssets.id))
-      .leftJoin(products, eq(customerAssets.productId, products.id))
-      .leftJoin(technicians, eq(services.technicianId, technicians.id))
-      .leftJoin(jobCards, eq(services.id, jobCards.serviceId))
-      .where(
-        and(
-          sql`(DATE(${services.scheduledDate} AT TIME ZONE 'Asia/Kolkata') = ${targetDateStr}::date OR DATE(${services.scheduledDate}) = ${targetDateStr}::date)`,
-          notInArray(services.status, ['CANCELLED'])
-        )
-      )
-      .orderBy(sql`${services.scheduledDate} ASC, ${services.serviceNumber} ASC`);
-
     const serviceList: DueServiceItem[] = [];
     const doorstepList: DueServiceItem[] = [];
+    const seenServiceIds = new Set<string>();
 
-    for (const row of rawServices) {
-      const addrStr = [row.addressLine1, row.addressCity, row.addressPostalCode].filter(Boolean).join(', ') || null;
+    try {
+      const rawServices = await database
+        .select({
+          id: services.id,
+          serviceNumber: services.serviceNumber,
+          serviceType: services.serviceType,
+          serviceLocation: services.serviceLocation,
+          serviceClassification: services.serviceClassification,
+          scheduledDate: services.scheduledDate,
+          scheduledTimeSlot: services.scheduledTimeSlot,
+          status: services.status,
+          priority: services.priority,
+          customerNotes: services.customerNotes,
+          internalNotes: services.internalNotes,
+          customerId: customers.id,
+          customerName: customers.fullName,
+          customerPhone: customers.phone,
+          customerNumber: customers.customerNumber,
+          addressLine1: customerAddresses.addressLine1,
+          addressCity: customerAddresses.city,
+          addressPostalCode: customerAddresses.postalCode,
+          productName: sql<string>`COALESCE(${customerAssets.customName}, ${products.name}, 'Water Purifier RO')`,
+          serialNumber: customerAssets.serialNumber,
+          technicianId: technicians.id,
+          technicianName: technicians.fullName,
+          technicianPhone: technicians.phone,
+          jobCardNumber: jobCards.jobCardNumber,
+        })
+        .from(services)
+        .innerJoin(customers, eq(services.customerId, customers.id))
+        .leftJoin(
+          customerAddresses,
+          and(eq(customerAddresses.customerId, customers.id), eq(customerAddresses.isDefault, true))
+        )
+        .leftJoin(customerAssets, eq(services.assetId, customerAssets.id))
+        .leftJoin(products, eq(customerAssets.productId, products.id))
+        .leftJoin(technicians, eq(services.technicianId, technicians.id))
+        .leftJoin(jobCards, eq(services.id, jobCards.serviceId))
+        .where(
+          and(
+            sql`(DATE(${services.scheduledDate} AT TIME ZONE 'Asia/Kolkata') = ${targetDateStr}::date OR DATE(${services.scheduledDate}) = ${targetDateStr}::date)`,
+            notInArray(services.status, ['CANCELLED'])
+          )
+        )
+        .orderBy(sql`${services.scheduledDate} ASC, ${services.serviceNumber} ASC`);
 
-      const item: DueServiceItem = {
-        id: row.id,
-        serviceNumber: row.serviceNumber,
-        customerId: row.customerId,
-        customerName: row.customerName,
-        customerPhone: row.customerPhone,
-        customerNumber: row.customerNumber,
-        serviceType: row.serviceType,
-        serviceLocation: row.serviceLocation,
-        serviceClassification: row.serviceClassification,
-        machineModel: row.productName,
-        machineSerialNumber: row.serialNumber,
-        scheduledDate: row.scheduledDate instanceof Date ? row.scheduledDate.toISOString() : String(row.scheduledDate),
-        scheduledTimeSlot: row.scheduledTimeSlot,
-        technicianId: row.technicianId,
-        technicianName: row.technicianName,
-        technicianPhone: row.technicianPhone,
-        status: row.status,
-        priority: row.priority,
-        customerNotes: row.customerNotes,
-        internalNotes: row.internalNotes,
-        address: addrStr,
-        jobCardNumber: row.jobCardNumber,
-      };
+      for (const row of rawServices) {
+        seenServiceIds.add(row.id);
+        const addrStr = [row.addressLine1, row.addressCity, row.addressPostalCode].filter(Boolean).join(', ') || null;
 
-      if (row.serviceLocation === 'DOORSTEP') {
-        doorstepList.push(item);
-      } else {
-        serviceList.push(item);
+        const item: DueServiceItem = {
+          id: row.id,
+          serviceNumber: row.serviceNumber,
+          customerId: row.customerId,
+          customerName: row.customerName,
+          customerPhone: row.customerPhone,
+          customerNumber: row.customerNumber,
+          serviceType: row.serviceType,
+          serviceLocation: row.serviceLocation,
+          serviceClassification: row.serviceClassification,
+          machineModel: row.productName,
+          machineSerialNumber: row.serialNumber,
+          scheduledDate: row.scheduledDate instanceof Date ? row.scheduledDate.toISOString() : String(row.scheduledDate),
+          scheduledTimeSlot: row.scheduledTimeSlot,
+          technicianId: row.technicianId,
+          technicianName: row.technicianName,
+          technicianPhone: row.technicianPhone,
+          status: row.status,
+          priority: row.priority,
+          customerNotes: row.customerNotes,
+          internalNotes: row.internalNotes,
+          address: addrStr,
+          jobCardNumber: row.jobCardNumber,
+        };
+
+        if (row.serviceLocation === 'DOORSTEP') {
+          doorstepList.push(item);
+        } else {
+          serviceList.push(item);
+        }
+      }
+    } catch (err) {
+      console.warn('[DuesRepository.getDuesForDate] rawServices DB notice:', err);
+    }
+
+    for (const m of memoryServices) {
+      if (!m || !m.id || seenServiceIds.has(m.id)) continue;
+      if (m.status === 'CANCELLED') continue;
+      const mDateStr = m.scheduledDate instanceof Date ? m.scheduledDate.toISOString().split('T')[0] : typeof m.scheduledDate === 'string' ? m.scheduledDate.split('T')[0] : '';
+      if (mDateStr === targetDateStr) {
+        seenServiceIds.add(m.id);
+        const item: DueServiceItem = {
+          id: m.id,
+          serviceNumber: m.serviceNumber || 'SRV-MEM',
+          customerId: m.customerId,
+          customerName: m.customerName || (m as any).customer?.fullName || 'Customer',
+          customerPhone: m.customerPhone || (m as any).customer?.phone || '',
+          customerNumber: m.customerNumber || (m as any).customer?.customerNumber || '',
+          serviceType: m.serviceType || 'PERIODIC_MAINTENANCE',
+          serviceLocation: m.serviceLocation || 'DOORSTEP',
+          serviceClassification: m.serviceClassification || 'GENERAL',
+          machineModel: m.productName || 'Water Purifier RO',
+          machineSerialNumber: m.serialNumber || null,
+          scheduledDate: m.scheduledDate instanceof Date ? m.scheduledDate.toISOString() : String(m.scheduledDate),
+          scheduledTimeSlot: m.scheduledTimeSlot || null,
+          technicianId: m.technicianId || null,
+          technicianName: m.technicianName || null,
+          technicianPhone: m.technicianPhone || null,
+          status: m.status || 'SCHEDULED',
+          priority: m.priority || 'NORMAL',
+          customerNotes: m.customerNotes || null,
+          internalNotes: m.internalNotes || null,
+          address: m.address || null,
+          jobCardNumber: m.jobCardNumber || null,
+        };
+        if (m.serviceLocation === 'DOORSTEP') {
+          doorstepList.push(item);
+        } else {
+          serviceList.push(item);
+        }
       }
     }
 
@@ -374,7 +421,7 @@ export class DuesRepository {
       selectedDate: targetDateStr,
       summary: {
         totalActivities,
-        servicesCount: serviceList.length,
+        servicesCount: serviceList.length + doorstepList.length,
         doorstepVisitsCount: doorstepList.length,
         rentalPaymentsCount: rentalList.length,
         otherActivitiesCount: otherList.length,
@@ -400,23 +447,35 @@ export class DuesRepository {
     const dateCounts: Record<string, number> = {};
 
     // 1. Service dates in month
-    const srvRows = await db
-      .select({
-        dateStr: sql<string>`DATE(${services.scheduledDate} AT TIME ZONE 'Asia/Kolkata')::text`,
-        count: sql<number>`count(*)`,
-      })
-      .from(services)
-      .where(
-        and(
-          sql`DATE(${services.scheduledDate} AT TIME ZONE 'Asia/Kolkata') BETWEEN ${startStr}::date AND ${endStr}::date`,
-          notInArray(services.status, ['CANCELLED'])
+    try {
+      const srvRows = await db
+        .select({
+          dateStr: sql<string>`DATE(${services.scheduledDate} AT TIME ZONE 'Asia/Kolkata')::text`,
+          count: sql<number>`count(*)`,
+        })
+        .from(services)
+        .where(
+          and(
+            sql`DATE(${services.scheduledDate} AT TIME ZONE 'Asia/Kolkata') BETWEEN ${startStr}::date AND ${endStr}::date`,
+            notInArray(services.status, ['CANCELLED'])
+          )
         )
-      )
-      .groupBy(sql`DATE(${services.scheduledDate} AT TIME ZONE 'Asia/Kolkata')`);
+        .groupBy(sql`DATE(${services.scheduledDate} AT TIME ZONE 'Asia/Kolkata')`);
 
-    for (const r of srvRows) {
-      if (r.dateStr) {
-        dateCounts[r.dateStr] = (dateCounts[r.dateStr] || 0) + Number(r.count || 0);
+      for (const r of srvRows) {
+        if (r.dateStr) {
+          dateCounts[r.dateStr] = (dateCounts[r.dateStr] || 0) + Number(r.count || 0);
+        }
+      }
+    } catch (err) {
+      console.warn('[DuesRepository.getMonthSummary] srvRows DB notice:', err);
+    }
+
+    for (const m of memoryServices) {
+      if (!m || m.status === 'CANCELLED') continue;
+      const dStr = m.scheduledDate instanceof Date ? m.scheduledDate.toISOString().split('T')[0] : typeof m.scheduledDate === 'string' ? m.scheduledDate.split('T')[0] : '';
+      if (dStr >= startStr && dStr <= endStr) {
+        dateCounts[dStr] = (dateCounts[dStr] || 0) + 1;
       }
     }
 

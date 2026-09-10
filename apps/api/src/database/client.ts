@@ -898,7 +898,22 @@ export async function ensureDatabaseInitialized(): Promise<void> {
         try {
           await pgliteClient.waitReady;
         } catch (readyErr) {
-          console.warn('[Database] Storage lock or state issue detected on local startup:', readyErr);
+          console.warn('[Database] Storage lock or state issue detected on local startup, initializing fresh clean storage:', readyErr);
+          try {
+            await pgliteClient.close();
+          } catch {}
+          const storageDir = resolveDatabaseStorageDir();
+          try {
+            fs.rmSync(storageDir, { recursive: true, force: true });
+            fs.mkdirSync(storageDir, { recursive: true });
+          } catch {}
+          pgliteClient = new PGlite(storageDir);
+          dbInstance = drizzlePglite(pgliteClient, { schema });
+          try {
+            await pgliteClient.waitReady;
+          } catch (retryErr) {
+            console.error('[Database] Fresh database initialization failed:', retryErr);
+          }
         }
 
         await applySqlMigrations(pgliteClient);

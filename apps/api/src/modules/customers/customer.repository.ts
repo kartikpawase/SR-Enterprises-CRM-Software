@@ -434,6 +434,12 @@ export class CustomerRepository {
         orderBy: desc(services.scheduledDate),
       });
     } catch {}
+    if (servicesList.length === 0) {
+      try {
+        const dbServices = await database.select().from(services).where(eq(services.customerId, id)).orderBy(desc(services.scheduledDate));
+        if (dbServices.length > 0) servicesList = dbServices;
+      } catch {}
+    }
     const memServices = memoryServices.filter((s) => s.customerId === id);
     if (servicesList.length === 0) {
       servicesList = customer.services && customer.services.length > 0 ? customer.services : memServices;
@@ -448,6 +454,12 @@ export class CustomerRepository {
         orderBy: desc(invoices.invoiceDate),
       });
     } catch {}
+    if (invoicesList.length === 0) {
+      try {
+        const dbInvs = await database.select().from(invoices).where(eq(invoices.customerId, id)).orderBy(desc(invoices.invoiceDate));
+        if (dbInvs.length > 0) invoicesList = dbInvs;
+      } catch {}
+    }
     const memInvoices = memoryInvoices.filter((i) => i.customerId === id);
     if (invoicesList.length === 0) {
       invoicesList = customer.invoices && customer.invoices.length > 0 ? customer.invoices : memInvoices;
@@ -462,6 +474,12 @@ export class CustomerRepository {
         orderBy: desc(payments.paymentDate),
       });
     } catch {}
+    if (paymentsList.length === 0) {
+      try {
+        const dbPays = await database.select().from(payments).where(eq(payments.customerId, id)).orderBy(desc(payments.paymentDate));
+        if (dbPays.length > 0) paymentsList = dbPays;
+      } catch {}
+    }
     const memPayments = memoryPayments.filter((p) => p.customerId === id);
     if (paymentsList.length === 0) {
       paymentsList = customer.payments && customer.payments.length > 0 ? customer.payments : memPayments;
@@ -476,6 +494,12 @@ export class CustomerRepository {
         orderBy: desc(warranties.endDate),
       });
     } catch {}
+    if (warrantiesList.length === 0) {
+      try {
+        const dbWarr = await database.select().from(warranties).where(eq(warranties.customerId, id)).orderBy(desc(warranties.endDate));
+        if (dbWarr.length > 0) warrantiesList = dbWarr;
+      } catch {}
+    }
     const memWarranties = memoryWarranties.filter((w) => w.customerId === id);
     if (warrantiesList.length === 0) {
       warrantiesList = customer.warranties && customer.warranties.length > 0 ? customer.warranties : memWarranties;
@@ -494,6 +518,12 @@ export class CustomerRepository {
         },
       });
     } catch {}
+    if (salesList.length === 0) {
+      try {
+        const dbSales = await database.select().from(sales).where(eq(sales.customerId, id)).orderBy(desc(sales.createdAt));
+        if (dbSales.length > 0) salesList = dbSales;
+      } catch {}
+    }
     const memSales = memorySales.filter((s) => s.customerId === id);
     if (salesList.length === 0) {
       salesList = customer.sales && customer.sales.length > 0 ? customer.sales : memSales;
@@ -508,6 +538,12 @@ export class CustomerRepository {
         orderBy: desc(rentals.createdAt),
       });
     } catch {}
+    if (rentalsList.length === 0) {
+      try {
+        const dbRent = await database.select().from(rentals).where(eq(rentals.customerId, id)).orderBy(desc(rentals.createdAt));
+        if (dbRent.length > 0) rentalsList = dbRent;
+      } catch {}
+    }
     const memRentals = memoryRentals.filter((r) => r.customerId === id);
     if (rentalsList.length === 0) {
       rentalsList = customer.rentals && customer.rentals.length > 0 ? customer.rentals : memRentals;
@@ -1563,40 +1599,171 @@ export class CustomerRepository {
    */
   async getCustomerActivities(customerId: string, page = 1, limit = 50, database = db) {
     const offset = (page - 1) * limit;
+    const combined: any[] = [];
+    const seen = new Set<string>();
+
+    const addAct = (a: any) => {
+      if (!a) return;
+      const key = a.id || `${a.eventType}-${a.entityId}-${a.timestamp}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        combined.push({
+          id: a.id || `act-${Math.random().toString(36).slice(2, 9)}`,
+          customerId: a.customerId || customerId,
+          eventType: a.eventType || 'ACTIVITY',
+          entityType: a.entityType || 'CUSTOMER',
+          entityId: a.entityId || a.id || customerId,
+          description: a.description || 'Activity recorded',
+          actorName: a.actorName || (a.metadata as any)?.actorName || 'Staff',
+          timestamp: a.timestamp instanceof Date ? a.timestamp.toISOString() : (a.timestamp || a.createdAt || new Date().toISOString()),
+          metadata: a.metadata || null,
+        });
+      }
+    };
+
+    // 1. Direct select from customerActivities table
     try {
-      const [totalRec] = await database
-        .select({ total: count() })
+      const dbActivities = await database
+        .select()
         .from(customerActivities)
-        .where(eq(customerActivities.customerId, customerId));
-
-      const records = await database.query.customerActivities.findMany({
-        where: eq(customerActivities.customerId, customerId),
-        orderBy: desc(customerActivities.timestamp),
-        limit,
-        offset,
-      });
-
-      return {
-        data: records || [],
-        pagination: {
-          page,
-          pageSize: limit,
-          total: Number(totalRec?.total || records?.length || 0),
-        },
-      };
+        .where(eq(customerActivities.customerId, customerId))
+        .orderBy(desc(customerActivities.timestamp))
+        .limit(100);
+      dbActivities.forEach(addAct);
     } catch (err: any) {
-      console.warn('[CustomerRepository.getCustomerActivities] DB notice:', err?.message);
-      const mem = memoryCustomers.find((c) => c.id === customerId);
-      const data = mem?.activities || [];
-      return {
-        data: data.slice(offset, offset + limit),
-        pagination: {
-          page,
-          pageSize: limit,
-          total: data.length,
-        },
-      };
+      console.warn('[CustomerRepository.getCustomerActivities] DB select notice:', err?.message);
     }
+
+    // 2. Synthesize activities from Customer's Sales
+    try {
+      const custSales = await database
+        .select()
+        .from(sales)
+        .where(eq(sales.customerId, customerId))
+        .orderBy(desc(sales.saleDate))
+        .limit(20);
+      custSales.forEach((s) => {
+        addAct({
+          id: `sale-act-${s.id}`,
+          customerId,
+          eventType: 'SALE_RECORDED',
+          entityType: 'SALE',
+          entityId: s.id,
+          description: `Sale ${s.saleNumber} completed for ₹${parseFloat(s.totalAmount || '0').toFixed(2)}`,
+          actorName: 'Sales Rep',
+          timestamp: s.saleDate || s.createdAt,
+          metadata: { saleNumber: s.saleNumber, totalAmount: s.totalAmount },
+        });
+      });
+    } catch {}
+
+    memorySales.filter((s) => s.customerId === customerId).forEach((s) => {
+      addAct({
+        id: `sale-act-${s.id}`,
+        customerId,
+        eventType: 'SALE_RECORDED',
+        entityType: 'SALE',
+        entityId: s.id,
+        description: `Sale ${s.saleNumber} completed for ₹${parseFloat(s.totalAmount || '0').toFixed(2)}`,
+        actorName: 'Sales Rep',
+        timestamp: s.saleDate || s.createdAt,
+        metadata: { saleNumber: s.saleNumber, totalAmount: s.totalAmount },
+      });
+    });
+
+    // 3. Synthesize activities from Customer's Payments
+    try {
+      const custPayments = await database
+        .select()
+        .from(payments)
+        .where(eq(payments.customerId, customerId))
+        .orderBy(desc(payments.paymentDate))
+        .limit(20);
+      custPayments.forEach((p) => {
+        addAct({
+          id: `pay-act-${p.id}`,
+          customerId,
+          eventType: 'PAYMENT_RECEIVED',
+          entityType: 'PAYMENT',
+          entityId: p.id,
+          description: `Payment ${p.paymentNumber} received: ₹${parseFloat(p.amount || '0').toFixed(2)} (${p.paymentMethod})`,
+          actorName: 'Cashier / Accounts',
+          timestamp: p.paymentDate || p.createdAt,
+          metadata: { paymentNumber: p.paymentNumber, amount: p.amount, method: p.paymentMethod },
+        });
+      });
+    } catch {}
+
+    memoryPayments.filter((p) => p.customerId === customerId).forEach((p) => {
+      addAct({
+        id: `pay-act-${p.id}`,
+        customerId,
+        eventType: 'PAYMENT_RECEIVED',
+        entityType: 'PAYMENT',
+        entityId: p.id,
+        description: `Payment ${p.paymentNumber} received: ₹${parseFloat(p.amount || '0').toFixed(2)} (${p.paymentMethod})`,
+        actorName: 'Cashier / Accounts',
+        timestamp: p.paymentDate || p.createdAt,
+        metadata: { paymentNumber: p.paymentNumber, amount: p.amount, method: p.paymentMethod },
+      });
+    });
+
+    // 4. Synthesize activities from Customer's Services
+    try {
+      const custServices = await database
+        .select()
+        .from(services)
+        .where(eq(services.customerId, customerId))
+        .orderBy(desc(services.scheduledDate))
+        .limit(20);
+      custServices.forEach((s) => {
+        addAct({
+          id: `srv-act-${s.id}`,
+          customerId,
+          eventType: s.status === 'COMPLETED' ? 'SERVICE_COMPLETED' : 'SERVICE_SCHEDULED',
+          entityType: 'SERVICE',
+          entityId: s.id,
+          description: `Service ${s.serviceNumber} (${s.serviceType || 'Maintenance'}) - Status: ${s.status}`,
+          actorName: 'Service Desk',
+          timestamp: s.completedAt || s.scheduledDate || s.createdAt,
+          metadata: { serviceNumber: s.serviceNumber, status: s.status },
+        });
+      });
+    } catch {}
+
+    memoryServices.filter((s) => s.customerId === customerId).forEach((s) => {
+      addAct({
+        id: `srv-act-${s.id}`,
+        customerId,
+        eventType: s.status === 'COMPLETED' ? 'SERVICE_COMPLETED' : 'SERVICE_SCHEDULED',
+        entityType: 'SERVICE',
+        entityId: s.id,
+        description: `Service ${s.serviceNumber} (${s.serviceType || 'Maintenance'}) - Status: ${s.status}`,
+        actorName: 'Service Desk',
+        timestamp: s.completedAt || s.scheduledDate || s.createdAt,
+        metadata: { serviceNumber: s.serviceNumber, status: s.status },
+      });
+    });
+
+    // 5. Check memoryCustomers activities
+    const mem = memoryCustomers.find((c) => c.id === customerId);
+    if (mem?.activities) {
+      mem.activities.forEach(addAct);
+    }
+
+    // Sort descending by timestamp
+    combined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    const paginated = combined.slice(offset, offset + limit);
+
+    return {
+      data: paginated,
+      pagination: {
+        page,
+        pageSize: limit,
+        total: combined.length,
+      },
+    };
   }
 
   /**

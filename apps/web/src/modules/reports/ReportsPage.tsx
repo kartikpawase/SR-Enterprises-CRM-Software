@@ -19,6 +19,7 @@ import { useJobCardsQuery } from '../job-cards/job-cards.api';
 import { useTechniciansQuery } from '../technicians/technicians.api';
 import { useProductsQuery, useSalesQuery } from '../sales/sales.api';
 import { useWarrantiesQuery } from '../warranties/warranties.api';
+import { useServicesQuery } from '../services/services.api';
 import { ReportsHeader } from './components/ReportsHeader';
 import { ReportControlBar } from './components/ReportControlBar';
 import { ReportKpiGrid } from './components/ReportKpiGrid';
@@ -152,6 +153,7 @@ export const ReportsPage: React.FC = () => {
     datePreset: filters.datePreset === 'custom' ? undefined : (filters.datePreset as any),
   });
   const { data: warrantiesData, isLoading: isWarrantiesLoading, refetch: refetchWarranties } = useWarrantiesQuery({ page: 1, limit: 100 });
+  const { data: servicesData, refetch: refetchServices } = useServicesQuery({ page: 1, limit: 100 });
 
   // 2. High-level Analytics Overview Query
   const { data: overview, isLoading: isOverviewLoading, refetch: refetchOverview } = useAnalyticsOverview(apiFilter);
@@ -168,6 +170,7 @@ export const ReportsPage: React.FC = () => {
         refetchCustomers(),
         refetchInvoices(),
         refetchJobCards(),
+        refetchServices(),
         refetchTechnicians(),
         refetchProducts(),
         refetchSales(),
@@ -220,9 +223,11 @@ export const ReportsPage: React.FC = () => {
   const realTotalSalesAmount = overview?.sales?.totalSalesAmount ?? realSalesList.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
 
   const realJobCardsList = jobCardsData?.data ?? [];
-  const realTotalServices = overview?.services?.totalServices ?? jobCardsData?.pagination?.total ?? realJobCardsList.length;
-  const realCompletedServices = overview?.services?.completedServices ?? realJobCardsList.filter((j: any) => j.status === 'COMPLETED').length;
-  const realPendingServices = overview?.services?.pendingServices ?? realJobCardsList.filter((j: any) => j.status !== 'COMPLETED').length;
+  const realServicesList = servicesData?.data ?? [];
+  const combinedServicesCount = Math.max(realServicesList.length, realJobCardsList.length);
+  const realTotalServices = overview?.services?.totalServices ?? (combinedServicesCount > 0 ? combinedServicesCount : jobCardsData?.pagination?.total ?? 0);
+  const realCompletedServices = overview?.services?.completedServices ?? (realServicesList.filter((s: any) => s.status === 'COMPLETED').length || realJobCardsList.filter((j: any) => j.status === 'COMPLETED').length);
+  const realPendingServices = overview?.services?.pendingServices ?? Math.max(0, realTotalServices - realCompletedServices);
 
   const realTechniciansList = techniciansData?.data ?? [];
   const realActiveTechnicians = overview?.technicians?.activeTechniciansCount ?? realTechniciansList.filter((t: any) => t.status === 'ACTIVE').length;

@@ -185,14 +185,18 @@ export function useServiceHeatmapQuery(
  */
 export function useTechniciansQuery() {
   return useQuery({
-    queryKey: ['technicians'],
+    queryKey: ['services', 'technicians'],
     queryFn: async () => {
       const response = await apiClient.get<TechnicianItem[]>(
         '/services/technicians'
       );
-      return (response as any)?.data?.data ?? response?.data ?? response;
+      const res = (response as any)?.data;
+      if (Array.isArray(res)) return res;
+      if (Array.isArray(res?.data)) return res.data;
+      if (Array.isArray(response)) return response;
+      return [];
     },
-    staleTime: 300_000,
+    staleTime: 10_000,
   });
 }
 
