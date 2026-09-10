@@ -18,6 +18,7 @@ vi.mock('../../middleware/auth', () => ({
 
 vi.mock('../../middleware/rbac', () => ({
   requirePermission: () => async () => {},
+  requireRole: (..._roles: any[]) => async () => {},
   getRolePermissionKeys: async () => new Set(['system.backup', 'system.restore', 'data.export.all']),
   invalidateRolePermissionCache: () => {},
 }));
