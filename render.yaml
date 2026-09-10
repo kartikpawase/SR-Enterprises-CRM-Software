@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm install -g pnpm && pnpm install --frozen-lockfile
+    buildCommand: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm --filter @crm/web build
     startCommand: pnpm --filter @crm/api start
     healthCheckPath: /health
     autoDeploy: true
@@ -22,6 +22,8 @@ services:
       - key: SUPABASE_STORAGE_BUCKET
         value: crm-documents
       - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
         sync: false
       - key: SUPABASE_URL
         sync: false

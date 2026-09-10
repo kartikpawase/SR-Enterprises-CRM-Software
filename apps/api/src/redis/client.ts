@@ -149,7 +149,9 @@ class InMemoryRedisFallback {
   disconnect() {}
 }
 
-const inMemoryFallback = new InMemoryRedisFallback();
+const inMemoryFallback: InMemoryRedisFallback =
+  (globalThis as any).__crm_redis_fallback__ || new InMemoryRedisFallback();
+(globalThis as any).__crm_redis_fallback__ = inMemoryFallback;
 
 /**
  * Resilient Redis proxy that seamlessly falls back to in-memory store if Redis is unavailable
@@ -161,13 +163,14 @@ class ResilientRedisProxy {
   constructor() {
     try {
       this.client = new Redis(env.REDIS_URL, {
-        maxRetriesPerRequest: null,
+        maxRetriesPerRequest: 1,
+        enableOfflineQueue: false,
         connectTimeout: 5000,
         retryStrategy(times) {
           if (env.NODE_ENV === 'test') {
             return null;
           }
-          return Math.min(times * 150, 3000);
+          return Math.min(times * 250, 3000);
         },
         lazyConnect: false,
       });
@@ -231,7 +234,21 @@ class ResilientRedisProxy {
 
   async getdel(key: string): Promise<string | null> {
     return this.execute(
-      (c) => (c as any).getdel(key),
+      async (c) => {
+        try {
+          return await (c as any).getdel(key);
+        } catch (err: any) {
+          // If Redis server does not support GETDEL (e.g. Redis < 6.2), fallback to atomic pipeline get + del
+          if (err?.message?.includes?.('unknown command')) {
+            const pipe = c.pipeline();
+            pipe.get(key);
+            pipe.del(key);
+            const res = await pipe.exec();
+            return (res?.[0]?.[1] as string) ?? null;
+          }
+          throw err;
+        }
+      },
       () => inMemoryFallback.getdel(key)
     );
   }

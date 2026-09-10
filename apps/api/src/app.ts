@@ -67,10 +67,13 @@ export function buildApp(opts: FastifyServerOptions = {}): FastifyInstance {
     crossOriginResourcePolicy: { policy: 'same-site' },
   });
 
-  // 2. CORS: Production-safe validation allowing Vercel frontend & configured origins
+  // 2. CORS: Production-safe validation allowing Vercel & Render frontends & configured origins
   const allowedOrigins = new Set<string>();
   if (env.WEB_URL) {
     allowedOrigins.add(env.WEB_URL.replace(/\/+$/, ''));
+  }
+  if (process.env.RENDER_EXTERNAL_URL) {
+    allowedOrigins.add(process.env.RENDER_EXTERNAL_URL.replace(/\/+$/, ''));
   }
   if (env.CORS_ALLOWED_ORIGINS) {
     env.CORS_ALLOWED_ORIGINS.split(',')
@@ -92,8 +95,8 @@ export function buildApp(opts: FastifyServerOptions = {}): FastifyInstance {
       if (!isAllowed) {
         try {
           const parsed = new URL(origin);
-          // Allow Vercel preview/production deployments
-          if (parsed.hostname.endsWith('.vercel.app')) {
+          // Allow Vercel and Render preview/production deployments
+          if (parsed.hostname.endsWith('.vercel.app') || parsed.hostname.endsWith('.onrender.com')) {
             isAllowed = true;
           }
         } catch {}
