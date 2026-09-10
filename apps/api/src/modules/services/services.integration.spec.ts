@@ -3,12 +3,14 @@ import { db, ensureDatabaseInitialized, closeDatabaseConnections } from '../../d
 import { servicesRepository } from './services.repository';
 import { emailService } from '../notifications/email.service';
 import { emailScheduler } from '../notifications/email-scheduler';
-import { customers, customerAssets, products, services, jobCards } from '../../database/schema/index';
+import { customers, customerAssets, products, services, jobCards, technicians } from '../../database/schema/index';
 import { eq, sql } from 'drizzle-orm';
 
 describe('Services Scheduling & Reminder Integration Tests', () => {
   beforeAll(async () => {
     await ensureDatabaseInitialized();
+    const { seedInitialSystemData } = await import('../../database/seeds/initial');
+    await seedInitialSystemData();
   });
 
   afterAll(async () => {
@@ -61,7 +63,16 @@ describe('Services Scheduling & Reminder Integration Tests', () => {
     expect(testAsset).toBeDefined();
 
     // 3. Get technician
-    const techs = await servicesRepository.listTechnicians();
+    let techs = await servicesRepository.listTechnicians();
+    if (techs.length === 0) {
+      const [newTech] = await db.insert(technicians).values({
+        fullName: 'Rohan Shinde',
+        phone: '9822334455',
+        email: 'rohan.shinde@srenterprises.com',
+        status: 'ACTIVE',
+      }).returning();
+      techs = [newTech];
+    }
     expect(techs.length).toBeGreaterThan(0);
     const tech = techs[0];
 
