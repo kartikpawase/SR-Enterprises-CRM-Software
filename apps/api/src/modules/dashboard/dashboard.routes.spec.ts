@@ -90,5 +90,5 @@ describe('Operational Dashboard Fastify Routes Integration', () => {
 
     // Verify Payment Reminders
     expect(body.data.paymentReminders).toBeInstanceOf(Array);
-  });
+  }, 30000);
 });

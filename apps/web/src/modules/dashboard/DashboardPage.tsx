@@ -121,22 +121,30 @@ export const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
-    apiClient
-      .get<DashboardData>('/dashboard/overview')
-      .then((res: any) => {
-        if (!isMounted) return;
-        const payload = res?.data?.data || res?.data || res;
-        if (payload && payload.cards) {
-          cachedDashboardData = payload;
-          setData(payload);
-        }
-      })
-      .catch(() => {
-        // Retain operational state seamlessly
-      });
+    const fetchOverview = () => {
+      apiClient
+        .get<DashboardData>('/dashboard/overview')
+        .then((res: any) => {
+          if (!isMounted) return;
+          const payload = res?.data?.data || res?.data || res;
+          if (payload && payload.cards) {
+            cachedDashboardData = payload;
+            setData(payload);
+          }
+        })
+        .catch(() => {
+          // Retain operational state seamlessly
+        });
+    };
+
+    fetchOverview();
+    const interval = setInterval(fetchOverview, 15000);
+    window.addEventListener('focus', fetchOverview);
 
     return () => {
       isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', fetchOverview);
     };
   }, []);
 
