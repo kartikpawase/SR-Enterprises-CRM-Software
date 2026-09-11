@@ -90,6 +90,7 @@ export interface RecordRentalReturnInput {
 }
 
 export const memoryRentals: any[] = [];
+export const memoryRentalPayments: any[] = [];
 
 async function attachCustomerDetails(rental: any, database = db) {
   if (!rental) return rental;
@@ -812,6 +813,8 @@ export class RentalRepository {
         updatedAt: new Date(),
       };
 
+      memoryRentalPayments.unshift(newPayment);
+
       return {
         payment: newPayment,
         rental: await attachCustomerDetails(rental, database),
@@ -885,137 +888,186 @@ export class RentalRepository {
       conditions.push(lte(rentalPayments.paymentDate, new Date(filters.endDate)));
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    try {
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Total Count
-    const countResult = await database
-      .select({ count: count() })
-      .from(rentalPayments)
-      .leftJoin(rentals, eq(rentalPayments.rentalId, rentals.id))
-      .leftJoin(customers, eq(rentalPayments.customerId, customers.id))
-      .where(whereClause);
+      // Total Count
+      const countResult = await database
+        .select({ count: count() })
+        .from(rentalPayments)
+        .leftJoin(rentals, eq(rentalPayments.rentalId, rentals.id))
+        .leftJoin(customers, eq(rentalPayments.customerId, customers.id))
+        .where(whereClause);
 
-    const total = Number(countResult[0]?.count || 0);
+      const total = Number(countResult[0]?.count || 0);
 
-    // Records
-    const rows = await database
-      .select({
-        id: rentalPayments.id,
-        rentalId: rentalPayments.rentalId,
-        customerId: rentalPayments.customerId,
-        amount: rentalPayments.amount,
-        paymentDate: rentalPayments.paymentDate,
-        paymentMethod: rentalPayments.paymentMethod,
-        paymentType: rentalPayments.paymentType,
-        receiptNumber: rentalPayments.receiptNumber,
-        referenceNumber: rentalPayments.referenceNumber,
-        periodStartDate: rentalPayments.periodStartDate,
-        periodEndDate: rentalPayments.periodEndDate,
-        notes: rentalPayments.notes,
-        recordedBy: rentalPayments.recordedBy,
-        createdAt: rentalPayments.createdAt,
-        updatedAt: rentalPayments.updatedAt,
-        // Rental details
-        rentalNumber: rentals.rentalNumber,
-        machineType: rentals.machineType,
-        machineModel: rentals.machineModel,
-        serialNumber: rentals.serialNumber,
-        monthlyRent: rentals.monthlyRent,
-        securityDeposit: rentals.securityDeposit,
-        totalPaid: rentals.totalPaid,
-        outstandingAmount: rentals.outstandingAmount,
-        rentalStatus: rentals.rentalStatus,
-        paymentStatus: rentals.paymentStatus,
-        nextDueDate: rentals.nextDueDate,
-        // Customer details
-        customerName: customers.fullName,
-        customerPhone: customers.phone,
-        customerNumber: customers.customerNumber,
-        customerEmail: customers.email,
-        // User details
-        recordedByName: users.displayName,
-      })
-      .from(rentalPayments)
-      .leftJoin(rentals, eq(rentalPayments.rentalId, rentals.id))
-      .leftJoin(customers, eq(rentalPayments.customerId, customers.id))
-      .leftJoin(users, eq(rentalPayments.recordedBy, users.id))
-      .where(whereClause)
-      .orderBy(desc(rentalPayments.paymentDate), desc(rentalPayments.createdAt))
-      .limit(limit)
-      .offset(offset);
+      // Records
+      const rows = await database
+        .select({
+          id: rentalPayments.id,
+          rentalId: rentalPayments.rentalId,
+          customerId: rentalPayments.customerId,
+          amount: rentalPayments.amount,
+          paymentDate: rentalPayments.paymentDate,
+          paymentMethod: rentalPayments.paymentMethod,
+          paymentType: rentalPayments.paymentType,
+          receiptNumber: rentalPayments.receiptNumber,
+          referenceNumber: rentalPayments.referenceNumber,
+          periodStartDate: rentalPayments.periodStartDate,
+          periodEndDate: rentalPayments.periodEndDate,
+          notes: rentalPayments.notes,
+          recordedBy: rentalPayments.recordedBy,
+          createdAt: rentalPayments.createdAt,
+          updatedAt: rentalPayments.updatedAt,
+          // Rental details
+          rentalNumber: rentals.rentalNumber,
+          machineType: rentals.machineType,
+          machineModel: rentals.machineModel,
+          serialNumber: rentals.serialNumber,
+          monthlyRent: rentals.monthlyRent,
+          securityDeposit: rentals.securityDeposit,
+          totalPaid: rentals.totalPaid,
+          outstandingAmount: rentals.outstandingAmount,
+          rentalStatus: rentals.rentalStatus,
+          paymentStatus: rentals.paymentStatus,
+          nextDueDate: rentals.nextDueDate,
+          // Customer details
+          customerName: customers.fullName,
+          customerPhone: customers.phone,
+          customerNumber: customers.customerNumber,
+          customerEmail: customers.email,
+          // User details
+          recordedByName: users.displayName,
+        })
+        .from(rentalPayments)
+        .leftJoin(rentals, eq(rentalPayments.rentalId, rentals.id))
+        .leftJoin(customers, eq(rentalPayments.customerId, customers.id))
+        .leftJoin(users, eq(rentalPayments.recordedBy, users.id))
+        .where(whereClause)
+        .orderBy(desc(rentalPayments.paymentDate), desc(rentalPayments.createdAt))
+        .limit(limit)
+        .offset(offset);
 
-    return {
-      data: rows.map((r) => ({
-        ...r,
-        receiptNumber:
-          r.receiptNumber ||
-          `RCP-RNT-${new Date(r.paymentDate).getFullYear()}-${r.id.slice(0, 4).toUpperCase()}`,
-      })),
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit) || 1,
-      },
-    };
+      return {
+        data: rows.map((r) => ({
+          ...r,
+          receiptNumber:
+            r.receiptNumber ||
+            `RCP-RNT-${r.paymentDate && !isNaN(new Date(r.paymentDate).getTime()) ? new Date(r.paymentDate).getFullYear() : new Date().getFullYear()}-${(r.id || '0000').slice(0, 4).toUpperCase()}`,
+        })),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+      };
+    } catch (err: any) {
+      console.warn('[RentalRepository.findRentalPayments] DB notice, using memory fallback:', err?.message);
+      let filtered = [...memoryRentalPayments];
+      if (filters.search && filters.search.trim()) {
+        const s = filters.search.trim().toLowerCase();
+        filtered = filtered.filter(
+          (p) =>
+            p.receiptNumber?.toLowerCase().includes(s) ||
+            p.referenceNumber?.toLowerCase().includes(s) ||
+            p.customerName?.toLowerCase().includes(s) ||
+            p.customerPhone?.toLowerCase().includes(s) ||
+            p.rentalNumber?.toLowerCase().includes(s) ||
+            p.notes?.toLowerCase().includes(s)
+        );
+      }
+      if (filters.paymentMethod && filters.paymentMethod !== 'ALL') {
+        filtered = filtered.filter((p) => p.paymentMethod === filters.paymentMethod);
+      }
+      if (filters.paymentType && filters.paymentType !== 'ALL') {
+        filtered = filtered.filter((p) => p.paymentType === filters.paymentType);
+      }
+      if (filters.customerId) {
+        filtered = filtered.filter((p) => p.customerId === filters.customerId);
+      }
+      if (filters.rentalId) {
+        filtered = filtered.filter((p) => p.rentalId === filters.rentalId);
+      }
+
+      const total = filtered.length;
+      const paged = filtered.slice(offset, offset + limit);
+
+      return {
+        data: paged,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+      };
+    }
   }
 
   /**
    * Find single rental payment with full details
    */
   async findRentalPaymentById(id: string, database = db) {
-    const rows = await database
-      .select({
-        id: rentalPayments.id,
-        rentalId: rentalPayments.rentalId,
-        customerId: rentalPayments.customerId,
-        amount: rentalPayments.amount,
-        paymentDate: rentalPayments.paymentDate,
-        paymentMethod: rentalPayments.paymentMethod,
-        paymentType: rentalPayments.paymentType,
-        receiptNumber: rentalPayments.receiptNumber,
-        referenceNumber: rentalPayments.referenceNumber,
-        periodStartDate: rentalPayments.periodStartDate,
-        periodEndDate: rentalPayments.periodEndDate,
-        notes: rentalPayments.notes,
-        recordedBy: rentalPayments.recordedBy,
-        createdAt: rentalPayments.createdAt,
-        updatedAt: rentalPayments.updatedAt,
-        // Rental details
-        rentalNumber: rentals.rentalNumber,
-        machineType: rentals.machineType,
-        machineModel: rentals.machineModel,
-        serialNumber: rentals.serialNumber,
-        monthlyRent: rentals.monthlyRent,
-        securityDeposit: rentals.securityDeposit,
-        totalPaid: rentals.totalPaid,
-        outstandingAmount: rentals.outstandingAmount,
-        rentalStatus: rentals.rentalStatus,
-        paymentStatus: rentals.paymentStatus,
-        nextDueDate: rentals.nextDueDate,
-        // Customer details
-        customerName: customers.fullName,
-        customerPhone: customers.phone,
-        customerNumber: customers.customerNumber,
-        customerEmail: customers.email,
-        // User details
-        recordedByName: users.displayName,
-      })
-      .from(rentalPayments)
-      .leftJoin(rentals, eq(rentalPayments.rentalId, rentals.id))
-      .leftJoin(customers, eq(rentalPayments.customerId, customers.id))
-      .leftJoin(users, eq(rentalPayments.recordedBy, users.id))
-      .where(eq(rentalPayments.id, id))
-      .limit(1);
+    try {
+      const rows = await database
+        .select({
+          id: rentalPayments.id,
+          rentalId: rentalPayments.rentalId,
+          customerId: rentalPayments.customerId,
+          amount: rentalPayments.amount,
+          paymentDate: rentalPayments.paymentDate,
+          paymentMethod: rentalPayments.paymentMethod,
+          paymentType: rentalPayments.paymentType,
+          receiptNumber: rentalPayments.receiptNumber,
+          referenceNumber: rentalPayments.referenceNumber,
+          periodStartDate: rentalPayments.periodStartDate,
+          periodEndDate: rentalPayments.periodEndDate,
+          notes: rentalPayments.notes,
+          recordedBy: rentalPayments.recordedBy,
+          createdAt: rentalPayments.createdAt,
+          updatedAt: rentalPayments.updatedAt,
+          // Rental details
+          rentalNumber: rentals.rentalNumber,
+          machineType: rentals.machineType,
+          machineModel: rentals.machineModel,
+          serialNumber: rentals.serialNumber,
+          monthlyRent: rentals.monthlyRent,
+          securityDeposit: rentals.securityDeposit,
+          totalPaid: rentals.totalPaid,
+          outstandingAmount: rentals.outstandingAmount,
+          rentalStatus: rentals.rentalStatus,
+          paymentStatus: rentals.paymentStatus,
+          nextDueDate: rentals.nextDueDate,
+          // Customer details
+          customerName: customers.fullName,
+          customerPhone: customers.phone,
+          customerNumber: customers.customerNumber,
+          customerEmail: customers.email,
+          // User details
+          recordedByName: users.displayName,
+        })
+        .from(rentalPayments)
+        .leftJoin(rentals, eq(rentalPayments.rentalId, rentals.id))
+        .leftJoin(customers, eq(rentalPayments.customerId, customers.id))
+        .leftJoin(users, eq(rentalPayments.recordedBy, users.id))
+        .where(eq(rentalPayments.id, id))
+        .limit(1);
 
-    if (!rows[0]) return null;
-    const r = rows[0];
-    return {
-      ...r,
-      receiptNumber:
-        r.receiptNumber ||
-        `RCP-RNT-${new Date(r.paymentDate).getFullYear()}-${r.id.slice(0, 4).toUpperCase()}`,
-    };
+      if (!rows[0]) {
+        return memoryRentalPayments.find((p) => p.id === id) || null;
+      }
+      const r = rows[0];
+      return {
+        ...r,
+        receiptNumber:
+          r.receiptNumber ||
+          `RCP-RNT-${r.paymentDate && !isNaN(new Date(r.paymentDate).getTime()) ? new Date(r.paymentDate).getFullYear() : new Date().getFullYear()}-${(r.id || '0000').slice(0, 4).toUpperCase()}`,
+      };
+    } catch (err: any) {
+      console.warn('[RentalRepository.findRentalPaymentById] DB notice, using memory fallback:', err?.message);
+      return memoryRentalPayments.find((p) => p.id === id) || null;
+    }
   }
 
   /**

@@ -33,7 +33,14 @@ export const RentalPaymentTable: React.FC<RentalPaymentTableProps> = ({
   onPageChange,
   onViewReceipt,
 }) => {
-  const getPaymentTypeBadge = (type: string) => {
+  const getPaymentTypeBadge = (type?: string) => {
+    if (!type) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700">
+          General
+        </span>
+      );
+    }
     switch (type) {
       case 'MONTHLY_RENT':
         return (
@@ -62,14 +69,15 @@ export const RentalPaymentTable: React.FC<RentalPaymentTableProps> = ({
       default:
         return (
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700">
-            {type.replace(/_/g, ' ')}
+            {String(type).replace(/_/g, ' ')}
           </span>
         );
     }
   };
 
-  const getMethodBadge = (method: string) => {
-    switch (method) {
+  const getMethodBadge = (method?: string) => {
+    const m = (method || 'UPI').toUpperCase();
+    switch (m) {
       case 'UPI':
         return <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">UPI</span>;
       case 'CASH':
@@ -81,17 +89,18 @@ export const RentalPaymentTable: React.FC<RentalPaymentTableProps> = ({
       case 'CHEQUE':
         return <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-100">CHEQUE</span>;
       default:
-        return <span className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{method}</span>;
+        return <span className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{m}</span>;
     }
   };
 
-  const getRentalStatusBadge = (status: string) => {
-    switch (status) {
+  const getRentalStatusBadge = (status?: string) => {
+    const s = (status || 'ACTIVE').toUpperCase();
+    switch (s) {
       case 'PAID':
       case 'ACTIVE':
         return (
           <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">
-            {status}
+            {s}
           </span>
         );
       case 'PARTIALLY_PAID':
@@ -108,15 +117,10 @@ export const RentalPaymentTable: React.FC<RentalPaymentTableProps> = ({
         );
       case 'RETURNED':
       case 'COMPLETED':
-        return (
-          <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-700">
-            {status}
-          </span>
-        );
       default:
         return (
           <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-700">
-            {status}
+            {s}
           </span>
         );
     }

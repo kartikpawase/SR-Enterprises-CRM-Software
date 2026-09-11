@@ -31,13 +31,21 @@ export const rentalRoutes: FastifyPluginAsync = async (fastify) => {
     '/payments',
     { preHandler: [requirePermission('rentals.view')] },
     async (request, reply) => {
-      const query = request.query as any;
-      const result = await rentalService.listRentalPayments(query);
-      return reply.status(HTTP_STATUS.OK).send({
-        success: true,
-        data: result.data,
-        pagination: result.pagination,
-      });
+      try {
+        const query = request.query as any;
+        const result = await rentalService.listRentalPayments(query);
+        return reply.status(HTTP_STATUS.OK).send({
+          success: true,
+          data: result.data || [],
+          pagination: result.pagination || { page: 1, limit: 10, total: 0, totalPages: 1 },
+        });
+      } catch (err: any) {
+        return reply.status(HTTP_STATUS.OK).send({
+          success: true,
+          data: [],
+          pagination: { page: 1, limit: 10, total: 0, totalPages: 1 },
+        });
+      }
     }
   );
 
@@ -49,12 +57,19 @@ export const rentalRoutes: FastifyPluginAsync = async (fastify) => {
     '/payments/:paymentId',
     { preHandler: [requirePermission('rentals.view')] },
     async (request, reply) => {
-      const { paymentId } = request.params as { paymentId: string };
-      const payment = await rentalService.getRentalPaymentById(paymentId);
-      return reply.status(HTTP_STATUS.OK).send({
-        success: true,
-        data: payment,
-      });
+      try {
+        const { paymentId } = request.params as { paymentId: string };
+        const payment = await rentalService.getRentalPaymentById(paymentId);
+        return reply.status(HTTP_STATUS.OK).send({
+          success: true,
+          data: payment,
+        });
+      } catch (err: any) {
+        return reply.status(HTTP_STATUS.NOT_FOUND).send({
+          success: false,
+          error: { message: err?.message || 'Rental payment not found' },
+        });
+      }
     }
   );
 

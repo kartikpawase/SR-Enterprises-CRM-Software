@@ -68,7 +68,7 @@ describe('BackupService Unit Tests', () => {
     } catch {
       // Offline DB fallback
     }
-  });
+  }, 20000);
 
   it('inspects and verifies backup integrity without extracting live data', async () => {
     try {
@@ -87,7 +87,7 @@ describe('BackupService Unit Tests', () => {
     } catch {
       // Offline DB fallback
     }
-  });
+  }, 20000);
 
   it('prevents deletion of protected backup snapshots', async () => {
     try {

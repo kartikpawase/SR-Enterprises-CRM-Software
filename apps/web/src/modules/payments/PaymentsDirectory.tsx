@@ -64,8 +64,24 @@ export const PaymentsDirectory: React.FC = () => {
     setIsRecordModalOpen(true);
   };
 
-  const rentalTotalCount = rentalPaymentsData?.pagination?.total ?? 0;
-  const invoiceTotalCount = paymentsData?.pagination?.total ?? 0;
+  const paymentsList: PaymentItem[] = Array.isArray(paymentsData)
+    ? paymentsData
+    : Array.isArray((paymentsData as any)?.data)
+    ? (paymentsData as any).data
+    : [];
+
+  const rentalPaymentsList: RentalPaymentListItem[] = Array.isArray(rentalPaymentsData)
+    ? rentalPaymentsData
+    : Array.isArray((rentalPaymentsData as any)?.data)
+    ? (rentalPaymentsData as any).data
+    : [];
+
+  const rentalTotalCount =
+    rentalPaymentsData?.pagination?.total ??
+    (Array.isArray(rentalPaymentsData) ? rentalPaymentsData.length : rentalPaymentsList.length);
+  const invoiceTotalCount =
+    paymentsData?.pagination?.total ??
+    (Array.isArray(paymentsData) ? paymentsData.length : paymentsList.length);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-fast">
@@ -162,7 +178,7 @@ export const PaymentsDirectory: React.FC = () => {
 
           {/* Payments Data Table */}
           <PaymentTable
-            payments={paymentsData?.data || []}
+            payments={paymentsList}
             isLoading={isLoadingPayments}
             pagination={paymentsData?.pagination}
             onPageChange={setPage}
@@ -197,7 +213,7 @@ export const PaymentsDirectory: React.FC = () => {
 
           {/* Rental Payments Table */}
           <RentalPaymentTable
-            payments={rentalPaymentsData?.data || []}
+            payments={rentalPaymentsList}
             isLoading={isLoadingRentalPayments}
             pagination={rentalPaymentsData?.pagination}
             onPageChange={setRentalPage}

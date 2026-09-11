@@ -208,7 +208,7 @@ export const CustomerImportModal: React.FC<CustomerImportModalProps> = ({
     if (!previewResult || parsedRows.length === 0) return;
 
     setIsLoading(true);
-    const BATCH_SIZE = 1000;
+    const BATCH_SIZE = 500;
     let totalImported = 0;
     let totalUpdated = 0;
     let totalSkipped = 0;
@@ -229,13 +229,14 @@ export const CustomerImportModal: React.FC<CustomerImportModalProps> = ({
           )}%)...`
         );
 
-        const result = await executeCustomerImportApi(chunk, duplicatePolicy);
+        const response = await executeCustomerImportApi(chunk, duplicatePolicy);
+        const result = (response as any)?.data ?? response;
 
-        totalImported += result.imported || 0;
-        totalUpdated += result.updated || 0;
-        totalSkipped += result.skipped || 0;
-        totalFailed += result.failed || 0;
-        if (result.errors && result.errors.length > 0) {
+        totalImported += result?.imported || 0;
+        totalUpdated += result?.updated || 0;
+        totalSkipped += result?.skipped || 0;
+        totalFailed += result?.failed || 0;
+        if (result?.errors && Array.isArray(result.errors) && result.errors.length > 0) {
           accumulatedErrors.push(...result.errors);
         }
       }
@@ -257,12 +258,15 @@ export const CustomerImportModal: React.FC<CustomerImportModalProps> = ({
       await queryClient.refetchQueries({ queryKey: ['customers'] });
 
       toast.success(
-        `Successfully imported ${totalImported.toLocaleString()} customers into database.`,
+        `Successfully imported ${totalImported.toLocaleString()} customers into database.${
+          totalSkipped > 0 ? ` (${totalSkipped} duplicate rows skipped)` : ''
+        }`,
         'Import Completed'
       );
       onSuccess?.();
     } catch (err: any) {
-      toast.error(err.message || 'Import execution failed', 'Import Error');
+      const errMsg = err?.details?.message || err?.error?.message || err?.message || 'Import execution failed';
+      toast.error(errMsg, 'Import Error');
     } finally {
       setIsLoading(false);
       setProgressText('');

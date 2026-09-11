@@ -869,7 +869,7 @@ export async function ensureDatabaseInitialized(): Promise<void> {
         // In PostgreSQL production mode, retry connection if container is still booting
         let connected = false;
         let attempts = 0;
-        const maxAttempts = 10;
+        const maxAttempts = process.env.USE_POSTGRES === 'true' ? 10 : 3;
         while (!connected && attempts < maxAttempts) {
           try {
             attempts++;
@@ -877,13 +877,34 @@ export async function ensureDatabaseInitialized(): Promise<void> {
             connected = true;
           } catch (connErr: any) {
             if (attempts >= maxAttempts) {
-              throw connErr;
+              if (process.env.USE_POSTGRES === 'true') {
+                throw connErr;
+              }
+              console.warn(
+                `[Database] PostgreSQL at ${env.DATABASE_URL.replace(/:[^:@]+@/, ':****@')} is unreachable (${connErr?.message || connErr}). Falling back to persistent PGlite engine with Supabase persistence.`
+              );
+              try {
+                await pgClient.end({ timeout: 1 });
+              } catch {}
+              pgClient = null;
+              break;
             }
             console.warn(`[Database] Waiting for PostgreSQL readiness (attempt ${attempts}/${maxAttempts}): ${connErr?.message || connErr}...`);
-            await new Promise((r) => setTimeout(r, 2000));
+            await new Promise((r) => setTimeout(r, 1000));
           }
         }
 
+        if (!connected) {
+          // Initialize persistent local PGlite engine stored on disk
+          const storageDir = resolveDatabaseStorageDir();
+          fs.mkdirSync(storageDir, { recursive: true });
+          pgliteClient = new PGlite(storageDir);
+          dbInstance = drizzlePglite(pgliteClient, { schema });
+          console.log(`[Database] Connected to persistent local database engine at: ${storageDir}`);
+        }
+      }
+
+      if (pgClient) {
         await applySqlMigrations(pgClient);
         await ensureEmailTables(pgClient);
         await ensureGoogleDriveColumns(pgClient);

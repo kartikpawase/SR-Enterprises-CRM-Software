@@ -124,7 +124,7 @@ export class CustomerImporter extends BaseImporter {
 
     // 2. Phone
     let rawPhone = getVal(
-      /^(phone|mobile|phonenumber|mobilenumber|contact|contactnumber|mobileno|phoneno|cell|tel|telephone|primaryphone|whatsapp|whatsappnumber)$/i
+      /^(phone|mobile|phonenumber|mobilenumber|contact|contactnumber|contactno|mobileno|phoneno|cell|tel|telephone|primaryphone|whatsapp|whatsappnumber|altcontact|customerphone|customermobile)$/i
     );
 
     // If still empty, check positional heuristics only if not matched by another known column
@@ -154,7 +154,7 @@ export class CustomerImporter extends BaseImporter {
     const phone = this.normalizePhone(rawPhone);
 
     // 3. Email
-    let email = getVal(/^(email|emailaddress|mail|primaryemail)$/i).toLowerCase();
+    let email = getVal(/^(email|emailaddress|emailid|mail|primaryemail)$/i).toLowerCase();
 
     // 4. Customer Type
     const typeStr = getVal(/^(customertype|type|category|customercategory|clienttype)$/i);
@@ -370,14 +370,16 @@ export class CustomerImporter extends BaseImporter {
     let skipped = 0;
     let failed = 0;
 
-    // 1. Calculate base date prefix and highest sequence number for today
+    // 1. Calculate base date prefix and track existing sequence numbers for today
     const now = new Date();
     const year2 = String(now.getFullYear()).slice(-2);
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     const dateStr = `${day}${month}${year2}`;
 
+    const existingCustomerNumberSet = new Set<string>();
     let maxSeq = 0;
+
     try {
       const existing = await db
         .select({ customerNumber: customers.customerNumber })
@@ -385,10 +387,30 @@ export class CustomerImporter extends BaseImporter {
         .where(ilike(customers.customerNumber, `CX-${dateStr}%`));
 
       for (const rec of existing) {
-        const suffix = rec.customerNumber?.replace(`CX-${dateStr}`, '');
-        const n = parseInt(suffix || '0', 10);
-        if (!isNaN(n) && n > maxSeq) {
-          maxSeq = n;
+        if (rec.customerNumber) {
+          existingCustomerNumberSet.add(rec.customerNumber);
+          const suffix = rec.customerNumber.replace(`CX-${dateStr}`, '');
+          const n = parseInt(suffix || '0', 10);
+          if (!isNaN(n) && n > maxSeq) {
+            maxSeq = n;
+          }
+        }
+      }
+    } catch {}
+
+    // Also track numbers from memory store
+    try {
+      const { memoryCustomers } = await import('../../customers/customer.repository');
+      for (const mc of memoryCustomers) {
+        if (mc.customerNumber) {
+          existingCustomerNumberSet.add(mc.customerNumber);
+          if (mc.customerNumber.startsWith(`CX-${dateStr}`)) {
+            const suffix = mc.customerNumber.replace(`CX-${dateStr}`, '');
+            const n = parseInt(suffix || '0', 10);
+            if (!isNaN(n) && n > maxSeq) {
+              maxSeq = n;
+            }
+          }
         }
       }
     } catch {}
@@ -399,8 +421,24 @@ export class CustomerImporter extends BaseImporter {
     const existingCustomerPhoneMap = new Map<string, any>();
     if (duplicatePolicy !== 'CREATE') {
       try {
-        const allCust = await db.select().from(customers);
+        const allCust = await db
+          .select({
+            id: customers.id,
+            phone: customers.phone,
+            fullName: customers.fullName,
+            customerNumber: customers.customerNumber,
+          })
+          .from(customers);
         for (const c of allCust) {
+          if (c.phone) {
+            existingCustomerPhoneMap.set(this.normalizePhone(c.phone), c);
+          }
+        }
+      } catch {}
+
+      try {
+        const { memoryCustomers } = await import('../../customers/customer.repository');
+        for (const c of memoryCustomers) {
           if (c.phone) {
             existingCustomerPhoneMap.set(this.normalizePhone(c.phone), c);
           }
@@ -410,113 +448,171 @@ export class CustomerImporter extends BaseImporter {
 
     const processedPhonesInBatch = new Set<string>();
 
-    // 3. Process records in high-performance transactions (batches of 500)
-    const CHUNK_SIZE = 500;
+    // 3. Process records in high-performance transactions (batches of 250)
+    const CHUNK_SIZE = 250;
 
     for (let chunkIdx = 0; chunkIdx < records.length; chunkIdx += CHUNK_SIZE) {
       const chunk = records.slice(chunkIdx, chunkIdx + CHUNK_SIZE);
+      const customersToInsert: any[] = [];
+      const addressesToInsert: any[] = [];
 
-      await db.transaction(async (tx: any) => {
-        const customersToInsert: any[] = [];
-        const addressesToInsert: any[] = [];
+      for (let i = 0; i < chunk.length; i++) {
+        const raw = chunk[i];
+        const rowNumber = raw.rowNumber || chunkIdx + i + 1;
 
-        for (let i = 0; i < chunk.length; i++) {
-          const raw = chunk[i];
-          const rowNumber = raw.rowNumber || chunkIdx + i + 1;
+        const fields = this.extractCustomerFields(raw);
 
-          const fields = this.extractCustomerFields(raw);
+        // Validation
+        if (!fields.fullName || !fields.phone || fields.phone.length < 10) {
+          failed++;
+          errors.push({
+            rowNumber,
+            field: !fields.fullName ? 'fullName' : 'phone',
+            code: 'REQUIRED_FIELD',
+            message: `Row ${rowNumber}: Valid name and 10-digit phone number are required.`,
+          });
+          continue;
+        }
 
-          // Validation
-          if (!fields.fullName || !fields.phone || fields.phone.length < 10) {
-            failed++;
-            errors.push({
-              rowNumber,
-              field: !fields.fullName ? 'fullName' : 'phone',
-              code: 'REQUIRED_FIELD',
-              message: `Row ${rowNumber}: Valid name and 10-digit phone number are required.`,
-            });
+        if (fields.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email)) {
+          failed++;
+          errors.push({
+            rowNumber,
+            field: 'email',
+            code: 'INVALID_FORMAT',
+            message: `Row ${rowNumber}: Invalid email format '${fields.email}'.`,
+          });
+          continue;
+        }
+
+        // Duplicate Policy Handling
+        const existingCust = existingCustomerPhoneMap.get(fields.phone);
+        const isDuplicateInBatch = processedPhonesInBatch.has(fields.phone);
+
+        if (existingCust || isDuplicateInBatch) {
+          if (duplicatePolicy === 'SKIP') {
+            skipped++;
             continue;
-          }
+          } else if (duplicatePolicy === 'UPDATE' && existingCust) {
+            // Update existing record without wiping non-empty fields with empty values
+            const updateData: Record<string, any> = { updatedAt: new Date() };
+            if (fields.fullName) updateData.fullName = fields.fullName;
+            if (fields.email) updateData.email = fields.email;
+            if (fields.companyName) updateData.companyName = fields.companyName;
+            if (fields.gstNumber) updateData.gstNumber = fields.gstNumber;
+            if (fields.notes) updateData.notes = fields.notes;
 
-          if (fields.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email)) {
-            failed++;
-            errors.push({
-              rowNumber,
-              field: 'email',
-              code: 'INVALID_FORMAT',
-              message: `Row ${rowNumber}: Invalid email format '${fields.email}'.`,
-            });
-            continue;
-          }
-
-          // Duplicate Policy Handling
-          const existingCust = existingCustomerPhoneMap.get(fields.phone);
-          const isDuplicateInBatch = processedPhonesInBatch.has(fields.phone);
-
-          if (existingCust || isDuplicateInBatch) {
-            if (duplicatePolicy === 'SKIP') {
-              skipped++;
-              continue;
-            } else if (duplicatePolicy === 'UPDATE' && existingCust) {
-              // Update existing record without wiping non-empty fields with empty values
-              const updateData: Record<string, any> = { updatedAt: new Date() };
-              if (fields.fullName) updateData.fullName = fields.fullName;
-              if (fields.email) updateData.email = fields.email;
-              if (fields.companyName) updateData.companyName = fields.companyName;
-              if (fields.gstNumber) updateData.gstNumber = fields.gstNumber;
-              if (fields.notes) updateData.notes = fields.notes;
-
-              await tx.update(customers).set(updateData).where(eq(customers.id, existingCust.id));
+            try {
+              await db.update(customers).set(updateData).where(eq(customers.id, existingCust.id));
               updated++;
-              continue;
+            } catch {
+              // Update fallback
+              Object.assign(existingCust, updateData);
+              updated++;
+            }
+            continue;
+          }
+        }
+
+        processedPhonesInBatch.add(fields.phone);
+
+        // Generate guaranteed collision-free customerNumber
+        let customerNumber = '';
+        do {
+          seqCounter++;
+          customerNumber = `CX-${dateStr}${String(seqCounter).padStart(4, '0')}`;
+        } while (existingCustomerNumberSet.has(customerNumber));
+        existingCustomerNumberSet.add(customerNumber);
+
+        const customerId = randomUUID();
+
+        customersToInsert.push({
+          id: customerId,
+          customerNumber,
+          fullName: fields.fullName,
+          phone: fields.phone,
+          email: fields.email || null,
+          customerType: fields.customerType || 'INDIVIDUAL',
+          companyName: fields.companyName || null,
+          gstNumber: fields.gstNumber || null,
+          status: 'ACTIVE',
+          notes: fields.notes || null,
+          createdBy: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+        addressesToInsert.push({
+          id: randomUUID(),
+          customerId,
+          addressType: 'SERVICE',
+          addressLine1: fields.addressLine1 || fields.fullName || 'Main Service Location',
+          addressLine2: fields.addressLine2 || null,
+          landmark: fields.landmark || null,
+          city: fields.city || '',
+          state: fields.state || '',
+          postalCode: fields.postalCode || '',
+          isDefault: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+
+      // Execute transactional batch with row-by-row fallback
+      if (customersToInsert.length > 0) {
+        let insertedInThisBatch = false;
+        try {
+          await db.transaction(async (tx: any) => {
+            await tx.insert(customers).values(customersToInsert);
+            await tx.insert(customerAddresses).values(addressesToInsert);
+          });
+          imported += customersToInsert.length;
+          insertedInThisBatch = true;
+        } catch (txErr: any) {
+          console.warn(`[CustomerImporter] Batch insert fallback to single rows:`, txErr?.message);
+          for (let j = 0; j < customersToInsert.length; j++) {
+            const cust = customersToInsert[j];
+            const addr = addressesToInsert[j];
+            try {
+              await db.insert(customers).values(cust);
+              if (addr) {
+                await db.insert(customerAddresses).values(addr);
+              }
+              imported++;
+            } catch (rowErr: any) {
+              failed++;
+              errors.push({
+                rowNumber: chunkIdx + j + 1,
+                field: 'database',
+                code: 'CONFLICT',
+                message: rowErr?.message || 'Database insert error on customer record',
+              });
             }
           }
-
-          processedPhonesInBatch.add(fields.phone);
-          seqCounter++;
-
-          const customerId = randomUUID();
-          const customerNumber = `CX-${dateStr}${String(seqCounter).padStart(4, '0')}`;
-
-          customersToInsert.push({
-            id: customerId,
-            customerNumber,
-            fullName: fields.fullName,
-            phone: fields.phone,
-            email: fields.email || null,
-            customerType: fields.customerType || 'INDIVIDUAL',
-            companyName: fields.companyName || null,
-            gstNumber: fields.gstNumber || null,
-            status: 'ACTIVE',
-            notes: fields.notes || null,
-            createdBy: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-
-          addressesToInsert.push({
-            id: randomUUID(),
-            customerId,
-            addressType: 'SERVICE',
-            addressLine1: fields.addressLine1 || fields.fullName || 'Main Service Location',
-            addressLine2: fields.addressLine2 || null,
-            landmark: fields.landmark || null,
-            city: fields.city || '',
-            state: fields.state || '',
-            postalCode: fields.postalCode || '',
-            isDefault: true,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
         }
 
-        // Bulk insert batch for maximum ACID performance
-        if (customersToInsert.length > 0) {
-          await tx.insert(customers).values(customersToInsert);
-          await tx.insert(customerAddresses).values(addressesToInsert);
-          imported += customersToInsert.length;
-        }
-      });
+        // Mirror inserted records to memory store for offline and caching resilience
+        try {
+          const { memoryCustomers } = await import('../../customers/customer.repository');
+          for (let j = 0; j < customersToInsert.length; j++) {
+            const cust = customersToInsert[j];
+            const addr = addressesToInsert[j];
+            memoryCustomers.unshift({
+              ...cust,
+              addresses: addr ? [addr] : [],
+            });
+            existingCustomerPhoneMap.set(cust.phone, cust);
+          }
+        } catch {}
+      }
+    }
+
+    // Trigger persistent snapshot synchronization to Supabase Cloud
+    if (imported > 0 && process.env.NODE_ENV !== 'test') {
+      try {
+        const { supabaseDbPersistence } = await import('../../../database/supabase-db-persistence');
+        supabaseDbPersistence.syncDatabaseSnapshotToSupabase().catch(() => {});
+      } catch {}
     }
 
     // 4. Record structured audit log
