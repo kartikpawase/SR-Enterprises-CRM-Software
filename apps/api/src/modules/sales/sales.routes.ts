@@ -139,5 +139,21 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
       data: invoice,
     });
   });
+  /**
+   * DELETE /api/v1/sales/:id
+   * Delete sale and associated items, invoices, and linkages
+   */
+  fastify.delete('/:id', { preHandler: [requirePermission('sales.cancel')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const actorId = request.user?.userId;
+    const actorName = request.user?.username || 'Staff';
+
+    const deleted = await salesService.deleteSale(id, actorId, actorName);
+    return reply.send({
+      success: true,
+      data: deleted,
+      message: 'Sale deleted successfully',
+    });
+  });
 };
 

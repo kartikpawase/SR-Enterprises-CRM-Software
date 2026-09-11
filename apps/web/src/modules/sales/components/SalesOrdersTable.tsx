@@ -10,8 +10,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  Trash2,
 } from 'lucide-react';
-import type { SaleSummaryData } from '../sales.api';
+import { useDeleteSaleMutation, type SaleSummaryData } from '../sales.api';
+import { useToast } from '../../../providers/ToastProvider';
 
 export interface SalesOrderRow {
   id: string;
@@ -167,6 +169,8 @@ export const SalesOrdersTable: React.FC<SalesOrdersTableProps> = ({
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const deleteSaleMutation = useDeleteSaleMutation();
+  const toast = useToast();
 
   // Convert live API data to row model
   const rows: SalesOrderRow[] = (apiSales || []).map((sale, idx) => {
@@ -490,6 +494,23 @@ export const SalesOrdersTable: React.FC<SalesOrdersTableProps> = ({
                             className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 text-left cursor-pointer"
                           >
                             Print Invoice
+                          </button>
+                          <button
+                            onClick={async () => {
+                              setActiveMenuId(null);
+                              if (window.confirm(`Are you sure you want to delete order ${row.orderNo}? This will permanently remove the sale and associated invoice.`)) {
+                                try {
+                                  await deleteSaleMutation.mutateAsync(row.id);
+                                  toast.success(`Order ${row.orderNo} deleted successfully.`);
+                                } catch (err: any) {
+                                  toast.error(err.message || 'Failed to delete sale order.');
+                                }
+                              }
+                            }}
+                            className="w-full px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 text-left cursor-pointer flex items-center gap-1.5 font-medium border-t border-slate-100"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                            <span>Delete Order</span>
                           </button>
                         </div>
                       )}

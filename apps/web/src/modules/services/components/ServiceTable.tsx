@@ -15,10 +15,12 @@ import {
   Clock,
   MessageSquare,
   Send,
+  Trash2,
 } from 'lucide-react';
 import {
   useNotifyServiceTechnicianWhatsAppMutation,
   useNotifyServiceCustomerWhatsAppMutation,
+  useDeleteServiceMutation,
   type ServiceItem,
 } from '../services.api';
 import { useToast } from '../../../providers/ToastProvider';
@@ -90,6 +92,7 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
   const toast = useToast();
   const notifyWhatsAppMutation = useNotifyServiceTechnicianWhatsAppMutation();
   const notifyCustomerWhatsAppMutation = useNotifyServiceCustomerWhatsAppMutation();
+  const deleteServiceMutation = useDeleteServiceMutation();
 
   const handleNotifyCustomerWhatsApp = async (row: ServiceItem) => {
     try {
@@ -398,6 +401,26 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
               Complete
             </Button>
           )}
+
+          {/* Delete Service Action */}
+          <button
+            type="button"
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (window.confirm(`Are you sure you want to delete service ${row.serviceNumber}? This will permanently remove the service record and its job card from the database.`)) {
+                try {
+                  await deleteServiceMutation.mutateAsync(row.id);
+                  toast.success(`Service ${row.serviceNumber} deleted successfully.`, 'Service Deleted');
+                } catch (err: any) {
+                  toast.error(err.message || 'Failed to delete service', 'Delete Failed');
+                }
+              }
+            }}
+            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+            title="Delete service"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       ),
     },

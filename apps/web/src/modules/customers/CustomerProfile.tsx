@@ -16,6 +16,7 @@ import {
   useCustomerFinancialSummaryQuery,
   useAddCustomerNoteMutation,
   useDeleteCustomerMutation,
+  useClearCustomerDataMutation,
   useCustomerActivitiesQuery,
 } from './customer.api';
 import { usePayments, type PaymentItem } from '../payments/payments.api';
@@ -59,6 +60,7 @@ import {
   Trash2,
   Repeat,
   Tag,
+  RotateCcw,
 } from 'lucide-react';
 
 export const CustomerProfile: React.FC = () => {
@@ -71,6 +73,7 @@ export const CustomerProfile: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isClearDataDialogOpen, setIsClearDataDialogOpen] = useState(false);
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
   const [isRecordPaymentModalOpen, setIsRecordPaymentModalOpen] = useState(false);
   const [selectedInvoiceIdForPayment, setSelectedInvoiceIdForPayment] = useState<string | undefined>(undefined);
@@ -96,6 +99,7 @@ export const CustomerProfile: React.FC = () => {
   });
   const addNoteMutation = useAddCustomerNoteMutation(id || '');
   const deleteCustomerMutation = useDeleteCustomerMutation(id || '');
+  const clearCustomerDataMutation = useClearCustomerDataMutation(id || '');
   const { data: customerActivitiesData } = useCustomerActivitiesQuery(id || '');
 
   const [hoveredTrendIndex, setHoveredTrendIndex] = useState<number | null>(null);
@@ -248,6 +252,25 @@ export const CustomerProfile: React.FC = () => {
       navigate('/customers');
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete customer', 'Delete Error');
+    }
+  };
+
+  const handleClearCustomerData = async () => {
+    const targetId = customer?.id || id;
+    if (!targetId) return;
+    try {
+      await clearCustomerDataMutation.mutateAsync(targetId);
+      toast.success(
+        `All data for ${customer?.fullName || 'customer'} has been permanently cleared. Profile reset.`,
+        'Customer Data Cleared'
+      );
+      setIsClearDataDialogOpen(false);
+      refetch();
+      refetchPayments();
+      refetchInvoices();
+      refetchSales();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to clear customer data', 'Clear Error');
     }
   };
 
@@ -441,6 +464,16 @@ export const CustomerProfile: React.FC = () => {
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-600" />
             <span>Delete Customer</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsClearDataDialogOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200/90 rounded-xl hover:bg-amber-100 transition-colors shadow-2xs cursor-pointer"
+            title="Clear all transactional data (sales, invoices, payments, services, warranties, assets) for this customer"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+            <span>Clear Data</span>
           </button>
 
           <button
@@ -1690,6 +1723,18 @@ export const CustomerProfile: React.FC = () => {
         confirmLabel="Delete Customer Completely"
         variant="danger"
         isLoading={deleteCustomerMutation.isPending}
+      />
+
+      {/* Clear Customer Data Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isClearDataDialogOpen}
+        onClose={() => setIsClearDataDialogOpen(false)}
+        onConfirm={handleClearCustomerData}
+        title="Clear All Customer Data"
+        message={`Are you sure you want to clear all data for ${customer.fullName} (${customer.customerNumber})? All associated sales, invoices, payments, services, job cards, warranties, assets, reminders, and activities will be permanently deleted from both the frontend and database level. The customer profile will remain with zeroed balances.`}
+        confirmLabel="Clear Customer Data"
+        variant="danger"
+        isLoading={clearCustomerDataMutation.isPending}
       />
 
       {/* Record Payment Modal */}

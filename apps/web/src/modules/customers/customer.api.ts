@@ -453,6 +453,43 @@ export function useDeleteCustomerMutation(customerId?: string) {
 }
 
 /**
+ * Clear customer operational data mutation (sales, invoices, payments, services, warranties, assets)
+ * Keeps customer master profile intact with reset zero balances.
+ */
+export function useClearCustomerDataMutation(customerId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (overrideId?: string) => {
+      const targetId = overrideId || customerId;
+      if (!targetId) throw new Error('Customer ID is required to clear data');
+      const res = await apiClient.post<{ success: boolean; message: string; data: any }>(
+        `/customers/${targetId}/clear-data`,
+        {}
+      );
+      return res.data;
+    },
+    onSuccess: (_, variables) => {
+      const targetId = variables || customerId;
+      if (targetId) {
+        queryClient.invalidateQueries({ queryKey: CUSTOMER_QUERY_KEYS.detail(targetId) });
+        queryClient.invalidateQueries({ queryKey: ['customer-financial', targetId] });
+      }
+      queryClient.invalidateQueries({ queryKey: CUSTOMER_QUERY_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+      queryClient.invalidateQueries({ queryKey: ['warranties'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+/**
  * Add customer note mutation
  */
 export function useAddCustomerNoteMutation(customerId: string) {

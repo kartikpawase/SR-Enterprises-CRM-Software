@@ -30,10 +30,13 @@ import {
   type BackupItem,
   type BackupScheduleConfig,
 } from '../backup.api';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '../../../lib/api-client';
 import { RestoreBackupModal } from './RestoreBackupModal';
 
 export const BackupRestoreSection: React.FC = () => {
   const toast = useToast();
+  const queryClient = useQueryClient();
 
   // Queries
   const { data: backups = [], isLoading: isLoadingBackups, refetch: refetchBackups } = useBackupsQuery();
@@ -61,6 +64,28 @@ export const BackupRestoreSection: React.FC = () => {
   // Restore Modal State
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [selectedBackupForRestore, setSelectedBackupForRestore] = useState<BackupItem | null>(null);
+
+  // Delete CRM Database State
+  const [deleteDbModalOpen, setDeleteDbModalOpen] = useState(false);
+  const [isDeletingDb, setIsDeletingDb] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
+
+  const handleDeleteCrmDatabase = async () => {
+    if (deleteConfirmationText !== 'DELETE CRM') return;
+    setIsDeletingDb(true);
+    try {
+      const res = await apiClient.post<{ success: boolean; message: string }>('/system/delete-crm-database');
+      toast.success((res as any)?.message || (res as any)?.data?.message || 'CRM Database and Storage successfully deleted.', 'Database Deleted');
+      setDeleteDbModalOpen(false);
+      setDeleteConfirmationText('');
+      queryClient.clear();
+      window.location.reload();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete CRM database.');
+    } finally {
+      setIsDeletingDb(false);
+    }
+  };
 
   // Sync loaded schedule into form state
   useEffect(() => {
@@ -522,6 +547,29 @@ export const BackupRestoreSection: React.FC = () => {
         </div>
       </div>
 
+      {/* Danger Zone: Delete CRM Database */}
+      <div className="bg-rose-50/70 rounded-xl border border-rose-200 p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-rose-800 font-bold text-sm">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>Danger Zone — Delete CRM Database</span>
+            </div>
+            <p className="text-xs text-rose-700/90 max-w-xl">
+              Permanently deletes all operational business records (customers, sales, invoices, payments, services, warranties, assets, inventory, reminders, activities) at the database level and purges all documents and files in Supabase Storage.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setDeleteDbModalOpen(true)}
+            className="bg-rose-600 hover:bg-rose-700 text-white font-bold border-rose-600 shadow-xs shrink-0 flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Delete CRM Database</span>
+          </Button>
+        </div>
+      </div>
+
       {/* Restore Confirmation Modal */}
       <RestoreBackupModal
         isOpen={restoreModalOpen}
@@ -534,6 +582,77 @@ export const BackupRestoreSection: React.FC = () => {
           refetchBackups();
         }}
       />
+
+      {/* Delete CRM Database Confirmation Modal */}
+      {deleteDbModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl border border-rose-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Delete CRM Database</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Are you absolutely sure you want to wipe the entire database and storage?
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-rose-50 border border-rose-200/80 rounded-xl p-4 text-xs text-rose-800 space-y-2">
+              <p className="font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                Warning: This action is permanent and irreversible!
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-rose-700">
+                <li>All customer records, sales orders, invoices, and payment ledgers will be permanently deleted from PostgreSQL.</li>
+                <li>All scheduled services, job cards, customer assets, warranties, and inventory items will be wiped.</li>
+                <li>All documents, invoices, backups, and attachments stored in Supabase Storage will be purged.</li>
+                <li>All sequence numbers will reset to 0. Super Admin account credentials will be preserved.</li>
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-700">
+                Type <span className="font-mono font-bold text-rose-600">DELETE CRM</span> to confirm:
+              </label>
+              <Input
+                value={deleteConfirmationText}
+                onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                placeholder="DELETE CRM"
+                className="font-mono text-xs"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleteDbModalOpen(false);
+                  setDeleteConfirmationText('');
+                }}
+                disabled={isDeletingDb}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDeleteCrmDatabase}
+                disabled={deleteConfirmationText !== 'DELETE CRM' || isDeletingDb}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+              >
+                {isDeletingDb ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Deleting Database...
+                  </span>
+                ) : (
+                  'Permanently Delete Database'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

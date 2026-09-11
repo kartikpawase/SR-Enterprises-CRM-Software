@@ -207,6 +207,53 @@ export class SupabaseStorageService {
     const { error } = await this.client.storage.from(this.bucket).remove([cleanPath]);
     return !error;
   }
+
+  /**
+   * Purge all files and folders across all directories in Supabase Storage bucket
+   */
+  public async purgeAllStorage(): Promise<{ deletedCount: number }> {
+    if (!this.isConfigured() || !this.client) {
+      return { deletedCount: 0 };
+    }
+    let totalDeleted = 0;
+    try {
+      const deleteFolderRecursively = async (folder = ''): Promise<void> => {
+        const { data, error } = await this.client!.storage.from(this.bucket).list(folder, {
+          limit: 1000,
+        });
+        if (error || !data || data.length === 0) return;
+
+        const filePaths: string[] = [];
+        const subFolders: string[] = [];
+
+        for (const item of data) {
+          const itemPath = folder ? `${folder}/${item.name}` : item.name;
+          if (item.id === null) {
+            subFolders.push(itemPath);
+          } else {
+            filePaths.push(itemPath);
+          }
+        }
+
+        if (filePaths.length > 0) {
+          const { error: delErr } = await this.client!.storage.from(this.bucket).remove(filePaths);
+          if (!delErr) {
+            totalDeleted += filePaths.length;
+          }
+        }
+
+        for (const sub of subFolders) {
+          await deleteFolderRecursively(sub);
+        }
+      };
+
+      await deleteFolderRecursively('');
+      console.log(`[Supabase Storage] Successfully purged all files from bucket "${this.bucket}". Total files deleted: ${totalDeleted}`);
+    } catch (err: any) {
+      console.warn('[Supabase Storage] purgeAllStorage notice:', err?.message || err);
+    }
+    return { deletedCount: totalDeleted };
+  }
 }
 
 export const supabaseStorage = new SupabaseStorageService();

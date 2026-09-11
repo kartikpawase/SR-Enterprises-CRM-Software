@@ -364,3 +364,23 @@ export function useNotifyServiceCustomerWhatsAppMutation() {
     },
   });
 }
+
+/**
+ * Mutation to delete a service and associated job cards/schedules
+ */
+export function useDeleteServiceMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.delete<{ success: boolean; message: string }>(`/services/${id}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+      queryClient.invalidateQueries({ queryKey: ['services-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+    },
+  });
+}

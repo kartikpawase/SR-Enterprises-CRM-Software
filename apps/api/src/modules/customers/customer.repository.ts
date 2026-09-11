@@ -1242,6 +1242,228 @@ export class CustomerRepository {
   }
 
   /**
+   * Clear all operational and transactional data for a customer (sales, invoices, payments,
+   * services, job cards, warranties, assets, reminders, documents, activities)
+   * while strictly preserving the customer's master profile record with reset zero balances.
+   */
+  async clearCustomerData(id: string, database = db) {
+    return await database.transaction(async (tx) => {
+      const checkTableExists = async (tableName: string): Promise<boolean> => {
+        try {
+          const res = await tx.execute(
+            sql`SELECT EXISTS (
+              SELECT 1 FROM information_schema.tables 
+              WHERE table_schema = 'public' AND table_name = ${tableName}
+            ) as exists;`
+          );
+          return Boolean(res.rows?.[0]?.exists);
+        } catch {
+          return false;
+        }
+      };
+
+      // 1. Gather all related entity IDs
+      const custSales = await tx
+        .select({ id: sales.id })
+        .from(sales)
+        .where(eq(sales.customerId, id));
+      const saleIdList = custSales.map((s) => s.id);
+
+      const custAssets = await tx
+        .select({ id: customerAssets.id })
+        .from(customerAssets)
+        .where(eq(customerAssets.customerId, id));
+      const assetIdList = custAssets.map((a) => a.id);
+
+      const custServices = await tx
+        .select({ id: services.id })
+        .from(services)
+        .where(
+          assetIdList.length > 0
+            ? or(eq(services.customerId, id), inArray(services.assetId, assetIdList))
+            : eq(services.customerId, id)
+        );
+      const serviceIdList = custServices.map((s) => s.id);
+
+      const custJobCards = await tx
+        .select({ id: jobCards.id })
+        .from(jobCards)
+        .where(
+          or(
+            eq(jobCards.customerId, id),
+            serviceIdList.length > 0 ? inArray(jobCards.serviceId, serviceIdList) : sql`false`,
+            assetIdList.length > 0 ? inArray(jobCards.assetId, assetIdList) : sql`false`
+          )
+        );
+      const jobCardIdList = custJobCards.map((jc) => jc.id);
+
+      const custWarranties = await tx
+        .select({ id: warranties.id })
+        .from(warranties)
+        .where(
+          assetIdList.length > 0
+            ? or(eq(warranties.customerId, id), inArray(warranties.assetId, assetIdList))
+            : eq(warranties.customerId, id)
+        );
+      const warrantyIdList = custWarranties.map((w) => w.id);
+
+      const custInvoices = await tx
+        .select({ id: invoices.id })
+        .from(invoices)
+        .where(
+          or(
+            eq(invoices.customerId, id),
+            saleIdList.length > 0 ? inArray(invoices.saleId, saleIdList) : sql`false`,
+            serviceIdList.length > 0 ? inArray(invoices.serviceId, serviceIdList) : sql`false`,
+            jobCardIdList.length > 0 ? inArray(invoices.jobCardId, jobCardIdList) : sql`false`
+          )
+        );
+      const invoiceIdList = custInvoices.map((i) => i.id);
+
+      const custRentals = await tx
+        .select({ id: rentals.id })
+        .from(rentals)
+        .where(eq(rentals.customerId, id));
+      const rentalIdList = custRentals.map((r) => r.id);
+
+      // 2. Delete Rentals & Rental Payments
+      if (rentalIdList.length > 0) {
+        await tx.delete(rentalEvents).where(inArray(rentalEvents.rentalId, rentalIdList));
+      }
+      await tx.delete(rentalPayments).where(eq(rentalPayments.customerId, id));
+      if (rentalIdList.length > 0) {
+        await tx.delete(rentalPayments).where(inArray(rentalPayments.rentalId, rentalIdList));
+      }
+      await tx.delete(rentals).where(eq(rentals.customerId, id));
+
+      // 3. Delete Reminders
+      await tx.delete(reminders).where(eq(reminders.customerId, id));
+      if (invoiceIdList.length > 0) {
+        await tx.delete(reminders).where(inArray(reminders.invoiceId, invoiceIdList));
+      }
+
+      // 4. Delete Payments
+      await tx.delete(payments).where(eq(payments.customerId, id));
+      if (invoiceIdList.length > 0) {
+        await tx.delete(payments).where(inArray(payments.invoiceId, invoiceIdList));
+      }
+
+      // 5. Delete Invoice Items & Invoices
+      if (invoiceIdList.length > 0) {
+        await tx.delete(invoiceItems).where(inArray(invoiceItems.invoiceId, invoiceIdList));
+      }
+      await tx.delete(invoices).where(eq(invoices.customerId, id));
+      if (invoiceIdList.length > 0) {
+        await tx.delete(invoices).where(inArray(invoices.id, invoiceIdList));
+      }
+
+      // 6. Delete Sale Items & Sales
+      if (saleIdList.length > 0) {
+        await tx.delete(saleItems).where(inArray(saleItems.saleId, saleIdList));
+      }
+      await tx.delete(sales).where(eq(sales.customerId, id));
+      if (saleIdList.length > 0) {
+        await tx.delete(sales).where(inArray(sales.id, saleIdList));
+      }
+
+      // 7. Delete Job Cards
+      await tx.delete(jobCards).where(eq(jobCards.customerId, id));
+      if (jobCardIdList.length > 0) {
+        await tx.delete(jobCards).where(inArray(jobCards.id, jobCardIdList));
+      }
+
+      // 8. Delete Service Schedules & Services
+      await tx.delete(serviceSchedules).where(eq(serviceSchedules.customerId, id));
+      if (serviceIdList.length > 0) {
+        await tx.delete(serviceSchedules).where(inArray(serviceSchedules.generatedServiceId, serviceIdList));
+      }
+      if (assetIdList.length > 0) {
+        await tx.delete(serviceSchedules).where(inArray(serviceSchedules.assetId, assetIdList));
+      }
+      if (warrantyIdList.length > 0) {
+        await tx.delete(serviceSchedules).where(inArray(serviceSchedules.warrantyId, warrantyIdList));
+      }
+
+      await tx.delete(services).where(eq(services.customerId, id));
+      if (serviceIdList.length > 0) {
+        await tx.delete(services).where(inArray(services.id, serviceIdList));
+      }
+      if (assetIdList.length > 0) {
+        await tx.delete(services).where(inArray(services.assetId, assetIdList));
+      }
+
+      // 9. Delete Warranty Events & Warranties
+      await tx.delete(warrantyEvents).where(eq(warrantyEvents.customerId, id));
+      if (warrantyIdList.length > 0) {
+        await tx.delete(warrantyEvents).where(inArray(warrantyEvents.warrantyId, warrantyIdList));
+      }
+      if (assetIdList.length > 0) {
+        await tx.delete(warrantyEvents).where(inArray(warrantyEvents.assetId, assetIdList));
+        await tx.delete(warrantyEvents).where(inArray(warrantyEvents.replacementAssetId, assetIdList));
+      }
+
+      await tx.delete(warranties).where(eq(warranties.customerId, id));
+      if (warrantyIdList.length > 0) {
+        await tx.delete(warranties).where(inArray(warranties.id, warrantyIdList));
+      }
+      if (assetIdList.length > 0) {
+        await tx.delete(warranties).where(inArray(warranties.assetId, assetIdList));
+      }
+
+      // 10. Delete Customer Assets
+      await tx.delete(customerAssets).where(eq(customerAssets.customerId, id));
+      if (assetIdList.length > 0) {
+        await tx.delete(customerAssets).where(inArray(customerAssets.id, assetIdList));
+      }
+
+      // 11. Unlink Inquiries
+      await tx
+        .update(inquiries)
+        .set({ convertedCustomerId: null })
+        .where(eq(inquiries.convertedCustomerId, id));
+
+      // 12. Delete Customer Activities & Email Notifications
+      await tx.delete(customerActivities).where(eq(customerActivities.customerId, id));
+      await tx.delete(emailNotifications).where(eq(emailNotifications.customerId, id));
+
+      // 13. Optional Auxiliary Tables (WhatsApp & Documents)
+      if (await checkTableExists('whatsapp_messages')) {
+        await tx.execute(sql`DELETE FROM whatsapp_messages WHERE conversation_id IN (
+          SELECT id FROM whatsapp_conversations WHERE customer_id = ${id}
+        ) OR contact_id IN (
+          SELECT id FROM whatsapp_contacts WHERE customer_id = ${id}
+        );`);
+      }
+      if (await checkTableExists('whatsapp_conversations')) {
+        await tx.execute(sql`DELETE FROM whatsapp_conversations WHERE customer_id = ${id};`);
+      }
+      if (await checkTableExists('whatsapp_contacts')) {
+        await tx.execute(sql`DELETE FROM whatsapp_contacts WHERE customer_id = ${id};`);
+      }
+      if (await checkTableExists('document_attachments')) {
+        await tx.execute(sql`DELETE FROM document_attachments WHERE entity_type = 'CUSTOMER' AND entity_id = ${id};`);
+      }
+
+      // 14. Reset customer financial balance and timestamp without deleting customer row
+      await tx
+        .update(customers)
+        .set({
+          outstandingBalance: '0.00',
+          totalSpent: '0.00',
+          notes: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(customers.id, id));
+
+      return {
+        id,
+        cleared: true,
+        message: 'All customer data cleared successfully',
+      };
+    });
+  }
+
+  /**
    * Authoritative financial summary calculated directly from transactional tables
    */
   async getFinancialSummary(customerId: string, database = db) {

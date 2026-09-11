@@ -2,6 +2,7 @@ import { eq, and, or, inArray, ilike, sql, desc, asc } from 'drizzle-orm';
 import { db } from '../../database/client';
 import {
   services,
+  serviceSchedules,
   jobCards,
   customers,
   customerAssets,
@@ -1821,6 +1822,47 @@ export class ServicesRepository {
 
     list.sort((a, b) => a.fullName.localeCompare(b.fullName));
     return list;
+  }
+
+  /**
+   * Delete a service and its associated job cards and service schedules at the DB and memory level
+   */
+  async deleteService(id: string, database = db) {
+    const existing = await this.findById(id, database);
+    if (!existing) {
+      const notFound: any = new Error('Service record not found');
+      notFound.statusCode = 404;
+      throw notFound;
+    }
+
+    // 1. Delete associated job cards
+    try {
+      await database.delete(jobCards).where(eq(jobCards.serviceId, id));
+    } catch (err) {
+      console.warn('[ServicesRepository.deleteService] Delete job cards notice:', err);
+    }
+
+    // 2. Delete associated service schedules pointing to this service
+    try {
+      await database.delete(serviceSchedules).where(eq(serviceSchedules.generatedServiceId, id));
+    } catch (err) {
+      console.warn('[ServicesRepository.deleteService] Delete service schedules notice:', err);
+    }
+
+    // 3. Delete the service record
+    try {
+      await database.delete(services).where(eq(services.id, id));
+    } catch (err) {
+      console.warn('[ServicesRepository.deleteService] Delete service notice:', err);
+    }
+
+    // 4. Remove from in-memory cache if present
+    const memIndex = memoryServices.findIndex((s) => s.id === id);
+    if (memIndex !== -1) {
+      memoryServices.splice(memIndex, 1);
+    }
+
+    return { id, deleted: true, serviceNumber: existing.serviceNumber };
   }
 }
 

@@ -162,6 +162,21 @@ export const servicesRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
+   * DELETE /api/v1/services/:id
+   * Delete service and associated job card and schedule at DB and memory level
+   */
+  fastify.delete('/:id', { preHandler: [requirePermission('services.update')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = (request as any).user;
+    const deleted = await servicesService.deleteService(id, user?.id);
+    return reply.send({
+      success: true,
+      data: deleted,
+      message: 'Service deleted successfully',
+    });
+  });
+
+  /**
    * POST /api/v1/services/:id/notify-technician
    * Manually trigger or retry WhatsApp notification to assigned technician
    */

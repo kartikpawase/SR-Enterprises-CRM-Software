@@ -64,6 +64,10 @@ export class ServicesService {
     return servicesRepository.cancelService(id, cancelReason, actorId);
   }
 
+  async deleteService(id: string, actorId?: string) {
+    return servicesRepository.deleteService(id);
+  }
+
   async completeService(id: string, input: CompleteServiceInput, actorId?: string) {
     const result = await servicesRepository.completeService(id, input, actorId);
     try {

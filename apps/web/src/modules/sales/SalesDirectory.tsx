@@ -25,7 +25,7 @@ export const SalesDirectory: React.FC = () => {
     customer: searchParams.get('customerId') || searchParams.get('customer') || '',
     product: searchParams.get('productId') || searchParams.get('product') || '',
     status: searchParams.get('status') || '',
-    datePreset: searchParams.get('datePreset') || 'this_month',
+    datePreset: searchParams.get('datePreset') || '',
     search: searchParams.get('search') || '',
   });
 
@@ -35,7 +35,7 @@ export const SalesDirectory: React.FC = () => {
     if (filterValues.customer) params.set('customerId', filterValues.customer);
     if (filterValues.product) params.set('productId', filterValues.product);
     if (filterValues.status) params.set('status', filterValues.status);
-    if (filterValues.datePreset && filterValues.datePreset !== 'this_month') {
+    if (filterValues.datePreset) {
       params.set('datePreset', filterValues.datePreset);
     }
     if (filterValues.search) params.set('search', filterValues.search);
@@ -51,7 +51,7 @@ export const SalesDirectory: React.FC = () => {
     status: (filterValues.status as any) || undefined,
     customerId: filterValues.customer || undefined,
     productId: filterValues.product || undefined,
-    datePreset: filterValues.datePreset || 'this_month',
+    datePreset: filterValues.datePreset || undefined,
   };
 
   const { data: response, isLoading } = useSalesQuery(apiFilters);
@@ -69,7 +69,7 @@ export const SalesDirectory: React.FC = () => {
       customer: '',
       product: '',
       status: '',
-      datePreset: 'this_month',
+      datePreset: '',
       search: '',
     });
     setCurrentPage(1);

@@ -192,6 +192,19 @@ export class CustomerService {
   }
 
   /**
+   * Clear all customer transactional data (sales, invoices, payments, services, warranties, assets)
+   * while preserving the customer profile with reset zero balances.
+   */
+  async clearCustomerData(
+    id: string,
+    actorId?: string | null,
+    actorName?: string | null
+  ) {
+    await this.getCustomerById(id);
+    return this.repo.clearCustomerData(id);
+  }
+
+  /**
    * Get calculated financial summary
    */
   async getFinancialSummary(customerId: string) {

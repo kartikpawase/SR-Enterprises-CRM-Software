@@ -45,7 +45,7 @@ export const SalesFilterBar: React.FC<SalesFilterBarProps> = ({
     filters.product ||
     filters.status ||
     filters.search ||
-    (filters.datePreset && filters.datePreset !== 'this_month')
+    filters.datePreset
   );
 
   return (

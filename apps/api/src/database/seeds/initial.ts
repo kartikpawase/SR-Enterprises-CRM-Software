@@ -32,6 +32,7 @@ export const SYSTEM_PERMISSIONS: SystemPermissionDef[] = [
   { key: 'sales.view', name: 'View Sales', module: 'Sales', description: 'View sales orders and transaction records' },
   { key: 'sales.create', name: 'Create Sales', module: 'Sales', description: 'Record new machine or spare parts sales' },
   { key: 'sales.update', name: 'Update Sales', module: 'Sales', description: 'Update sales orders' },
+  { key: 'sales.confirm', name: 'Confirm Sales', module: 'Sales', description: 'Confirm sales orders and issue invoices' },
   { key: 'sales.cancel', name: 'Cancel Sales', module: 'Sales', description: 'Cancel sales transactions with reason' },
 
   // Invoices & Billing Module

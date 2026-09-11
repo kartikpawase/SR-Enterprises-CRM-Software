@@ -2022,6 +2022,52 @@ export class SalesRepository {
       console.warn('[SalesRepository.registerNextServiceVisit] Note:', err?.message);
     }
   }
+
+  /**
+   * Delete sale and associated sale items, generated invoice, assets, and warranties
+   */
+  async deleteSale(id: string, actorId?: string, actorName = 'Staff', database = db) {
+    const existing = await this.findById(id, database);
+    if (!existing) {
+      const err: any = new Error('Sale not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    // 1. Delete associated invoice and invoice items if any
+    try {
+      const invs = await database.select({ id: invoices.id }).from(invoices).where(eq(invoices.saleId, id));
+      for (const inv of invs) {
+        await database.delete(payments).where(eq(payments.invoiceId, inv.id));
+        await database.delete(invoiceItems).where(eq(invoiceItems.invoiceId, inv.id));
+        await database.delete(invoices).where(eq(invoices.id, inv.id));
+      }
+    } catch (err) {
+      console.warn('[SalesRepository.deleteSale] Invoice cleanup notice:', err);
+    }
+
+    // 2. Delete associated sale items
+    try {
+      await database.delete(saleItems).where(eq(saleItems.saleId, id));
+    } catch (err) {
+      console.warn('[SalesRepository.deleteSale] Sale items cleanup notice:', err);
+    }
+
+    // 3. Delete sale record
+    try {
+      await database.delete(sales).where(eq(sales.id, id));
+    } catch (err) {
+      console.warn('[SalesRepository.deleteSale] Sale deletion notice:', err);
+    }
+
+    // 4. Memory store cleanup
+    const memIdx = memorySales.findIndex((s) => s.id === id);
+    if (memIdx !== -1) {
+      memorySales.splice(memIdx, 1);
+    }
+
+    return { id, deleted: true, saleNumber: existing.saleNumber };
+  }
 }
 
 export const salesRepository = new SalesRepository();

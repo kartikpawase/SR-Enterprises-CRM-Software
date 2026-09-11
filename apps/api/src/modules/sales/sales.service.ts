@@ -38,6 +38,10 @@ export class SalesService {
   async cancelSale(id: string, reason: string, actorId?: string, actorName = 'System') {
     return salesRepository.cancelSale(id, reason, actorId, actorName);
   }
+
+  async deleteSale(id: string, actorId?: string, actorName = 'System') {
+    return salesRepository.deleteSale(id, actorId, actorName);
+  }
 }
 
 export const salesService = new SalesService();

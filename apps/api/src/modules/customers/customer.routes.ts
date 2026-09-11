@@ -309,6 +309,29 @@ export const customerRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /**
+   * POST /api/v1/customers/:id/clear-data
+   * Clear all associated business data for this customer:
+   * sales, invoices, payments, services, job cards, warranties, assets, reminders, documents, activities.
+   * Keeps the customer master profile intact with reset zero balances.
+   */
+  fastify.post(
+    '/:id/clear-data',
+    { preHandler: [requirePermission('customers.update')] },
+    async (request, reply) => {
+      const { id } = UuidParamSchema.parse(request.params);
+      const actorId = request.user?.userId;
+      const actorName = request.user?.displayName || 'Staff';
+
+      const result = await customerService.clearCustomerData(id, actorId, actorName);
+      return reply.status(HTTP_STATUS.OK).send({
+        success: true,
+        message: 'All customer data cleared successfully',
+        data: result,
+      });
+    }
+  );
+
+  /**
    * GET /api/v1/customers/:id/financial-summary
    * Authoritative financial summary (requires invoices.view or payments.view)
    */
