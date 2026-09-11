@@ -82,6 +82,20 @@ export async function startServer() {
       console.log(`⏱️ 24/7 Keep-Alive heartbeat active for Render: ${cleanUrl}/health`);
     }
 
+    // Low-memory container watchdog (proactively frees heap if RSS approaches limit)
+    const memCheckInterval = 5 * 60 * 1000;
+    setInterval(() => {
+      const mem = process.memoryUsage();
+      const rssMb = Math.round(mem.rss / 1024 / 1024);
+      if (rssMb > 320 && typeof (global as any).gc === 'function') {
+        try {
+          (global as any).gc();
+          const after = process.memoryUsage();
+          console.log(`[Memory] Auto-GC triggered (RSS: ${rssMb}MB -> ${Math.round(after.rss / 1024 / 1024)}MB)`);
+        } catch {}
+      }
+    }, memCheckInterval);
+
     return app;
   } catch (err) {
     app.log.error(err);

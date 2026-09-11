@@ -40,7 +40,7 @@ const envSchema = z.object({
     .default('postgres://postgres:postgres@localhost:5432/sr_enterprises_crm'),
   DB_MAX_CONNECTIONS: z
     .string()
-    .default('20')
+    .default(process.env.NODE_ENV === 'production' ? '5' : '10')
     .transform((val) => parseInt(val, 10)),
   DB_IDLE_TIMEOUT_MS: z
     .string()

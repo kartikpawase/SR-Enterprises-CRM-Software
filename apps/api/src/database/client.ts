@@ -958,10 +958,10 @@ export async function ensureDatabaseInitialized(): Promise<void> {
       isInitialized = true;
       console.log('✅ [Database] All database tables, sequences, and indexes verified successfully.');
 
-      // Check and auto-sync with Supabase Cloud Persistent Storage (skip in test runner to keep test fixtures isolated)
-      if (process.env.NODE_ENV !== 'test') {
+      // Check and auto-sync with Supabase Cloud Persistent Storage (only needed for embedded PGlite fallback, skip when direct PostgreSQL is active to preserve memory)
+      if (process.env.NODE_ENV !== 'test' && !pgClient) {
         try {
-          const { supabaseDbPersistence } = await import('./supabase-db-persistence');
+          const { supabaseDbPersistence } = await import('./supabase-db-persistence.js');
           await supabaseDbPersistence.ensureDatabaseRestoredFromCloud();
         } catch (cloudSyncErr) {
           // Non-blocking cloud persistence notice

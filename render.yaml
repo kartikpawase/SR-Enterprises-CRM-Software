@@ -16,13 +16,15 @@ services:
       - key: PORT
         value: 10000
       - key: NODE_OPTIONS
-        value: --max-old-space-size=384
+        value: --max-old-space-size=256 --optimize-for-size
       - key: COOKIE_SAME_SITE
         value: none
       - key: SUPABASE_STORAGE_BUCKET
         value: crm-documents
       - key: USE_POSTGRES
         value: "true"
+      - key: DB_MAX_CONNECTIONS
+        value: "5"
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL
