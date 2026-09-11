@@ -23,6 +23,9 @@ for (const p of envLocations) {
 }
 dotenv.config();
 
+export const SUPABASE_PRODUCTION_DB_URL =
+  'postgresql://postgres.swdrtbdpzjcxptszskll:Shreesha2026%40%21@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z
@@ -37,7 +40,11 @@ const envSchema = z.object({
   // Database
   DATABASE_URL: z
     .string()
-    .default('postgres://postgres:postgres@localhost:5432/sr_enterprises_crm'),
+    .default(
+      process.env.NODE_ENV === 'production' || process.env.RENDER
+        ? SUPABASE_PRODUCTION_DB_URL
+        : 'postgres://postgres:postgres@localhost:5432/sr_enterprises_crm'
+    ),
   DB_MAX_CONNECTIONS: z
     .string()
     .default(process.env.NODE_ENV === 'production' ? '5' : '10')
@@ -135,6 +142,34 @@ export function parseEnv(customEnv?: Record<string, string | undefined>): EnvCon
   if (!source.SUPABASE_ANON_KEY) {
     source.SUPABASE_ANON_KEY =
       source.PUBLIC_ANON_KEY || source.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  }
+
+  const isProduction =
+    source.NODE_ENV === 'production' ||
+    process.env.NODE_ENV === 'production' ||
+    Boolean(process.env.RENDER) ||
+    Boolean(source.RENDER);
+
+  // Normalize or resolve DATABASE_URL for cloud deployments
+  if (!source.DATABASE_URL) {
+    if (source.POSTGRES_URL) {
+      source.DATABASE_URL = source.POSTGRES_URL;
+    } else if (source.SUPABASE_DATABASE_URL) {
+      source.DATABASE_URL = source.SUPABASE_DATABASE_URL;
+    } else if (isProduction) {
+      source.DATABASE_URL = SUPABASE_PRODUCTION_DB_URL;
+    }
+  }
+
+  // Prevent cloud containers from attempting connection to local non-existent database
+  if (
+    isProduction &&
+    source.DATABASE_URL &&
+    (source.DATABASE_URL.includes('localhost') ||
+      source.DATABASE_URL.includes('127.0.0.1') ||
+      source.DATABASE_URL.includes('::1'))
+  ) {
+    source.DATABASE_URL = SUPABASE_PRODUCTION_DB_URL;
   }
 
   const result = envSchema.safeParse(source);

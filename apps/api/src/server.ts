@@ -40,10 +40,10 @@ export async function startServer() {
     // Initialize and verify database tables/migrations
     await ensureDatabaseInitialized();
 
-    // Seed initial roles, permissions, catalog, and admin users
+    // Ensure initial roles, permissions, and super admin user exist
     try {
       await seedInitialSystemData();
-      console.log('✅ System roles, catalog, and user accounts seeded successfully.');
+      console.log('✅ System roles, permissions, and administrator account verified.');
     } catch (seedErr) {
       console.warn('⚠️ Warning: Database seeding encountered an error:', seedErr);
     }

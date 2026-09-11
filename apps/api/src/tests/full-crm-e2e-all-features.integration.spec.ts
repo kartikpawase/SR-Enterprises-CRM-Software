@@ -373,13 +373,35 @@ describe('Comprehensive End-to-End CRM System Test — All 16 Modules Step-by-St
   // ==========================================
   describe('Module 7 & 8: Services, Job Cards & WhatsApp Notification', () => {
     it('should schedule a new service and generate linked Job Card', async () => {
-      // Retrieve technician
-      const techRes = await app.inject({
+      // Retrieve technician (or register if cleanly unseeded)
+      let techRes = await app.inject({
         method: 'GET',
         url: '/api/v1/technicians',
         headers: { cookie: authCookie },
       });
-      const techs = techRes.json().data?.items || techRes.json().data || [];
+      let techs = techRes.json().data?.items || techRes.json().data || [];
+      if (techs.length === 0) {
+        const createTechRes = await app.inject({
+          method: 'POST',
+          url: '/api/v1/technicians',
+          headers: { cookie: authCookie },
+          payload: {
+            fullName: 'Aakash Sharma',
+            phone: '9820011223',
+            email: 'aakash.sharma@srenterprises.com',
+            status: 'ACTIVE',
+            skills: ['RO Installation', 'Membrane Replacement'],
+            address: 'Nashik, Maharashtra',
+          },
+        });
+        expect(createTechRes.statusCode).toBe(201);
+        techRes = await app.inject({
+          method: 'GET',
+          url: '/api/v1/technicians',
+          headers: { cookie: authCookie },
+        });
+        techs = techRes.json().data?.items || techRes.json().data || [];
+      }
       expect(techs.length).toBeGreaterThan(0);
       testTechnicianId = techs[0].id;
 

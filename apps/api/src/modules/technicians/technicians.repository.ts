@@ -18,147 +18,19 @@ import type {
   UpdateTechnicianInput,
 } from '@crm/validation';
 
-export const INITIAL_TECHNICIANS = [
-  {
-    id: '11111111-1111-1111-1111-111111111111',
-    fullName: 'Aakash Sharma',
-    phone: '9820011223',
-    email: 'aakash.sharma@srenterprises.com',
-    status: 'ACTIVE' as const,
-    skills: ['RO Installation', 'Membrane Replacement', 'TDS Calibration', 'Booster Pump Repair'],
-    address: 'Shop 4, Ganesh Market, Nashik, Maharashtra',
-    emergencyContact: '9820099887 (Father - Ramesh)',
-    userId: null,
-    createdAt: new Date('2026-01-10T09:00:00.000Z'),
-    updatedAt: new Date('2026-01-10T09:00:00.000Z'),
-  },
-  {
-    id: '22222222-2222-2222-2222-222222222222',
-    fullName: 'Ramesh Kumar',
-    phone: '9833445566',
-    email: 'ramesh.kumar@srenterprises.com',
-    status: 'ACTIVE' as const,
-    skills: ['Filter Replacement', 'Commercial RO Setup', 'Leakage Troubleshooting', 'Electrical Wiring'],
-    address: 'Flat 202, Sai Residency, CIDCO, Nashik, Maharashtra',
-    emergencyContact: '9833445500 (Wife - Sunita)',
-    userId: null,
-    createdAt: new Date('2026-01-15T09:00:00.000Z'),
-    updatedAt: new Date('2026-01-15T09:00:00.000Z'),
-  },
-  {
-    id: '33333333-3333-3333-3333-333333333333',
-    fullName: 'Priya Verma',
-    phone: '9844556677',
-    email: 'priya.verma@srenterprises.com',
-    status: 'ACTIVE' as const,
-    skills: ['TDS Calibration', 'Filter Replacement', 'RO Installation'],
-    address: 'Plot 18, Indira Nagar, Nashik, Maharashtra',
-    emergencyContact: '9844556600 (Brother - Amit)',
-    userId: null,
-    createdAt: new Date('2026-02-01T09:00:00.000Z'),
-    updatedAt: new Date('2026-02-01T09:00:00.000Z'),
-  },
-  {
-    id: '44444444-4444-4444-4444-444444444444',
-    fullName: 'Suresh Patil',
-    phone: '9855667788',
-    email: 'suresh.patil@srenterprises.com',
-    status: 'ON_LEAVE' as const,
-    skills: ['Commercial RO Setup', 'Booster Pump Repair', 'Leakage Troubleshooting'],
-    address: 'House 12, Panchavati, Nashik, Maharashtra',
-    emergencyContact: '9855667700 (Father - Devidas)',
-    userId: null,
-    createdAt: new Date('2026-02-10T09:00:00.000Z'),
-    updatedAt: new Date('2026-02-10T09:00:00.000Z'),
-  },
-  {
-    id: '55555555-5555-5555-5555-555555555555',
-    fullName: 'Vikas Deshmukh',
-    phone: '9866778899',
-    email: 'vikas.deshmukh@srenterprises.com',
-    status: 'INACTIVE' as const,
-    skills: ['RO Installation', 'Filter Replacement'],
-    address: 'Old Nashik, Near Saraf Bazar, Nashik, Maharashtra',
-    emergencyContact: '9866778800 (Uncle - Sanjay)',
-    userId: null,
-    createdAt: new Date('2025-11-20T09:00:00.000Z'),
-    updatedAt: new Date('2026-01-05T09:00:00.000Z'),
-  },
-];
+export const INITIAL_TECHNICIANS: any[] = [];
 
 // In-memory mirror for offline fallback
 export const memoryTechnicians: any[] = [];
 
 export class TechniciansRepository {
-  private hasEnsuredInitial = false;
+  private hasEnsuredInitial = true;
 
   /**
-   * Ensure default 5 workforce technicians exist in the database on initial system setup.
-   * Uses persistent app_settings flag so deleted technicians are never resurrected upon restart.
+   * Ensure default workforce check (no seeded mock workforce).
    */
-  async ensureDefaultTechnicians(database = db) {
-    if (this.hasEnsuredInitial) return;
-    try {
-      // 1. Check persistent database flag in app_settings
-      const [initFlag] = await database
-        .select()
-        .from(appSettings)
-        .where(eq(appSettings.category, 'TECHNICIANS_INITIALIZED'));
-
-      if (initFlag) {
-        this.hasEnsuredInitial = true;
-        return;
-      }
-
-      // 2. Check if any technicians already exist in the database
-      const [techCount] = await database
-        .select({ count: sql<number>`count(*)` })
-        .from(technicians);
-
-      if (Number(techCount?.count || 0) > 0) {
-        await database
-          .insert(appSettings)
-          .values({
-            category: 'TECHNICIANS_INITIALIZED',
-            value: { initializedAt: new Date().toISOString() },
-          })
-          .onConflictDoNothing();
-        this.hasEnsuredInitial = true;
-        return;
-      }
-
-      // 3. Database is completely uninitialized - seed initial default workforce once
-      for (const t of INITIAL_TECHNICIANS) {
-        await database
-          .insert(technicians)
-          .values({
-            id: t.id,
-            fullName: t.fullName,
-            phone: t.phone,
-            email: t.email,
-            status: t.status,
-            skills: t.skills,
-            address: t.address,
-            emergencyContact: t.emergencyContact,
-            userId: t.userId,
-            createdAt: t.createdAt,
-            updatedAt: t.updatedAt,
-          })
-          .onConflictDoNothing();
-      }
-
-      await database
-        .insert(appSettings)
-        .values({
-          category: 'TECHNICIANS_INITIALIZED',
-          value: { initializedAt: new Date().toISOString() },
-        })
-        .onConflictDoNothing();
-
-      this.hasEnsuredInitial = true;
-    } catch (err: any) {
-      console.warn('[TechniciansRepository.ensureDefaultTechnicians] Note:', err?.message);
-    }
+  async ensureDefaultTechnicians(_database = db) {
+    this.hasEnsuredInitial = true;
   }
 
   /**
