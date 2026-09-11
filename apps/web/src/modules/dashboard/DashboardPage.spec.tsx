@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import { DashboardPage } from './DashboardPage';
+import { DashboardPage, resetDashboardCache } from './DashboardPage';
 import { apiClient } from '../../lib/api-client';
 
 const mockNavigate = vi.fn();
@@ -36,6 +36,7 @@ vi.mock('../../lib/api-client', () => ({
 describe('Production DashboardPage Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetDashboardCache();
     (apiClient.get as any).mockResolvedValue({
       success: true,
       data: {
@@ -136,12 +137,12 @@ describe('Production DashboardPage Component', () => {
     expect(screen.getByText('PAYMENTS DUE')).toBeDefined();
     expect(screen.getByText('TECHNICIANS ON DUTY')).toBeDefined();
 
-    // Verify supporting statuses
-    expect(screen.getByText('4 urgent')).toBeDefined();
-    expect(screen.getByText('3 unread')).toBeDefined();
-    expect(screen.getByText('Within threshold')).toBeDefined();
-    expect(screen.getByText('2 overdue')).toBeDefined();
-    expect(screen.getByText('Available: 3')).toBeDefined();
+    // Verify supporting statuses after data resolves
+    expect(await screen.findByText('4 urgent')).toBeDefined();
+    expect(await screen.findByText('3 unread')).toBeDefined();
+    expect(await screen.findByText('Within threshold')).toBeDefined();
+    expect(await screen.findByText('2 overdue')).toBeDefined();
+    expect(await screen.findByText('Available: 3')).toBeDefined();
 
     // Click card navigates to relevant module
     fireEvent.click(screen.getByText('SERVICES DUE TODAY').closest('[role="button"]')!);
@@ -171,8 +172,8 @@ describe('Production DashboardPage Component', () => {
     );
 
     expect(screen.getByText("Today's Schedule")).toBeDefined();
-    expect(screen.getAllByText('Rahul Patil').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/Kent Grand Plus • Doorstep/i).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText('Rahul Patil')).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText(/Kent Grand Plus • Doorstep/i)).toBeDefined();
     expect(screen.getByText('10:00 AM')).toBeDefined();
     expect(screen.getByText('Warranty')).toBeDefined();
     expect(screen.getByText('View Calendar')).toBeDefined();
@@ -186,10 +187,10 @@ describe('Production DashboardPage Component', () => {
     );
 
     expect(screen.getByText('Payment Reminders')).toBeDefined();
-    expect(screen.getByText('₹ 8,500')).toBeDefined();
-    expect(screen.getByText('INV-000184')).toBeDefined();
-    expect(screen.getByText('Due tomorrow')).toBeDefined();
-    expect(screen.getByText('₹ 12,000')).toBeDefined();
-    expect(screen.getByText('INV-000186')).toBeDefined();
+    expect(await screen.findByText('₹ 8,500')).toBeDefined();
+    expect(await screen.findByText('INV-000184')).toBeDefined();
+    expect(await screen.findByText('Due tomorrow')).toBeDefined();
+    expect(await screen.findByText('₹ 12,000')).toBeDefined();
+    expect(await screen.findByText('INV-000186')).toBeDefined();
   });
 });

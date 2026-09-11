@@ -104,7 +104,11 @@ export const InvoiceDetailPage: React.FC = () => {
       phone: invoice.customerPhone,
       orderNumber: (invoice as any).saleNumber || invoice.invoiceNumber,
       invoiceNumber: invoice.invoiceNumber,
+      invoiceId: invoice.id,
       customerName: invoice.customerName,
+      totalAmount: invoice.totalAmount,
+      paidAmount: invoice.paidAmount,
+      balanceAmount: invoice.outstandingAmount,
     });
 
     if (res.success) {

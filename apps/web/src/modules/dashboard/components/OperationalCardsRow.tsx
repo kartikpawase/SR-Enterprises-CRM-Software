@@ -11,6 +11,22 @@ export interface OperationalCardsRowProps {
 export const OperationalCardsRow: React.FC<OperationalCardsRowProps> = ({ data }) => {
   const navigate = useNavigate();
 
+  const getPoints = (history?: number[], count = 0) => {
+    if (history && history.length > 0) return history;
+    if (count > 0) {
+      return [
+        Math.round(count * 0.8),
+        Math.round(count * 0.9),
+        Math.round(count * 0.7),
+        Math.round(count * 1.1),
+        Math.round(count * 0.95),
+        count,
+        count,
+      ];
+    }
+    return [0, 0, 0, 0, 0, 0, 0];
+  };
+
   const cards = [
     {
       id: 'services-due',
@@ -21,7 +37,7 @@ export const OperationalCardsRow: React.FC<OperationalCardsRowProps> = ({ data }
       icon: <Calendar className="w-5 h-5 text-white" />,
       iconBg: 'bg-red-600',
       curveColor: 'red' as const,
-      dataPoints: data.history?.servicesDue || [6, 9, 7, 11, 8, 12, data.servicesDueToday],
+      dataPoints: getPoints(data.history?.servicesDue, data.servicesDueToday),
       route: '/services',
     },
     {
@@ -33,7 +49,7 @@ export const OperationalCardsRow: React.FC<OperationalCardsRowProps> = ({ data }
       icon: <Mail className="w-5 h-5 text-white" />,
       iconBg: 'bg-sky-600',
       curveColor: 'blue' as const,
-      dataPoints: data.history?.newInquiries || [3, 5, 4, 7, 6, 8, data.newInquiries],
+      dataPoints: getPoints(data.history?.newInquiries, data.newInquiries),
       route: '/inquiries',
     },
     {
@@ -45,7 +61,7 @@ export const OperationalCardsRow: React.FC<OperationalCardsRowProps> = ({ data }
       icon: <ShieldCheck className="w-5 h-5 text-white" />,
       iconBg: 'bg-amber-600',
       curveColor: 'orange' as const,
-      dataPoints: data.history?.warrantiesExpiring || [5, 4, 6, 3, 5, 4, data.warrantiesExpiring],
+      dataPoints: getPoints(data.history?.warrantiesExpiring, data.warrantiesExpiring),
       route: '/warranty',
     },
     {
@@ -57,7 +73,7 @@ export const OperationalCardsRow: React.FC<OperationalCardsRowProps> = ({ data }
       icon: <Wallet className="w-5 h-5 text-white" />,
       iconBg: 'bg-emerald-600',
       curveColor: 'green' as const,
-      dataPoints: data.history?.paymentsDue || [7, 6, 8, 5, 6, 5, data.paymentsDue],
+      dataPoints: getPoints(data.history?.paymentsDue, data.paymentsDue),
       route: '/payments',
     },
     {
@@ -69,7 +85,7 @@ export const OperationalCardsRow: React.FC<OperationalCardsRowProps> = ({ data }
       icon: <User className="w-5 h-5 text-white" />,
       iconBg: 'bg-teal-600',
       curveColor: 'purple' as const,
-      dataPoints: data.history?.techniciansOnDuty || [4, 5, 5, 6, 5, 6, data.techniciansOnDuty],
+      dataPoints: getPoints(data.history?.techniciansOnDuty, data.techniciansOnDuty),
       route: '/technicians',
     },
   ];

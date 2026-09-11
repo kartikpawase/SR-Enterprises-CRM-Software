@@ -118,11 +118,19 @@ export const SaleDetailPage: React.FC = () => {
       return;
     }
 
+    const paidAmount = sale.invoice?.paidAmount || '0';
+    const totalAmount = sale.invoice?.totalAmount || sale.totalAmount || '0';
+    const balanceAmount = (parseFloat(totalAmount) - parseFloat(paidAmount)).toFixed(2);
+
     const res = sendInvoiceViaWhatsApp({
       phone: sale.customerPhone,
       orderNumber: sale.saleNumber,
       invoiceNumber: sale.invoice?.invoiceNumber || sale.saleNumber,
+      invoiceId: sale.invoice?.id || sale.invoice?.invoiceNumber || sale.id,
       customerName: sale.customerName,
+      totalAmount,
+      paidAmount,
+      balanceAmount: parseFloat(balanceAmount) > 0 ? balanceAmount : '0',
     });
 
     if (res.success) {

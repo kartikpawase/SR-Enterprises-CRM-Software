@@ -7,114 +7,38 @@ import { TodaysScheduleCard } from './components/TodaysScheduleCard';
 import { PaymentRemindersSection } from './components/PaymentRemindersSection';
 import type { DashboardData } from './types';
 
-// Default initial operational data to preserve instant rendering and layout stability
+// Clean initial operational state with strictly no seeded dummy data
 const DEFAULT_DASHBOARD_DATA: DashboardData = {
   cards: {
-    servicesDueToday: 12,
-    servicesUrgent: 4,
-    newInquiries: 8,
-    inquiriesUnread: 3,
-    warrantiesExpiring: 4,
-    paymentsDue: 5,
-    paymentsOverdue: 2,
-    techniciansOnDuty: 6,
-    techniciansAvailable: 3,
+    servicesDueToday: 0,
+    servicesUrgent: 0,
+    newInquiries: 0,
+    inquiriesUnread: 0,
+    warrantiesExpiring: 0,
+    paymentsDue: 0,
+    paymentsOverdue: 0,
+    techniciansOnDuty: 0,
+    techniciansAvailable: 0,
   },
   overview: {
-    servicesScheduled: 12,
-    newInquiries: 8,
-    warrantiesExpiring: 4,
-    paymentsDue: 5,
-    techniciansOnDuty: 6,
+    servicesScheduled: 0,
+    newInquiries: 0,
+    warrantiesExpiring: 0,
+    paymentsDue: 0,
+    techniciansOnDuty: 0,
   },
-  schedule: [
-    {
-      id: 'SCH-001',
-      time: '10:00 AM',
-      customerName: 'Rahul Patil',
-      serviceName: 'Kent Grand Plus',
-      mode: 'Doorstep',
-      category: 'Warranty',
-      status: 'Scheduled',
-    },
-    {
-      id: 'SCH-002',
-      time: '12:30 PM',
-      customerName: 'Amit Sharma',
-      serviceName: 'Aquaguard Aura',
-      mode: 'In-Shop',
-      category: 'General',
-      status: 'Scheduled',
-    },
-    {
-      id: 'SCH-003',
-      time: '2:00 PM',
-      customerName: 'Neha Joshi',
-      serviceName: 'Kent Grand Plus',
-      mode: 'Doorstep',
-      category: 'General',
-      status: 'Scheduled',
-    },
-    {
-      id: 'SCH-004',
-      time: '4:30 PM',
-      customerName: 'Vijay Shinde',
-      serviceName: 'Spare Part Installation',
-      mode: 'Doorstep',
-      category: 'General',
-      status: 'Scheduled',
-    },
-    {
-      id: 'SCH-005',
-      time: '6:00 PM',
-      customerName: 'Amit Patil',
-      serviceName: 'RO Maintenance',
-      mode: 'Doorstep',
-      category: 'General',
-      status: 'Scheduled',
-    },
-  ],
-  paymentReminders: [
-    {
-      id: 'REM-001',
-      customerId: '00000000-0000-0000-0000-000000000011',
-      customerName: 'Rahul Patil',
-      initials: 'RP',
-      amount: 8500,
-      formattedAmount: '₹ 8,500',
-      dueTiming: 'Due tomorrow',
-      invoiceNumber: 'INV-000184',
-      status: 'due_soon',
-    },
-    {
-      id: 'REM-002',
-      customerId: '00000000-0000-0000-0000-000000000012',
-      customerName: 'Amit Sharma',
-      initials: 'AS',
-      amount: 12000,
-      formattedAmount: '₹ 12,000',
-      dueTiming: 'Due in 3 days',
-      invoiceNumber: 'INV-000186',
-      status: 'due_soon',
-    },
-    {
-      id: 'REM-003',
-      customerId: '00000000-0000-0000-0000-000000000013',
-      customerName: 'Neha Joshi',
-      initials: 'NJ',
-      amount: 5200,
-      formattedAmount: '₹ 5,200',
-      dueTiming: 'Overdue by 2 days',
-      invoiceNumber: 'INV-000187',
-      status: 'overdue',
-    },
-  ],
+  schedule: [],
+  paymentReminders: [],
   notifications: {
-    unreadCount: 3,
+    unreadCount: 0,
   },
 };
 
 let cachedDashboardData: DashboardData = DEFAULT_DASHBOARD_DATA;
+
+export const resetDashboardCache = () => {
+  cachedDashboardData = DEFAULT_DASHBOARD_DATA;
+};
 
 export const DashboardPage: React.FC = () => {
   const [data, setData] = useState<DashboardData>(cachedDashboardData);

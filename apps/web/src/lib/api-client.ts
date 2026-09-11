@@ -126,7 +126,12 @@ export async function apiRequest<T>(
   const data = isJson ? await response.json().catch(() => null) : null;
 
   if (!response.ok) {
-    if (response.status === 401 && !url.includes('/auth/login') && !url.includes('/auth/captcha')) {
+    if (
+      response.status === 401 &&
+      !url.includes('/auth/login') &&
+      !url.includes('/auth/captcha') &&
+      !url.includes('/public/')
+    ) {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('auth:unauthorized', {
           detail: { message: data?.error?.message || 'Authentication required' },

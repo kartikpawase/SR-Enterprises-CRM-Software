@@ -42,6 +42,7 @@ const NotificationsPage = React.lazy(() => import('./modules/notifications/Notif
 const SettingsPage = React.lazy(() => import('./modules/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const DuesPage = React.lazy(() => import('./modules/dues/DuesPage').then((m) => ({ default: m.DuesPage })));
 const InventoryPage = React.lazy(() => import('./modules/inventory/InventoryPage').then((m) => ({ default: m.InventoryPage })));
+const PublicInvoicePage = React.lazy(() => import('./pages/PublicInvoicePage').then((m) => ({ default: m.PublicInvoicePage })));
 import {
   TrendingUp,
   Plus,
@@ -440,6 +441,22 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
+      <Route
+        path="/invoice/view/:id"
+        element={
+          <Suspense fallback={<LoadingState message="Loading invoice..." />}>
+            <PublicInvoicePage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/invoices/view/:id"
+        element={
+          <Suspense fallback={<LoadingState message="Loading invoice..." />}>
+            <PublicInvoicePage />
+          </Suspense>
+        }
+      />
       <Route path="/*" element={<MainAppShellRouter />} />
     </Routes>
   );

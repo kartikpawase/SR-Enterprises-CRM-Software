@@ -135,4 +135,68 @@ export const publicInquiriesRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   );
+
+  /**
+   * GET /api/v1/public/invoices/:id
+   * Public viewing endpoint for customer invoices (via WhatsApp share links)
+   */
+  fastify.get('/invoices/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!id || !id.trim()) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'INVALID_ID', message: 'Invoice identifier is required.' },
+      });
+    }
+
+    try {
+      const { invoicesService } = await import('../invoices/invoices.service');
+      const invoice = await invoicesService.getInvoiceById(id.trim());
+      if (!invoice) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Invoice not found.' },
+        });
+      }
+      return reply.send({
+        success: true,
+        data: invoice,
+      });
+    } catch {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'The requested invoice could not be found.' },
+      });
+    }
+  });
+
+  fastify.get('/invoice/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!id || !id.trim()) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'INVALID_ID', message: 'Invoice identifier is required.' },
+      });
+    }
+
+    try {
+      const { invoicesService } = await import('../invoices/invoices.service');
+      const invoice = await invoicesService.getInvoiceById(id.trim());
+      if (!invoice) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Invoice not found.' },
+        });
+      }
+      return reply.send({
+        success: true,
+        data: invoice,
+      });
+    } catch {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'The requested invoice could not be found.' },
+      });
+    }
+  });
 };
