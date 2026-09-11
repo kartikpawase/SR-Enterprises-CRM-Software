@@ -13,6 +13,7 @@ const envLocations = [
   path.resolve(__dirname, '../../.env'),
   path.resolve(process.cwd(), '.env'),
   path.resolve(process.cwd(), 'apps/api/.env'),
+  path.resolve(process.cwd(), '.env.production'),
 ];
 
 for (const p of envLocations) {

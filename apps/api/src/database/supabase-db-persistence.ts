@@ -11,6 +11,25 @@ export interface DatabaseSnapshotPayload {
   tables: Record<string, Record<string, any>[]>;
 }
 
+async function executeQuery(queryStr: string): Promise<any[]> {
+  try {
+    if ('unsafe' in (sql as any)) {
+      return await (sql as any).unsafe(queryStr);
+    }
+    if ('query' in (sql as any)) {
+      const res = await (sql as any).query(queryStr);
+      return res?.rows || [];
+    }
+    if ('exec' in (sql as any)) {
+      const res = await (sql as any).exec(queryStr);
+      return res?.[0]?.rows || [];
+    }
+  } catch (e) {
+    throw e;
+  }
+  return [];
+}
+
 export class SupabaseDatabasePersistenceService {
   private isSyncing = false;
   private isRestoring = false;
@@ -42,7 +61,7 @@ export class SupabaseDatabasePersistenceService {
 
       for (const table of ORDERED_DOMAIN_TABLES) {
         try {
-          const rows: any[] = await sql.unsafe(`SELECT * FROM "${table}"`);
+          const rows = await executeQuery(`SELECT * FROM "${table}"`);
           if (rows && rows.length > 0) {
             tablesData[table] = rows;
             tableCounts[table] = rows.length;
@@ -138,7 +157,7 @@ export class SupabaseDatabasePersistenceService {
             .join(', ');
 
           try {
-            await sql.unsafe(
+            await executeQuery(
               `INSERT INTO "${table}" (${columns}) VALUES (${formattedValues}) ON CONFLICT DO NOTHING;`
             );
             restoredCount++;
@@ -170,12 +189,12 @@ export class SupabaseDatabasePersistenceService {
       let customerCount = 0;
 
       try {
-        const usersRes: any[] = await sql.unsafe('SELECT count(*) as count FROM "users"');
+        const usersRes: any[] = await executeQuery('SELECT count(*) as count FROM "users"');
         userCount = Number(usersRes?.[0]?.count || 0);
       } catch {}
 
       try {
-        const custRes: any[] = await sql.unsafe('SELECT count(*) as count FROM "customers"');
+        const custRes: any[] = await executeQuery('SELECT count(*) as count FROM "customers"');
         customerCount = Number(custRes?.[0]?.count || 0);
       } catch {}
 

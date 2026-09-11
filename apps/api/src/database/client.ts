@@ -5,8 +5,13 @@ import { PGlite } from '@electric-sql/pglite';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import dns from 'node:dns';
 import { env } from '../config/env';
 import * as schema from './schema/index';
+
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch {}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -869,7 +874,8 @@ export async function ensureDatabaseInitialized(): Promise<void> {
         // In PostgreSQL production mode, retry connection if container is still booting
         let connected = false;
         let attempts = 0;
-        const maxAttempts = process.env.USE_POSTGRES === 'true' ? 10 : 3;
+        const usePostgres = env.NODE_ENV === 'production' || process.env.USE_POSTGRES === 'true';
+        const maxAttempts = usePostgres ? 10 : 3;
         while (!connected && attempts < maxAttempts) {
           try {
             attempts++;
@@ -877,7 +883,7 @@ export async function ensureDatabaseInitialized(): Promise<void> {
             connected = true;
           } catch (connErr: any) {
             if (attempts >= maxAttempts) {
-              if (process.env.USE_POSTGRES === 'true') {
+              if (usePostgres) {
                 throw connErr;
               }
               console.warn(

@@ -21,6 +21,8 @@ services:
         value: none
       - key: SUPABASE_STORAGE_BUCKET
         value: crm-documents
+      - key: USE_POSTGRES
+        value: "true"
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL
