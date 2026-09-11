@@ -182,7 +182,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     if (!userRecord) {
       // Execute dummy password verification to equalize response timing
       if (dummyHash) {
-        await verifyPassword(body.password, dummyHash).catch(() => false);
+        await verifyPassword(dummyHash, body.password).catch(() => false);
       }
 
       const failedResult = await recordFailedLogin(redis, normalizedUsername);
@@ -276,7 +276,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     if (!isPasswordValid && userRecord.passwordHash) {
-      isPasswordValid = await verifyPassword(cleanPassword, userRecord.passwordHash).catch(() => false);
+      isPasswordValid = await verifyPassword(userRecord.passwordHash, cleanPassword).catch(() => false);
     }
 
     if (!isPasswordValid) {
@@ -348,7 +348,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       ipAddress: clientIp,
     });
 
-    // 11. Return user profile and permission list
+    // 11. Return user profile, permissions, and session token for cross-origin/cookie-blocked environments
     const permissionsSet = await getRolePermissionKeys(userRecord.role);
     const permissions = Array.from(permissionsSet);
 
@@ -363,6 +363,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           role: userRecord.role,
         },
         permissions,
+        token: session.sessionId,
+        sessionId: session.sessionId,
       },
     });
   });

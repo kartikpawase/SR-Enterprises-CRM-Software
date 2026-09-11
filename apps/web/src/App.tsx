@@ -12,34 +12,36 @@ import { Card, CardContent } from './components/ui/Card';
 import { StatusBadge } from './components/ui/StatusBadge';
 import { LoadingState } from './components/ui/LoadingState';
 import { Button } from './components/ui/Button';
-import { DashboardPage } from './modules/dashboard/DashboardPage';
-import { CustomerDirectory } from './modules/customers/CustomerDirectory';
-import { CustomerProfile } from './modules/customers/CustomerProfile';
-import { SalesDirectory } from './modules/sales/SalesDirectory';
-import { SaleCreatePage } from './modules/sales/SaleCreatePage';
-import { SaleDetailPage } from './modules/sales/SaleDetailPage';
-import { RentalsPage } from './modules/rentals/RentalsPage';
-import { InvoiceDirectory } from './modules/invoices/InvoiceDirectory';
-import { InvoiceDetailPage } from './modules/invoices/InvoiceDetailPage';
-import { AssetsDirectory } from './modules/assets/AssetsDirectory';
-import { ServicesDirectory } from './modules/services/ServicesDirectory';
-import { ServiceDetailPage } from './modules/services/ServiceDetailPage';
-import { WarrantyDirectory } from './modules/warranties/WarrantyDirectory';
-import { JobCardDirectory } from './modules/job-cards/JobCardDirectory';
-import { JobCardDetailPage } from './modules/job-cards/JobCardDetailPage';
-import { TechniciansDirectory } from './modules/technicians/TechniciansDirectory';
-import { PaymentsDirectory } from './modules/payments/PaymentsDirectory';
-import { RemindersDirectory } from './modules/reminders/RemindersDirectory';
-import { InquiriesDirectory } from './modules/inquiries/InquiriesDirectory';
-import { InquiryDetailPage } from './modules/inquiries/InquiryDetailPage';
-import { WhatsAppHub } from './modules/whatsapp/WhatsAppHub';
-import { AnalyticsPage } from './modules/analytics/AnalyticsPage';
-import { ReportsPage } from './modules/reports/ReportsPage';
-import { NotificationsPage } from './modules/notifications/NotificationsPage';
-import { SettingsPage } from './modules/settings/SettingsPage';
-import { DuesPage } from './modules/dues/DuesPage';
-import { InventoryPage } from './modules/inventory/InventoryPage';
 import { LoginPage } from './pages/LoginPage';
+
+// Code-split route modules dynamically to optimize initial bundle size and processing speed
+const DashboardPage = React.lazy(() => import('./modules/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const CustomerDirectory = React.lazy(() => import('./modules/customers/CustomerDirectory').then((m) => ({ default: m.CustomerDirectory })));
+const CustomerProfile = React.lazy(() => import('./modules/customers/CustomerProfile').then((m) => ({ default: m.CustomerProfile })));
+const SalesDirectory = React.lazy(() => import('./modules/sales/SalesDirectory').then((m) => ({ default: m.SalesDirectory })));
+const SaleCreatePage = React.lazy(() => import('./modules/sales/SaleCreatePage').then((m) => ({ default: m.SaleCreatePage })));
+const SaleDetailPage = React.lazy(() => import('./modules/sales/SaleDetailPage').then((m) => ({ default: m.SaleDetailPage })));
+const RentalsPage = React.lazy(() => import('./modules/rentals/RentalsPage').then((m) => ({ default: m.RentalsPage })));
+const InvoiceDirectory = React.lazy(() => import('./modules/invoices/InvoiceDirectory').then((m) => ({ default: m.InvoiceDirectory })));
+const InvoiceDetailPage = React.lazy(() => import('./modules/invoices/InvoiceDetailPage').then((m) => ({ default: m.InvoiceDetailPage })));
+const AssetsDirectory = React.lazy(() => import('./modules/assets/AssetsDirectory').then((m) => ({ default: m.AssetsDirectory })));
+const ServicesDirectory = React.lazy(() => import('./modules/services/ServicesDirectory').then((m) => ({ default: m.ServicesDirectory })));
+const ServiceDetailPage = React.lazy(() => import('./modules/services/ServiceDetailPage').then((m) => ({ default: m.ServiceDetailPage })));
+const WarrantyDirectory = React.lazy(() => import('./modules/warranties/WarrantyDirectory').then((m) => ({ default: m.WarrantyDirectory })));
+const JobCardDirectory = React.lazy(() => import('./modules/job-cards/JobCardDirectory').then((m) => ({ default: m.JobCardDirectory })));
+const JobCardDetailPage = React.lazy(() => import('./modules/job-cards/JobCardDetailPage').then((m) => ({ default: m.JobCardDetailPage })));
+const TechniciansDirectory = React.lazy(() => import('./modules/technicians/TechniciansDirectory').then((m) => ({ default: m.TechniciansDirectory })));
+const PaymentsDirectory = React.lazy(() => import('./modules/payments/PaymentsDirectory').then((m) => ({ default: m.PaymentsDirectory })));
+const RemindersDirectory = React.lazy(() => import('./modules/reminders/RemindersDirectory').then((m) => ({ default: m.RemindersDirectory })));
+const InquiriesDirectory = React.lazy(() => import('./modules/inquiries/InquiriesDirectory').then((m) => ({ default: m.InquiriesDirectory })));
+const InquiryDetailPage = React.lazy(() => import('./modules/inquiries/InquiryDetailPage').then((m) => ({ default: m.InquiryDetailPage })));
+const WhatsAppHub = React.lazy(() => import('./modules/whatsapp/WhatsAppHub').then((m) => ({ default: m.WhatsAppHub })));
+const AnalyticsPage = React.lazy(() => import('./modules/analytics/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
+const ReportsPage = React.lazy(() => import('./modules/reports/ReportsPage').then((m) => ({ default: m.ReportsPage })));
+const NotificationsPage = React.lazy(() => import('./modules/notifications/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
+const SettingsPage = React.lazy(() => import('./modules/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const DuesPage = React.lazy(() => import('./modules/dues/DuesPage').then((m) => ({ default: m.DuesPage })));
+const InventoryPage = React.lazy(() => import('./modules/inventory/InventoryPage').then((m) => ({ default: m.InventoryPage })));
 import {
   TrendingUp,
   Plus,
@@ -139,7 +141,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function LoginRoute() {
-  const { isAuthenticated, isLoading, checkAuth } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -153,8 +155,7 @@ function LoginRoute() {
 
   return (
     <LoginPage
-      onLoginSuccess={async () => {
-        await checkAuth();
+      onLoginSuccess={() => {
         navigate(from, { replace: true });
       }}
     />

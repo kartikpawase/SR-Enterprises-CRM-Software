@@ -51,16 +51,47 @@ const AuthContext = createContext<AuthContextValue>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUserProfile | null>(null);
-  const [permissions, setPermissions] = useState<string[]>([]);
-  const [authStatus, setAuthStatus] = useState<AuthStatus>('AUTH_CHECKING');
+  const [user, setUser] = useState<AuthUserProfile | null>(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('crm_user');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return parsed.user || parsed;
+        }
+      }
+    } catch {}
+    return null;
+  });
+
+  const [permissions, setPermissions] = useState<string[]>(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('crm_user');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return Array.isArray(parsed.permissions) ? parsed.permissions : ['*'];
+        }
+      }
+    } catch {}
+    return [];
+  });
+
+  const [authStatus, setAuthStatus] = useState<AuthStatus>(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('crm_user');
+        if (saved) return 'AUTHENTICATED';
+      }
+    } catch {}
+    return 'AUTH_CHECKING';
+  });
 
   /**
    * Strictly verifies authenticated session with the backend server (/api/v1/auth/me).
-   * Unauthenticated state forces login redirect.
+   * Uses cached session optimistically and validates in background.
    */
   const checkAuth = useCallback(async () => {
-    setAuthStatus('AUTH_CHECKING');
     try {
       const response = await apiClient.get<{ user: AuthUserProfile; permissions: string[] }>('/auth/me');
       if (response && response.success && response.data?.user) {
@@ -82,15 +113,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthStatus('UNAUTHENTICATED');
       try {
         localStorage.removeItem('crm_user');
+        localStorage.removeItem('crm_session_token');
       } catch {}
-    } catch {
-      // 401 or network failure -> Strictly Unauthenticated
-      setUser(null);
-      setPermissions([]);
-      setAuthStatus('UNAUTHENTICATED');
-      try {
-        localStorage.removeItem('crm_user');
-      } catch {}
+    } catch (err: any) {
+      // If 401 or explicitly unauthorized, clear session
+      const isUnauthorized = err?.status === 401 || err?.code === 'UNAUTHORIZED';
+      if (isUnauthorized) {
+        setUser(null);
+        setPermissions([]);
+        setAuthStatus('UNAUTHENTICATED');
+        try {
+          localStorage.removeItem('crm_user');
+          localStorage.removeItem('crm_session_token');
+        } catch {}
+      } else {
+        // Transient network glitch: keep cached session if present, otherwise set unauthenticated
+        try {
+          const cached = localStorage.getItem('crm_user');
+          if (!cached) {
+            setAuthStatus('UNAUTHENTICATED');
+          }
+        } catch {
+          setAuthStatus('UNAUTHENTICATED');
+        }
+      }
     }
   }, []);
 
@@ -103,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthStatus('UNAUTHENTICATED');
       try {
         localStorage.removeItem('crm_user');
+        localStorage.removeItem('crm_session_token');
       } catch {}
       queryClient.clear();
     };
@@ -142,6 +189,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             'crm_user',
             JSON.stringify({ user: payload.user, permissions: payload.permissions || ['*'] })
           );
+          const token = payload.token || payload.sessionId;
+          if (token) {
+            localStorage.setItem('crm_session_token', token);
+          }
         } catch {}
         return { success: true };
       }
@@ -181,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthStatus('UNAUTHENTICATED');
       try {
         localStorage.removeItem('crm_user');
+        localStorage.removeItem('crm_session_token');
       } catch {}
       queryClient.clear();
     }

@@ -88,6 +88,15 @@ export async function apiRequest<T>(
     [HTTP_HEADERS.REQUEST_ID]: crypto.randomUUID(),
   };
 
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const token = localStorage.getItem('crm_session_token');
+      if (token) {
+        defaultHeaders['Authorization'] = `Bearer ${token}`;
+      }
+    }
+  } catch {}
+
   if (customConfig.body) {
     defaultHeaders['Content-Type'] = 'application/json';
   }

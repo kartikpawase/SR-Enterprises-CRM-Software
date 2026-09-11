@@ -92,8 +92,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, className }) =>
 
     setIsSubmitting(true);
 
+    const activeChallengeId = challengeId || 'local-challenge';
+
     try {
-      const response = await login(username.trim(), password, challengeId, captchaInput.trim());
+      const response = await login(username.trim(), password, activeChallengeId, captchaInput.trim());
 
       if (response.success) {
         onSuccess?.();

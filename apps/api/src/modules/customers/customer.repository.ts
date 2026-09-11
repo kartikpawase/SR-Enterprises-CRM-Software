@@ -147,36 +147,38 @@ export class CustomerRepository {
         break;
     }
 
-    // Execute count and paginated query
+    // Execute count and paginated query concurrently
     let total = 0;
     let records: any[] = [];
 
     try {
-      const [totalRecord] = await database
-        .select({ total: count() })
-        .from(customers)
-        .where(whereClause);
-
-      total = Number(totalRecord?.total || 0);
-
-      records = await database.query.customers.findMany({
-        where: whereClause,
-        orderBy: orderByClauses,
-        limit,
-        offset,
-        with: {
-          addresses: {
-            orderBy: [desc(customerAddresses.isDefault), desc(customerAddresses.createdAt)],
-          },
-          assets: {
-            limit: 10,
-            with: {
-              product: true,
-              warranties: true,
+      const [totalRecordRes, recordsRes] = await Promise.all([
+        database
+          .select({ total: count() })
+          .from(customers)
+          .where(whereClause),
+        database.query.customers.findMany({
+          where: whereClause,
+          orderBy: orderByClauses,
+          limit,
+          offset,
+          with: {
+            addresses: {
+              orderBy: [desc(customerAddresses.isDefault), desc(customerAddresses.createdAt)],
+            },
+            assets: {
+              limit: 10,
+              with: {
+                product: true,
+                warranties: true,
+              },
             },
           },
-        },
-      });
+        }),
+      ]);
+
+      total = Number(totalRecordRes[0]?.total || 0);
+      records = recordsRes;
     } catch (dbErr: any) {
       console.warn('[CustomerRepository.findPaginated] Database query fallback:', dbErr?.message);
       records = memoryCustomers;
@@ -210,8 +212,8 @@ export class CustomerRepository {
     const warrantiesByCustomer: Record<string, any[]> = {};
 
     if (customerIds.length > 0) {
-      try {
-        const servicesList = await database.query.services.findMany({
+      const [servicesListRes, invoicesListRes, paymentsListRes, warrantiesListRes] = await Promise.allSettled([
+        database.query.services.findMany({
           where: inArray(services.customerId, customerIds),
           with: {
             asset: {
@@ -221,44 +223,44 @@ export class CustomerRepository {
             },
           },
           orderBy: desc(services.scheduledDate),
-        });
-        for (const s of servicesList) {
+        }),
+        database.query.invoices.findMany({
+          where: inArray(invoices.customerId, customerIds),
+          orderBy: desc(invoices.invoiceDate),
+        }),
+        database.query.payments.findMany({
+          where: inArray(payments.customerId, customerIds),
+          orderBy: desc(payments.paymentDate),
+        }),
+        database.query.warranties.findMany({
+          where: inArray(warranties.customerId, customerIds),
+        }),
+      ]);
+
+      if (servicesListRes.status === 'fulfilled') {
+        for (const s of servicesListRes.value) {
           if (!servicesByCustomer[s.customerId]) servicesByCustomer[s.customerId] = [];
           servicesByCustomer[s.customerId].push(s);
         }
-      } catch {}
-
-      try {
-        const invoicesList = await database.query.invoices.findMany({
-          where: inArray(invoices.customerId, customerIds),
-          orderBy: desc(invoices.invoiceDate),
-        });
-        for (const inv of invoicesList) {
+      }
+      if (invoicesListRes.status === 'fulfilled') {
+        for (const inv of invoicesListRes.value) {
           if (!invoicesByCustomer[inv.customerId]) invoicesByCustomer[inv.customerId] = [];
           invoicesByCustomer[inv.customerId].push(inv);
         }
-      } catch {}
-
-      try {
-        const paymentsList = await database.query.payments.findMany({
-          where: inArray(payments.customerId, customerIds),
-          orderBy: desc(payments.paymentDate),
-        });
-        for (const p of paymentsList) {
+      }
+      if (paymentsListRes.status === 'fulfilled') {
+        for (const p of paymentsListRes.value) {
           if (!paymentsByCustomer[p.customerId]) paymentsByCustomer[p.customerId] = [];
           paymentsByCustomer[p.customerId].push(p);
         }
-      } catch {}
-
-      try {
-        const warrantiesList = await database.query.warranties.findMany({
-          where: inArray(warranties.customerId, customerIds),
-        });
-        for (const w of warrantiesList) {
+      }
+      if (warrantiesListRes.status === 'fulfilled') {
+        for (const w of warrantiesListRes.value) {
           if (!warrantiesByCustomer[w.customerId]) warrantiesByCustomer[w.customerId] = [];
           warrantiesByCustomer[w.customerId].push(w);
         }
-      } catch {}
+      }
     }
 
     const enhancedRecords = records.map((cust) => {

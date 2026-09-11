@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from '../../providers/ToastProvider';
 import { SalesDirectory } from './SalesDirectory';
 
 vi.mock('../../providers/AuthBoundary', () => ({
@@ -56,6 +57,11 @@ vi.mock('./sales.api', () => ({
     data: [],
     isLoading: false,
   }),
+  useDeleteSaleMutation: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 import { SalesKpiCards } from './components/SalesKpiCards';
@@ -68,9 +74,11 @@ describe('Phase 5 — Sales Directory Component', () => {
   it('renders sales directory with page header, create sale button, and sales list', () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <SalesDirectory />
-        </BrowserRouter>
+        <ToastProvider>
+          <BrowserRouter>
+            <SalesDirectory />
+          </BrowserRouter>
+        </ToastProvider>
       </QueryClientProvider>
     );
 
