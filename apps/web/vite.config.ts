@@ -48,12 +48,24 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globIgnores: ['**/invoice-assets-*.js'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallbackDenylist: [/^\/api\//, /^\/health/, /^\/ready/],
         runtimeCaching: [
           {
             urlPattern: /^\/api\/.*$/,
             handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: /.*invoice-assets-.*\.js$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'invoice-assets-cache',
+              expiration: {
+                maxEntries: 5,
+                maxAgeSeconds: 30 * 24 * 60 * 60,
+              },
+            },
           },
         ],
       },
@@ -69,21 +81,27 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes('invoiceAssets')) {
+            return 'invoice-assets';
+          }
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
-              return 'vendor-react';
-            }
-            if (id.includes('@tanstack')) {
-              return 'vendor-tanstack';
-            }
             if (id.includes('lucide-react')) {
               return 'vendor-icons';
             }
             if (id.includes('xlsx')) {
               return 'vendor-xlsx';
             }
-            if (id.includes('recharts')) {
-              return 'vendor-charts';
+            if (id.includes('react-hook-form') || id.includes('@hookform')) {
+              return 'vendor-forms';
+            }
+            if (id.includes('react-router-dom') || id.includes('@remix-run')) {
+              return 'vendor-router';
+            }
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('@tanstack')) {
+              return 'vendor-tanstack';
             }
             return 'vendor-common';
           }

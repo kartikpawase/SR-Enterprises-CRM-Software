@@ -155,11 +155,28 @@ export function buildApp(opts: FastifyServerOptions = {}): FastifyInstance {
       root: webDistPath,
       prefix: '/',
       decorateReply: true,
+      setHeaders: (res, pathName) => {
+        if (pathName.includes('/assets/') || pathName.includes('\\assets\\')) {
+          // Content-hashed Vite assets can be cached immutably for 1 year
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (
+          pathName.endsWith('.html') ||
+          pathName.endsWith('sw.js') ||
+          pathName.endsWith('manifest.webmanifest')
+        ) {
+          // HTML, service worker, and webmanifest must revalidate
+          res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+        } else {
+          // Favicons, icons, and static images cached for 1 day
+          res.setHeader('Cache-Control', 'public, max-age=86400');
+        }
+      },
     });
 
     fastify.setNotFoundHandler((request, reply) => {
       const url = request.raw.url || '';
       if (!url.startsWith(API_PREFIX) && !url.startsWith('/health') && !url.startsWith('/ready')) {
+        reply.header('Cache-Control', 'public, max-age=0, must-revalidate');
         return reply.sendFile('index.html');
       }
       return reply.status(404).send({

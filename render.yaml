@@ -16,7 +16,7 @@ services:
       - key: PORT
         value: 10000
       - key: NODE_OPTIONS
-        value: --max-old-space-size=256 --optimize-for-size
+        value: --max-old-space-size=384 --expose-gc
       - key: COOKIE_SAME_SITE
         value: none
       - key: SUPABASE_STORAGE_BUCKET
