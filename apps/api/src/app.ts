@@ -156,6 +156,8 @@ export function buildApp(opts: FastifyServerOptions = {}): FastifyInstance {
       prefix: '/',
       decorateReply: true,
       setHeaders: (res, pathName) => {
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.setHeader('Access-Control-Allow-Origin', '*');
         if (pathName.includes('/assets/') || pathName.includes('\\assets\\')) {
           // Content-hashed Vite assets can be cached immutably for 1 year
           res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
