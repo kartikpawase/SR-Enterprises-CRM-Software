@@ -111,7 +111,7 @@ export interface SalesKpiData {
 
 export interface SalesStatsData {
   kpis: SalesKpiData;
-  trend: Array<{ label: string; amount: number }>;
+  trend: Array<{ label: string; fullDate?: string; amount: number; count?: number }>;
   topProducts: Array<{ id: string; name: string; amount: string; percentage: number; type: 'ro' | 'filter' }>;
   recentSales: Array<{ id: string; customerName: string; amount: string; invoiceNo: string; time: string; iconVariant: 'emerald' | 'blue' }>;
   bottomWidgets: {

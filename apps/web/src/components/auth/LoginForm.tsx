@@ -14,8 +14,8 @@ export interface LoginFormProps {
 export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, className }) => {
   const { login } = useAuth();
 
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('Admin@123456');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [captchaInput, setCaptchaInput] = useState('');
 
@@ -159,7 +159,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, className }) =>
         )}
 
         {/* Production Authentication Form */}
-        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-3.5" noValidate>
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-3.5" noValidate autoComplete="off">
           {/* Field 1: Username */}
           <div className="flex flex-col gap-1">
             <label htmlFor="username-input" className="text-xs font-semibold text-slate-700">
@@ -176,7 +176,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, className }) =>
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={isSubmitting || isLockedOut}
                 placeholder="Enter your username"
-                autoComplete="username"
+                autoComplete="off"
                 className={cn(
                   'w-full h-12 pl-10 pr-3.5 bg-white rounded-xl border text-sm font-medium text-slate-900 placeholder:text-slate-400 transition-all duration-150',
                   'border-slate-200/90 hover:border-slate-300 focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 focus:outline-none shadow-2xs',
@@ -202,7 +202,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, className }) =>
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isSubmitting || isLockedOut}
                 placeholder="Enter your password"
-                autoComplete="current-password"
+                autoComplete="new-password"
                 className={cn(
                   'w-full h-12 pl-10 pr-10 bg-white rounded-xl border text-sm font-medium text-slate-900 placeholder:text-slate-400 transition-all duration-150',
                   'border-slate-200/90 hover:border-slate-300 focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 focus:outline-none shadow-2xs',

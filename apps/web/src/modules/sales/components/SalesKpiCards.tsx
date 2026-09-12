@@ -14,8 +14,9 @@ export interface SalesKpiData {
   pendingTrend: string;
 }
 
-interface SalesKpiCardsProps {
+export interface SalesKpiCardsProps {
   data?: Partial<SalesKpiData>;
+  trend?: Array<{ label: string; amount: number; count?: number }>;
 }
 
 function parseMetricNumber(val: string | number): number {
@@ -31,23 +32,53 @@ function parseTrendPercent(trend: string): number {
   return isNaN(num) ? 0 : num;
 }
 
-function getSparklinePath(val: string | number, trend: string): string {
+function getSparklinePath(val: string | number, trend: string, points?: number[]): string {
   const num = parseMetricNumber(val);
   if (num <= 0) {
     // Perfectly flat baseline when metric value is 0
     return 'M 0 16 L 50 16';
   }
+
+  // If real points are provided and have variation
+  if (points && points.length > 1) {
+    const max = Math.max(...points);
+    const min = Math.min(...points);
+    if (max <= 0) {
+      return 'M 0 16 L 50 16';
+    }
+    if (max === min) {
+      return 'M 0 10 L 50 10';
+    }
+    const n = points.length;
+    const coords = points.map((p, i) => {
+      const x = (i / (n - 1)) * 50;
+      const y = 16 - ((p - min) / (max - min)) * 12;
+      return { x, y };
+    });
+    let d = `M ${coords[0]!.x.toFixed(1)} ${coords[0]!.y.toFixed(1)}`;
+    for (let i = 0; i < coords.length - 1; i++) {
+      const curr = coords[i]!;
+      const next = coords[i + 1]!;
+      const mx = ((curr.x + next.x) / 2).toFixed(1);
+      const my = ((curr.y + next.y) / 2).toFixed(1);
+      d += ` Q ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}, ${mx} ${my}`;
+    }
+    const last = coords[coords.length - 1]!;
+    d += ` T ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
+    return d;
+  }
+
   const t = parseTrendPercent(trend);
-  if (t > 0) {
+  if (t > 0 || trend.startsWith('+')) {
     return 'M 0 16 Q 14 15, 28 8 T 50 4';
   }
-  if (t < 0) {
+  if (t < 0 || trend.startsWith('-')) {
     return 'M 0 5 Q 15 8, 30 13 T 50 16';
   }
   return 'M 0 10 L 50 10';
 }
 
-export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
+export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data, trend }) => {
   const kpis: SalesKpiData = {
     totalSales: data?.totalSales ?? '₹ 0.00',
     totalSalesTrend: data?.totalSalesTrend ?? '0%',
@@ -61,11 +92,20 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
     pendingTrend: data?.pendingTrend ?? '0%',
   };
 
+  const totalSalesPoints = trend && trend.length > 0 ? trend.map((t) => t.amount) : undefined;
+  const ordersPoints = trend && trend.length > 0 ? trend.map((t) => t.count ?? 0) : undefined;
+  const avgOrderPoints =
+    trend && trend.length > 0
+      ? trend.map((t) => ((t.count ?? 0) > 0 ? t.amount / (t.count ?? 1) : 0))
+      : undefined;
+  const completedPoints = trend && trend.length > 0 ? trend.map((t) => t.count ?? 0) : undefined;
+  const pendingPoints = kpis.pending > 0 ? [0, kpis.pending] : [0, 0];
+
   const renderTrendBadge = (val: string | number, trend: string) => {
     const num = parseMetricNumber(val);
     const t = parseTrendPercent(trend);
 
-    if (num <= 0 || t === 0) {
+    if (num <= 0 || t === 0 || trend === '0%') {
       return (
         <div className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
           <span>{trend}</span>
@@ -74,7 +114,7 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
       );
     }
 
-    if (t > 0) {
+    if (t > 0 || trend.startsWith('+')) {
       return (
         <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
           <ArrowUpRight className="w-3.5 h-3.5" />
@@ -110,7 +150,7 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
           {renderTrendBadge(kpis.totalSales, kpis.totalSalesTrend)}
           <svg className="w-12 sm:w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
             <path
-              d={getSparklinePath(kpis.totalSales, kpis.totalSalesTrend)}
+              d={getSparklinePath(kpis.totalSales, kpis.totalSalesTrend, totalSalesPoints)}
               stroke="#3B82F6"
               strokeWidth="2"
               strokeLinecap="round"
@@ -134,7 +174,7 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
           {renderTrendBadge(kpis.orders, kpis.ordersTrend)}
           <svg className="w-12 sm:w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
             <path
-              d={getSparklinePath(kpis.orders, kpis.ordersTrend)}
+              d={getSparklinePath(kpis.orders, kpis.ordersTrend, ordersPoints)}
               stroke="#8B5CF6"
               strokeWidth="2"
               strokeLinecap="round"
@@ -158,7 +198,7 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
           {renderTrendBadge(kpis.avgOrderValue, kpis.avgOrderTrend)}
           <svg className="w-12 sm:w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
             <path
-              d={getSparklinePath(kpis.avgOrderValue, kpis.avgOrderTrend)}
+              d={getSparklinePath(kpis.avgOrderValue, kpis.avgOrderTrend, avgOrderPoints)}
               stroke="#10B981"
               strokeWidth="2"
               strokeLinecap="round"
@@ -182,7 +222,7 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
           {renderTrendBadge(kpis.completed, kpis.completedTrend)}
           <svg className="w-12 sm:w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
             <path
-              d={getSparklinePath(kpis.completed, kpis.completedTrend)}
+              d={getSparklinePath(kpis.completed, kpis.completedTrend, completedPoints)}
               stroke="#10B981"
               strokeWidth="2"
               strokeLinecap="round"
@@ -206,7 +246,7 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
           {renderTrendBadge(kpis.pending, kpis.pendingTrend)}
           <svg className="w-12 sm:w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
             <path
-              d={getSparklinePath(kpis.pending, kpis.pendingTrend)}
+              d={getSparklinePath(kpis.pending, kpis.pendingTrend, pendingPoints)}
               stroke="#F97316"
               strokeWidth="2"
               strokeLinecap="round"

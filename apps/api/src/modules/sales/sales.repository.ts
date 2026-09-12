@@ -1,4 +1,4 @@
-import { eq, and, or, ilike, sql, desc, asc, inArray } from 'drizzle-orm';
+import { eq, and, or, ilike, sql, desc, asc, inArray, gte, lte, ne } from 'drizzle-orm';
 import { db } from '../../database/client';
 import {
   sales,
@@ -627,19 +627,64 @@ export class SalesRepository {
         }
       }
 
+      // Compute previous period comparison (Last Month)
+      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      const prevMonthStartStr = prevMonthStart.toISOString().split('T')[0]!;
+      const prevMonthEndStr = prevMonthEnd.toISOString().split('T')[0]!;
+
+      let previousSales: Array<{ totalAmount: string | number; status: string }> = [];
+      try {
+        previousSales = await database
+          .select({
+            totalAmount: sales.totalAmount,
+            status: sales.status,
+          })
+          .from(sales)
+          .where(
+            and(
+              gte(sales.saleDate, prevMonthStart),
+              lte(sales.saleDate, prevMonthEnd),
+              ne(sales.status, 'CANCELLED')
+            )
+          );
+      } catch {
+        previousSales = memorySales.filter((s) => {
+          if (s.status === 'CANCELLED') return false;
+          const dStr = (s.saleDate || s.createdAt || '').split('T')[0];
+          return dStr >= prevMonthStartStr && dStr <= prevMonthEndStr;
+        });
+      }
+
+      const prevTotalSalesRaw = previousSales.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
+      const prevOrders = previousSales.length;
+      const prevCompleted = previousSales.filter((s) => s.status === 'COMPLETED').length;
+      const prevPending = previousSales.filter((s) => s.status === 'DRAFT').length;
+      const prevAvgOrderValueRaw = prevOrders > 0 ? prevTotalSalesRaw / prevOrders : 0;
+
+      const formatTrend = (current: number, previous: number): string => {
+        if (previous === 0) {
+          if (current === 0) return '0%';
+          return '+100%';
+        }
+        const diff = ((current - previous) / previous) * 100;
+        const sign = diff > 0 ? '+' : '';
+        return `${sign}${diff.toFixed(1)}%`;
+      };
+
       return {
         kpis: {
           totalSales: `₹ ${totalSalesRaw.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
           totalSalesRaw,
-          totalSalesTrend: orders > 0 ? '12.4%' : '0%',
+          totalSalesTrend: formatTrend(totalSalesRaw, prevTotalSalesRaw),
           orders,
-          ordersTrend: orders > 0 ? '18.6%' : '0%',
+          ordersTrend: formatTrend(orders, prevOrders),
           avgOrderValue: `₹ ${avgOrderValueRaw.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
-          avgOrderTrend: orders > 0 ? '16.2%' : '0%',
+          avgOrderTrend: formatTrend(avgOrderValueRaw, prevAvgOrderValueRaw),
           completed,
-          completedTrend: completed > 0 ? '20.4%' : '0%',
+          completedTrend: formatTrend(completed, prevCompleted),
           pending,
-          pendingTrend: pending > 0 ? '11.1%' : '0%',
+          pendingTrend: formatTrend(pending, prevPending),
         },
         trend: trendPoints,
         topProducts,

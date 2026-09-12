@@ -160,7 +160,7 @@ export const SalesDirectory: React.FC = () => {
       />
 
       {/* 3. Top 5 KPI Cards */}
-      <SalesKpiCards data={statsData?.kpis} />
+      <SalesKpiCards data={statsData?.kpis} trend={statsData?.trend} />
 
       {/* 4. Main 2-Column Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
