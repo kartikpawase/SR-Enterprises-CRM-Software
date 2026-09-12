@@ -149,7 +149,7 @@ describe('Production DashboardPage Component', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/services');
   });
 
-  it("renders Today's Overview with 5 operational rows and View All action", async () => {
+  it("renders Today's Overview with operational rows and View All action", async () => {
     render(
       <BrowserRouter>
         <DashboardPage />
@@ -158,7 +158,7 @@ describe('Production DashboardPage Component', () => {
 
     expect(screen.getByText("Today's Overview")).toBeDefined();
     expect(screen.getByText('Services Scheduled')).toBeDefined();
-    expect(screen.getByText('New Website Inquiries')).toBeDefined();
+    expect(screen.queryByText('New Website Inquiries')).toBeNull();
     expect(screen.getByText('Warranties Expiring Soon')).toBeDefined();
     expect(screen.getByText('Payments Due')).toBeDefined();
     expect(screen.getByText('Technicians On Duty')).toBeDefined();

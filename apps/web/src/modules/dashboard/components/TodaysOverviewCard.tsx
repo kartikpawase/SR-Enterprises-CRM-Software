@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Mail, ShieldCheck, Wallet, User, ChevronRight } from 'lucide-react';
+import { Calendar, ShieldCheck, Wallet, User, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { OverviewCountsData } from '../types';
 
@@ -20,16 +20,6 @@ export const TodaysOverviewCard: React.FC<TodaysOverviewCardProps> = ({ data }) 
       icon: <Calendar className="w-5 h-5 text-red-600" />,
       iconBg: 'bg-red-50 border border-red-200/80',
       route: '/services',
-    },
-    {
-      id: 'website-inquiries',
-      title: 'New Website Inquiries',
-      description: 'New inquiries received from website',
-      count: data.newInquiries,
-      countColor: 'text-sky-600',
-      icon: <Mail className="w-5 h-5 text-sky-600" />,
-      iconBg: 'bg-sky-50 border border-sky-200/80',
-      route: '/inquiries',
     },
     {
       id: 'warranties-expiring',
