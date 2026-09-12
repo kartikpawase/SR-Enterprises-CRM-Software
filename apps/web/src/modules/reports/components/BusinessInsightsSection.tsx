@@ -109,7 +109,7 @@ export const BusinessInsightsSection: React.FC<BusinessInsightsSectionProps> = (
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5 select-none">
         {generatedInsights.map((insight) => {
           const isPositive = insight.type === 'positive';
           const isWarning = insight.type === 'warning';
@@ -117,7 +117,7 @@ export const BusinessInsightsSection: React.FC<BusinessInsightsSectionProps> = (
           return (
             <div
               key={insight.id}
-              className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
+              className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">

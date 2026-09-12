@@ -66,16 +66,16 @@ export const ReportKpiGrid: React.FC<ReportKpiGridProps> = ({ kpis }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-3.5 select-none">
       {/* 1. Total Revenue */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between">
-        <div className="flex items-center justify-between mb-2">
-          <div className="w-10 h-10 rounded-xl bg-sky-50 text-primary-600 border border-sky-100 flex items-center justify-center shadow-2xs">
-            <DollarSign className="w-5 h-5" />
+      <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between">
+        <div className="flex items-center justify-between mb-2 gap-1.5">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-sky-50 text-primary-600 border border-sky-100 flex items-center justify-center shadow-2xs shrink-0">
+            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-500 font-medium block">Total Revenue</span>
-            <span className="text-lg font-extrabold text-slate-900 tracking-tight block font-mono">
+          <div className="text-right min-w-0">
+            <span className="text-[10px] sm:text-xs text-slate-500 font-medium block truncate">Total Revenue</span>
+            <span className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight block font-mono truncate">
               {revenue?.value || '₹ 0'}
             </span>
           </div>
@@ -87,14 +87,14 @@ export const ReportKpiGrid: React.FC<ReportKpiGridProps> = ({ kpis }) => {
       </div>
 
       {/* 2. Total Sales */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between">
-        <div className="flex items-center justify-between mb-2">
-          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shadow-2xs">
-            <ShoppingBag className="w-5 h-5" />
+      <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between">
+        <div className="flex items-center justify-between mb-2 gap-1.5">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shadow-2xs shrink-0">
+            <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-500 font-medium block">Total Sales</span>
-            <span className="text-lg font-extrabold text-slate-900 tracking-tight block font-mono">
+          <div className="text-right min-w-0">
+            <span className="text-[10px] sm:text-xs text-slate-500 font-medium block truncate">Total Sales</span>
+            <span className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight block font-mono truncate">
               {sales?.value || '0'}
             </span>
           </div>
@@ -106,14 +106,14 @@ export const ReportKpiGrid: React.FC<ReportKpiGridProps> = ({ kpis }) => {
       </div>
 
       {/* 3. Total Customers */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between">
-        <div className="flex items-center justify-between mb-2">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shadow-2xs">
-            <Users className="w-5 h-5" />
+      <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between">
+        <div className="flex items-center justify-between mb-2 gap-1.5">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shadow-2xs shrink-0">
+            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-500 font-medium block">Total Customers</span>
-            <span className="text-lg font-extrabold text-slate-900 tracking-tight block font-mono">
+          <div className="text-right min-w-0">
+            <span className="text-[10px] sm:text-xs text-slate-500 font-medium block truncate">Total Customers</span>
+            <span className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight block font-mono truncate">
               {customers?.value || '0'}
             </span>
           </div>
@@ -125,14 +125,14 @@ export const ReportKpiGrid: React.FC<ReportKpiGridProps> = ({ kpis }) => {
       </div>
 
       {/* 4. Services Completed */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between">
-        <div className="flex items-center justify-between mb-2">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-2xs">
-            <CheckCircle2 className="w-5 h-5" />
+      <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between">
+        <div className="flex items-center justify-between mb-2 gap-1.5">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-2xs shrink-0">
+            <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-500 font-medium block">Services Completed</span>
-            <span className="text-lg font-extrabold text-slate-900 tracking-tight block font-mono">
+          <div className="text-right min-w-0">
+            <span className="text-[10px] sm:text-xs text-slate-500 font-medium block truncate">Services Completed</span>
+            <span className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight block font-mono truncate">
               {services?.value || '0'}
             </span>
           </div>
@@ -144,14 +144,14 @@ export const ReportKpiGrid: React.FC<ReportKpiGridProps> = ({ kpis }) => {
       </div>
 
       {/* 5. Outstanding Payments */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between">
-        <div className="flex items-center justify-between mb-2">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shadow-2xs">
-            <Clock className="w-5 h-5" />
+      <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between col-span-2 sm:col-span-1">
+        <div className="flex items-center justify-between mb-2 gap-1.5">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shadow-2xs shrink-0">
+            <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-500 font-medium block">Outstanding Balance</span>
-            <span className="text-lg font-extrabold text-slate-900 tracking-tight block font-mono">
+          <div className="text-right min-w-0">
+            <span className="text-[10px] sm:text-xs text-slate-500 font-medium block truncate">Outstanding Balance</span>
+            <span className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight block font-mono truncate">
               {outstanding?.value || '₹ 0'}
             </span>
           </div>

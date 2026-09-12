@@ -53,23 +53,23 @@ export const ReminderSummaryCards: React.FC<ReminderSummaryCardsProps> = ({ kpis
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {cards.map((card, idx) => {
         const Icon = card.icon;
         return (
           <Card key={idx} className={`border ${card.borderColor} shadow-subtle hover:shadow-card transition-shadow`}>
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-slate-500">{card.title}</p>
+            <CardContent className="p-3 sm:p-4 flex items-center justify-between gap-2">
+              <div className="space-y-1 min-w-0">
+                <p className="text-[10px] sm:text-xs font-medium text-slate-500 truncate">{card.title}</p>
                 {isLoading ? (
-                  <div className="h-7 w-20 bg-slate-100 animate-pulse rounded" />
+                  <div className="h-6 sm:h-7 w-16 sm:w-20 bg-slate-100 animate-pulse rounded" />
                 ) : (
-                  <p className="text-xl font-bold text-slate-900 tracking-tight">{card.value}</p>
+                  <p className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate">{card.value}</p>
                 )}
-                <p className="text-[11px] text-slate-400">{card.subtitle}</p>
+                <p className="text-[9px] sm:text-[11px] text-slate-400 truncate">{card.subtitle}</p>
               </div>
-              <div className={`p-3 rounded-xl ${card.bgColor} ${card.color} shrink-0`}>
-                <Icon className="w-5 h-5" />
+              <div className={`p-2 sm:p-3 rounded-xl ${card.bgColor} ${card.color} shrink-0`}>
+                <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
             </CardContent>
           </Card>

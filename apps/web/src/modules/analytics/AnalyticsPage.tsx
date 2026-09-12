@@ -231,7 +231,7 @@ export const AnalyticsPage: React.FC = () => {
       </Card>
 
       {/* KPI Cards Row (Billed vs Collected vs Outstanding Segregation) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 select-none">
         <MetricCard
           title="Gross Billed"
           value={formatCurrency(kpis?.grossBilled?.current ?? 0)}
@@ -497,29 +497,29 @@ export const AnalyticsPage: React.FC = () => {
       {/* Tab Content 2: Revenue & Collections */}
       {activeTab === 'revenue' && revenueData && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="p-4 bg-blue-50/50 border-blue-200">
-              <div className="text-xs text-blue-700 font-semibold uppercase">Total Invoiced</div>
-              <div className="text-2xl font-bold text-blue-900 mt-1">{formatCurrency(revenueData.grossBilled)}</div>
-              <div className="text-xs text-blue-600 mt-1">{revenueData.totalInvoicesIssued} invoices issued</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 select-none">
+            <Card className="p-3 sm:p-4 bg-blue-50/50 border-blue-200">
+              <div className="text-[10px] sm:text-xs text-blue-700 font-semibold uppercase truncate">Total Invoiced</div>
+              <div className="text-lg sm:text-2xl font-bold text-blue-900 mt-1 truncate">{formatCurrency(revenueData.grossBilled)}</div>
+              <div className="text-[11px] sm:text-xs text-blue-600 mt-1 truncate">{revenueData.totalInvoicesIssued} invoices issued</div>
             </Card>
 
-            <Card className="p-4 bg-emerald-50/50 border-emerald-200">
-              <div className="text-xs text-emerald-700 font-semibold uppercase">Total Collected</div>
-              <div className="text-2xl font-bold text-emerald-900 mt-1">{formatCurrency(revenueData.amountCollected)}</div>
-              <div className="text-xs text-emerald-600 mt-1">{revenueData.collectionRate}% realized rate</div>
+            <Card className="p-3 sm:p-4 bg-emerald-50/50 border-emerald-200">
+              <div className="text-[10px] sm:text-xs text-emerald-700 font-semibold uppercase truncate">Total Collected</div>
+              <div className="text-lg sm:text-2xl font-bold text-emerald-900 mt-1 truncate">{formatCurrency(revenueData.amountCollected)}</div>
+              <div className="text-[11px] sm:text-xs text-emerald-600 mt-1 truncate">{revenueData.collectionRate}% realized rate</div>
             </Card>
 
-            <Card className="p-4 bg-amber-50/50 border-amber-200">
-              <div className="text-xs text-amber-700 font-semibold uppercase">Outstanding Balance</div>
-              <div className="text-2xl font-bold text-amber-900 mt-1">{formatCurrency(revenueData.outstandingAmount)}</div>
-              <div className="text-xs text-amber-600 mt-1">{revenueData.partiallyPaidCount} partially paid</div>
+            <Card className="p-3 sm:p-4 bg-amber-50/50 border-amber-200">
+              <div className="text-[10px] sm:text-xs text-amber-700 font-semibold uppercase truncate">Outstanding Balance</div>
+              <div className="text-lg sm:text-2xl font-bold text-amber-900 mt-1 truncate">{formatCurrency(revenueData.outstandingAmount)}</div>
+              <div className="text-[11px] sm:text-xs text-amber-600 mt-1 truncate">{revenueData.partiallyPaidCount} partially paid</div>
             </Card>
 
-            <Card className="p-4 bg-rose-50/50 border-rose-200">
-              <div className="text-xs text-rose-700 font-semibold uppercase">Overdue Amount</div>
-              <div className="text-2xl font-bold text-rose-900 mt-1">{formatCurrency(revenueData.overdueAmount)}</div>
-              <div className="text-xs text-rose-600 mt-1">{revenueData.overdueInvoicesCount} invoices overdue</div>
+            <Card className="p-3 sm:p-4 bg-rose-50/50 border-rose-200">
+              <div className="text-[10px] sm:text-xs text-rose-700 font-semibold uppercase truncate">Overdue Amount</div>
+              <div className="text-lg sm:text-2xl font-bold text-rose-900 mt-1 truncate">{formatCurrency(revenueData.overdueAmount)}</div>
+              <div className="text-[11px] sm:text-xs text-rose-600 mt-1 truncate">{revenueData.overdueInvoicesCount} invoices overdue</div>
             </Card>
           </div>
 
@@ -597,29 +597,29 @@ export const AnalyticsPage: React.FC = () => {
       {/* Tab Content 4: Services */}
       {activeTab === 'services' && serviceData && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="p-4">
-              <div className="text-xs text-slate-500 font-semibold uppercase">Total Service Orders</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1">{serviceData.totalServices}</div>
-              <div className="text-xs text-slate-500 mt-1">Scheduled in period</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 select-none">
+            <Card className="p-3 sm:p-4">
+              <div className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase truncate">Total Service Orders</div>
+              <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-1 truncate">{serviceData.totalServices}</div>
+              <div className="text-[11px] sm:text-xs text-slate-500 mt-1 truncate">Scheduled in period</div>
             </Card>
 
-            <Card className="p-4">
-              <div className="text-xs text-emerald-700 font-semibold uppercase">Completed Services</div>
-              <div className="text-2xl font-bold text-emerald-900 mt-1">{serviceData.completedServices}</div>
-              <div className="text-xs text-emerald-600 mt-1">{serviceData.completionRate}% completion rate</div>
+            <Card className="p-3 sm:p-4">
+              <div className="text-[10px] sm:text-xs text-emerald-700 font-semibold uppercase truncate">Completed Services</div>
+              <div className="text-lg sm:text-2xl font-bold text-emerald-900 mt-1 truncate">{serviceData.completedServices}</div>
+              <div className="text-[11px] sm:text-xs text-emerald-600 mt-1 truncate">{serviceData.completionRate}% completion rate</div>
             </Card>
 
-            <Card className="p-4">
-              <div className="text-xs text-amber-700 font-semibold uppercase">Pending Execution</div>
-              <div className="text-2xl font-bold text-amber-900 mt-1">{serviceData.pendingServices}</div>
-              <div className="text-xs text-amber-600 mt-1">Active queue</div>
+            <Card className="p-3 sm:p-4">
+              <div className="text-[10px] sm:text-xs text-amber-700 font-semibold uppercase truncate">Pending Execution</div>
+              <div className="text-lg sm:text-2xl font-bold text-amber-900 mt-1 truncate">{serviceData.pendingServices}</div>
+              <div className="text-[11px] sm:text-xs text-amber-600 mt-1 truncate">Active queue</div>
             </Card>
 
-            <Card className="p-4">
-              <div className="text-xs text-rose-700 font-semibold uppercase">Overdue Services</div>
-              <div className="text-2xl font-bold text-rose-900 mt-1">{serviceData.overdueServices}</div>
-              <div className="text-xs text-rose-600 mt-1">Requires immediate dispatch</div>
+            <Card className="p-3 sm:p-4">
+              <div className="text-[10px] sm:text-xs text-rose-700 font-semibold uppercase truncate">Overdue Services</div>
+              <div className="text-lg sm:text-2xl font-bold text-rose-900 mt-1 truncate">{serviceData.overdueServices}</div>
+              <div className="text-[11px] sm:text-xs text-rose-600 mt-1 truncate">Requires immediate dispatch</div>
             </Card>
           </div>
         </div>
@@ -675,29 +675,29 @@ export const AnalyticsPage: React.FC = () => {
       {/* Tab Content 6: Inquiries & Leads */}
       {activeTab === 'inquiries' && inquiryData && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="p-4">
-              <div className="text-xs text-slate-500 font-semibold uppercase">Total Inquiries</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1">{inquiryData.totalInquiries}</div>
-              <div className="text-xs text-slate-500 mt-1">Website & WhatsApp</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 select-none">
+            <Card className="p-3 sm:p-4">
+              <div className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase truncate">Total Inquiries</div>
+              <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-1 truncate">{inquiryData.totalInquiries}</div>
+              <div className="text-[11px] sm:text-xs text-slate-500 mt-1 truncate">Website & WhatsApp</div>
             </Card>
 
-            <Card className="p-4">
-              <div className="text-xs text-emerald-700 font-semibold uppercase">Converted to Customers</div>
-              <div className="text-2xl font-bold text-emerald-900 mt-1">{inquiryData.convertedInquiries}</div>
-              <div className="text-xs text-emerald-600 mt-1">{inquiryData.conversionRate}% conversion rate</div>
+            <Card className="p-3 sm:p-4">
+              <div className="text-[10px] sm:text-xs text-emerald-700 font-semibold uppercase truncate">Converted to Customers</div>
+              <div className="text-lg sm:text-2xl font-bold text-emerald-900 mt-1 truncate">{inquiryData.convertedInquiries}</div>
+              <div className="text-[11px] sm:text-xs text-emerald-600 mt-1 truncate">{inquiryData.conversionRate}% conversion rate</div>
             </Card>
 
-            <Card className="p-4">
-              <div className="text-xs text-blue-700 font-semibold uppercase">Qualified Leads</div>
-              <div className="text-2xl font-bold text-blue-900 mt-1">{inquiryData.qualifiedInquiries}</div>
-              <div className="text-xs text-blue-600 mt-1">{inquiryData.qualifiedConversionRate}% qualified conversion</div>
+            <Card className="p-3 sm:p-4">
+              <div className="text-[10px] sm:text-xs text-blue-700 font-semibold uppercase truncate">Qualified Leads</div>
+              <div className="text-lg sm:text-2xl font-bold text-blue-900 mt-1 truncate">{inquiryData.qualifiedInquiries}</div>
+              <div className="text-[11px] sm:text-xs text-blue-600 mt-1 truncate">{inquiryData.qualifiedConversionRate}% qualified conversion</div>
             </Card>
 
-            <Card className="p-4">
-              <div className="text-xs text-slate-500 font-semibold uppercase">New / Unaddressed</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1">{inquiryData.newInquiries}</div>
-              <div className="text-xs text-slate-500 mt-1">Awaiting verification</div>
+            <Card className="p-3 sm:p-4">
+              <div className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase truncate">New / Unaddressed</div>
+              <div className="text-lg sm:text-2xl font-bold text-slate-900 mt-1 truncate">{inquiryData.newInquiries}</div>
+              <div className="text-[11px] sm:text-xs text-slate-500 mt-1 truncate">Awaiting verification</div>
             </Card>
           </div>
 

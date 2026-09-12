@@ -259,54 +259,54 @@ export const InvoiceDirectory: React.FC = () => {
       />
 
       {/* 2. Top Metric KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Invoices */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Total Invoices</span>
-            <div className="text-2xl font-bold font-mono text-slate-900 mt-1">{pagination.total}</div>
-            <span className="text-3xs text-slate-400">Generated tax records</span>
+        <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <span className="text-[10px] sm:text-2xs font-bold uppercase tracking-wider text-slate-500 block truncate">Total Invoices</span>
+            <div className="text-lg sm:text-2xl font-bold font-mono text-slate-900 mt-1 truncate">{pagination.total}</div>
+            <span className="text-[9px] sm:text-3xs text-slate-400 block truncate">Generated tax records</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
-            <Receipt className="w-5 h-5" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+            <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
         </div>
 
         {/* Total Billed Revenue */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Total Billed</span>
-            <div className="text-xl font-bold font-mono text-slate-900 mt-1">{formatINR(totalInvoicedSum)}</div>
-            <span className="text-3xs text-slate-400">Across current results</span>
+        <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <span className="text-[10px] sm:text-2xs font-bold uppercase tracking-wider text-slate-500 block truncate">Total Billed</span>
+            <div className="text-sm sm:text-xl font-bold font-mono text-slate-900 mt-1 truncate">{formatINR(totalInvoicedSum)}</div>
+            <span className="text-[9px] sm:text-3xs text-slate-400 block truncate">Across current results</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <FileText className="w-5 h-5" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
         </div>
 
         {/* Total Received / Collected */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-2xs font-bold uppercase tracking-wider text-emerald-700">Total Collected</span>
-            <div className="text-xl font-bold font-mono text-emerald-700 mt-1">{formatINR(totalPaidSum)}</div>
-            <span className="text-3xs text-emerald-600 font-medium">Reconciled payments</span>
+        <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <span className="text-[10px] sm:text-2xs font-bold uppercase tracking-wider text-emerald-700 block truncate">Total Collected</span>
+            <div className="text-sm sm:text-xl font-bold font-mono text-emerald-700 mt-1 truncate">{formatINR(totalPaidSum)}</div>
+            <span className="text-[9px] sm:text-3xs text-emerald-600 font-medium block truncate">Reconciled payments</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <CheckCircle2 className="w-5 h-5" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
         </div>
 
         {/* Outstanding Receivables */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-2xs font-bold uppercase tracking-wider text-amber-700">Outstanding Balance</span>
-            <div className="text-xl font-bold font-mono text-amber-700 mt-1">{formatINR(totalOutstandingSum)}</div>
-            <span className="text-3xs text-amber-600 font-medium">
+        <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <span className="text-[10px] sm:text-2xs font-bold uppercase tracking-wider text-amber-700 block truncate">Outstanding Balance</span>
+            <div className="text-sm sm:text-xl font-bold font-mono text-amber-700 mt-1 truncate">{formatINR(totalOutstandingSum)}</div>
+            <span className="text-[9px] sm:text-3xs text-amber-600 font-medium block truncate">
               {overdueCount > 0 ? `${overdueCount} overdue invoices` : 'All accounts in order'}
             </span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            {overdueCount > 0 ? <AlertCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+            {overdueCount > 0 ? <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" /> : <Clock className="w-4 h-4 sm:w-5 sm:h-5" />}
           </div>
         </div>
       </div>

@@ -94,21 +94,21 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-3.5">
       {/* 1. Total Sales */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between">
+      <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between">
         <div className="flex items-center justify-between mb-2">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
             <ShoppingCart className="w-5 h-5" />
           </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-500 font-medium block">Total Sales</span>
-            <span className="text-lg font-bold text-slate-900 tracking-tight block">{kpis.totalSales}</span>
+          <div className="text-right min-w-0">
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium block truncate">Total Sales</span>
+            <span className="text-base sm:text-lg font-bold text-slate-900 tracking-tight block truncate">{kpis.totalSales}</span>
           </div>
         </div>
         <div className="flex items-center justify-between pt-2 border-t border-slate-100">
           {renderTrendBadge(kpis.totalSales, kpis.totalSalesTrend)}
-          <svg className="w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
+          <svg className="w-12 sm:w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
             <path
               d={getSparklinePath(kpis.totalSales, kpis.totalSalesTrend)}
               stroke="#3B82F6"
@@ -120,19 +120,19 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
       </div>
 
       {/* 2. Orders */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between">
+      <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between">
         <div className="flex items-center justify-between mb-2">
-          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shrink-0">
             <ShoppingBag className="w-5 h-5" />
           </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-500 font-medium block">Orders</span>
-            <span className="text-lg font-bold text-slate-900 tracking-tight block">{kpis.orders}</span>
+          <div className="text-right min-w-0">
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium block truncate">Orders</span>
+            <span className="text-base sm:text-lg font-bold text-slate-900 tracking-tight block truncate">{kpis.orders}</span>
           </div>
         </div>
         <div className="flex items-center justify-between pt-2 border-t border-slate-100">
           {renderTrendBadge(kpis.orders, kpis.ordersTrend)}
-          <svg className="w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
+          <svg className="w-12 sm:w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
             <path
               d={getSparklinePath(kpis.orders, kpis.ordersTrend)}
               stroke="#8B5CF6"
@@ -144,19 +144,19 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
       </div>
 
       {/* 3. Avg. Order Value */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between">
+      <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between">
         <div className="flex items-center justify-between mb-2">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
             <Layers className="w-5 h-5" />
           </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-500 font-medium block">Avg. Order Value</span>
-            <span className="text-lg font-bold text-slate-900 tracking-tight block">{kpis.avgOrderValue}</span>
+          <div className="text-right min-w-0">
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium block truncate">Avg. Order Value</span>
+            <span className="text-base sm:text-lg font-bold text-slate-900 tracking-tight block truncate">{kpis.avgOrderValue}</span>
           </div>
         </div>
         <div className="flex items-center justify-between pt-2 border-t border-slate-100">
           {renderTrendBadge(kpis.avgOrderValue, kpis.avgOrderTrend)}
-          <svg className="w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
+          <svg className="w-12 sm:w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
             <path
               d={getSparklinePath(kpis.avgOrderValue, kpis.avgOrderTrend)}
               stroke="#10B981"
@@ -168,19 +168,19 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
       </div>
 
       {/* 4. Completed */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between">
+      <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between">
         <div className="flex items-center justify-between mb-2">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-5 h-5" />
           </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-500 font-medium block">Completed</span>
-            <span className="text-lg font-bold text-slate-900 tracking-tight block">{kpis.completed}</span>
+          <div className="text-right min-w-0">
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium block truncate">Completed</span>
+            <span className="text-base sm:text-lg font-bold text-slate-900 tracking-tight block truncate">{kpis.completed}</span>
           </div>
         </div>
         <div className="flex items-center justify-between pt-2 border-t border-slate-100">
           {renderTrendBadge(kpis.completed, kpis.completedTrend)}
-          <svg className="w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
+          <svg className="w-12 sm:w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
             <path
               d={getSparklinePath(kpis.completed, kpis.completedTrend)}
               stroke="#10B981"
@@ -192,19 +192,19 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({ data }) => {
       </div>
 
       {/* 5. Pending */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between">
+      <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between last:col-span-2 sm:last:col-span-1">
         <div className="flex items-center justify-between mb-2">
-          <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 border border-orange-100 flex items-center justify-center">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-orange-50 text-orange-600 border border-orange-100 flex items-center justify-center shrink-0">
             <Clock className="w-5 h-5" />
           </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-500 font-medium block">Pending</span>
-            <span className="text-lg font-bold text-slate-900 tracking-tight block">{kpis.pending}</span>
+          <div className="text-right min-w-0">
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium block truncate">Pending</span>
+            <span className="text-base sm:text-lg font-bold text-slate-900 tracking-tight block truncate">{kpis.pending}</span>
           </div>
         </div>
         <div className="flex items-center justify-between pt-2 border-t border-slate-100">
           {renderTrendBadge(kpis.pending, kpis.pendingTrend)}
-          <svg className="w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
+          <svg className="w-12 sm:w-14 h-5 overflow-visible shrink-0" viewBox="0 0 50 20" fill="none">
             <path
               d={getSparklinePath(kpis.pending, kpis.pendingTrend)}
               stroke="#F97316"

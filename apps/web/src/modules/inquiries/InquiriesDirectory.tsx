@@ -390,7 +390,7 @@ export const InquiriesDirectory: React.FC = () => {
       />
 
       {/* KPI Metric Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4 select-none">
         <MetricCard
           title="Total Inquiries"
           value={isKPIsLoading ? '...' : String(kpis?.totalInquiries || 0)}
@@ -424,6 +424,7 @@ export const InquiriesDirectory: React.FC = () => {
           value={isKPIsLoading ? '...' : `${kpis?.conversionRate || 0}%`}
           icon={<TrendingUp className="w-5 h-5 text-indigo-600" />}
           subtitle="Lead to customer win rate"
+          className="col-span-2 md:col-span-1"
         />
       </div>
 

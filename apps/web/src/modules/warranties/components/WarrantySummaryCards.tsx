@@ -83,7 +83,7 @@ export const WarrantySummaryCards: React.FC<WarrantySummaryCardsProps> = ({
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 select-none">
+    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 select-none">
       {cards.map((card) => {
         const isSelected = activeFilter === card.id;
 
@@ -92,17 +92,17 @@ export const WarrantySummaryCards: React.FC<WarrantySummaryCardsProps> = ({
             key={card.id}
             type="button"
             onClick={() => onFilterSelect?.(card.id)}
-            className={`relative overflow-hidden text-left rounded-xl border p-5 transition-all duration-150 shadow-2xs hover:shadow-elevated cursor-pointer ${
+            className={`relative overflow-hidden text-left rounded-xl border p-3 sm:p-5 transition-all duration-150 shadow-2xs hover:shadow-elevated cursor-pointer ${
               isSelected ? card.colorScheme.activeBg : `${card.colorScheme.bg} ${card.colorScheme.border}`
             }`}
           >
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <span className="text-[10.5px] font-bold text-slate-500 block tracking-wider uppercase font-mono">
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1 min-w-0">
+                <span className="text-[9.5px] sm:text-[10.5px] font-bold text-slate-500 block tracking-wider uppercase font-mono truncate">
                   {card.title}
                 </span>
                 <div className="flex items-baseline gap-2">
-                  <span className={`text-2xl sm:text-3xl font-display font-extrabold tracking-tight ${card.colorScheme.text}`}>
+                  <span className={`text-xl sm:text-2xl lg:text-3xl font-display font-extrabold tracking-tight ${card.colorScheme.text}`}>
                     {isLoading ? (
                       <span className="inline-block w-8 h-6 bg-slate-200 rounded animate-pulse" />
                     ) : (
@@ -112,14 +112,14 @@ export const WarrantySummaryCards: React.FC<WarrantySummaryCardsProps> = ({
                 </div>
               </div>
 
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-2xs shrink-0 ${card.colorScheme.iconBg}`}>
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shadow-2xs shrink-0 ${card.colorScheme.iconBg}`}>
                 {card.icon}
               </div>
             </div>
 
-            <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
-              <span className="text-slate-500 font-medium truncate max-w-[130px]">{card.subtitle}</span>
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${card.colorScheme.badge}`}>
+            <div className="mt-3 sm:mt-4 flex items-center justify-between pt-2.5 sm:pt-3 border-t border-slate-100 text-xs">
+              <span className="text-slate-500 font-medium truncate max-w-[75px] sm:max-w-[130px] text-[10px] sm:text-xs">{card.subtitle}</span>
+              <span className={`text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full truncate ${card.colorScheme.badge}`}>
                 {card.badgeText}
               </span>
             </div>

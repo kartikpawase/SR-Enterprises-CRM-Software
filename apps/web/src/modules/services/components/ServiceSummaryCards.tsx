@@ -131,27 +131,27 @@ export const ServiceSummaryCards: React.FC<ServiceSummaryCardsProps> = ({ kpis, 
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4 select-none">
+    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 select-none">
       {cards.map((card) => (
         <div
           key={card.id}
-          className="bg-white rounded-xl border border-slate-200/90 p-4 pb-0 shadow-2xs hover:shadow-elevated hover:border-slate-300 transition-all duration-150 flex flex-col justify-between group overflow-hidden cursor-pointer"
+          className="bg-white rounded-xl border border-slate-200/90 p-3 sm:p-4 pb-0 shadow-2xs hover:shadow-elevated hover:border-slate-300 transition-all duration-150 flex flex-col justify-between group overflow-hidden cursor-pointer last:col-span-2 sm:last:col-span-1"
         >
           {/* Card Top */}
-          <div className="flex items-start gap-3.5 mb-1">
+          <div className="flex items-start gap-2.5 sm:gap-3.5 mb-1">
             <div
-              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center ${card.iconBg} shadow-2xs transition-colors shrink-0 mt-0.5`}
+              className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center ${card.iconBg} shadow-2xs transition-colors shrink-0 mt-0.5`}
             >
               {card.icon}
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-[10px] font-bold text-slate-500 tracking-wider uppercase leading-tight truncate font-mono">
+              <h3 className="text-[9px] sm:text-[10px] font-bold text-slate-500 tracking-wider uppercase leading-tight truncate font-mono">
                 {card.title}
               </h3>
-              <span className="text-2xl sm:text-3xl font-display font-extrabold text-slate-900 tracking-tight block leading-tight mt-0.5">
+              <span className="text-xl sm:text-2xl lg:text-3xl font-display font-extrabold text-slate-900 tracking-tight block leading-tight mt-0.5">
                 {card.metric}
               </span>
-              <span className={`text-[11px] block mt-0.5 leading-none font-mono ${card.supportingClass}`}>
+              <span className={`text-[10px] sm:text-[11px] block mt-0.5 leading-none font-mono truncate ${card.supportingClass}`}>
                 {card.supporting}
               </span>
             </div>
