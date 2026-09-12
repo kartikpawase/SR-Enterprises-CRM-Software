@@ -135,23 +135,18 @@ export function getDatabaseClient() {
   const isProduction = env.NODE_ENV === 'production' || Boolean(process.env.RENDER);
   const usePostgres = isProduction || process.env.USE_POSTGRES === 'true';
 
-  let resolvedDbUrl = env.DATABASE_URL;
-  if (
-    isProduction &&
-    (!resolvedDbUrl ||
-      resolvedDbUrl.includes('localhost') ||
-      resolvedDbUrl.includes('127.0.0.1') ||
-      resolvedDbUrl.includes('::1'))
-  ) {
-    resolvedDbUrl =
-      'postgresql://postgres.swdrtbdpzjcxptszskll:Shreesha2026%40%21@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
-  }
+  const resolvedDbUrl = env.DATABASE_URL;
 
   if (usePostgres) {
     try {
       const isSupabasePooler = resolvedDbUrl.includes(':6543') || resolvedDbUrl.includes('pooler.supabase.com');
       const isSupabase = isSupabasePooler || resolvedDbUrl.includes('supabase.co');
-      const sslMode = isSupabase || resolvedDbUrl.includes('sslmode=') || env.NODE_ENV === 'production' ? 'require' : undefined;
+      const requiresSsl =
+        resolvedDbUrl.includes('sslmode=require') ||
+        resolvedDbUrl.includes('ssl=true') ||
+        process.env.DB_SSL === 'true' ||
+        isSupabase;
+      const sslMode = requiresSsl ? 'require' : undefined;
 
       pgClient = postgres(resolvedDbUrl, {
         max: env.DB_MAX_CONNECTIONS,
@@ -162,7 +157,7 @@ export function getDatabaseClient() {
         onnotice: () => {},
       });
       dbInstance = drizzlePg(pgClient, { schema });
-      console.log(`[Database] Connected to PostgreSQL engine${isSupabase ? ' (Supabase Cloud)' : ''} at: ${resolvedDbUrl.replace(/:[^:@]+@/, ':****@')}`);
+      console.log(`[Database] Connected to PostgreSQL 18 engine at: ${resolvedDbUrl.replace(/:[^:@]+@/, ':****@')}`);
       return { sql: pgClient, db: dbInstance };
     } catch (pgErr) {
       console.error('[Database] PostgreSQL connection initialization error:', pgErr);
@@ -896,8 +891,13 @@ export async function ensureDatabaseInitialized(): Promise<void> {
             connected = true;
           } catch (connErr: any) {
             if (attempts >= maxAttempts) {
+              if (env.NODE_ENV === 'production') {
+                throw new Error(
+                  `[Database] Fatal: PostgreSQL service unreachable at ${(env.DATABASE_URL || '').replace(/:[^:@]+@/, ':****@')} after ${maxAttempts} attempts: ${connErr?.message || connErr}. Production requires direct PostgreSQL 18.`
+                );
+              }
               console.warn(
-                `[Database] Primary PostgreSQL connection unreachable after ${maxAttempts} attempts (${connErr?.message || connErr}). Falling back to persistent local engine with Supabase persistence.`
+                `[Database] Primary PostgreSQL connection unreachable after ${maxAttempts} attempts (${connErr?.message || connErr}). Falling back to local development database.`
               );
               try {
                 await pgClient.end({ timeout: 1 });
@@ -967,18 +967,11 @@ export async function ensureDatabaseInitialized(): Promise<void> {
 
       isInitialized = true;
       console.log('✅ [Database] All database tables, sequences, and indexes verified successfully.');
-
-      // Check and auto-sync with Supabase Cloud Persistent Storage (only needed for embedded PGlite fallback, skip when direct PostgreSQL is active to preserve memory)
-      if (process.env.NODE_ENV !== 'test' && !pgClient) {
-        try {
-          const { supabaseDbPersistence } = await import('./supabase-db-persistence.js');
-          await supabaseDbPersistence.ensureDatabaseRestoredFromCloud();
-        } catch (cloudSyncErr) {
-          // Non-blocking cloud persistence notice
-        }
-      }
     } catch (err) {
       console.error('[Database] Error verifying database schema:', err);
+      if (env.NODE_ENV === 'production') {
+        throw err;
+      }
     }
   })();
 

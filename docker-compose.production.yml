@@ -16,6 +16,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     networks:
       - crm-network
 
@@ -32,6 +37,11 @@ services:
       timeout: 3s
       retries: 5
       start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     networks:
       - crm-network
 
@@ -50,6 +60,10 @@ services:
       REDIS_URL: redis://redis:6379
       PORT: 4000
       HOST: 0.0.0.0
+      DOCUMENT_STORAGE_PATH: /app/storage/documents
+    volumes:
+      - sr_crm_documents:/app/storage/documents
+      - sr_crm_backups:/app/backups
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,6 +71,11 @@ services:
         condition: service_healthy
     networks:
       - crm-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
       interval: 15s
@@ -76,6 +95,11 @@ services:
       - ./infrastructure/nginx/certs/:/etc/nginx/certs/:ro
     depends_on:
       - crm
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     networks:
       - crm-network
 
@@ -84,6 +108,10 @@ volumes:
     name: sr_crm_postgres_data
   sr_redis_data:
     name: sr_crm_redis_data
+  sr_crm_documents:
+    name: sr_crm_documents_data
+  sr_crm_backups:
+    name: sr_crm_backups_data
 
 networks:
   crm-network:

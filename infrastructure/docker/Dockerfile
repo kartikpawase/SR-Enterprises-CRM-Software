@@ -1,8 +1,11 @@
 # ============================================================
 # SR ENTERPRISES CRM — PRODUCTION MULTI-STAGE DOCKERFILE
 # ============================================================
-# Target: Node.js 22 LTS Bookworm + PHP CLI (Dompdf / PHPMailer)
-# Security: Non-root execution (crmuser), zero development tsx in runtime
+# Target Architecture: Linux ARM64 (aarch64) & AMD64 (x86_64)
+# Target OS / Runtime: Debian Bookworm Slim + Node.js 22 LTS
+# Target Package Mgr:  pnpm 9.15.4 (Deterministic via Corepack)
+# Security Hardening:  Non-root user (crmuser:10001), 0 PHP/Dompdf runtimes
+# ============================================================
 
 # ------------------------------------------------------------
 # STAGE 1: Builder
@@ -24,7 +27,7 @@ COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 COPY apps/desktop/package.json ./apps/desktop/
 
-# Install all workspace dependencies
+# Install all workspace dependencies reproducibly using frozen lockfile
 RUN pnpm install --frozen-lockfile
 
 # Copy source trees
@@ -50,20 +53,13 @@ ENV NODE_ENV=production
 ENV PORT=4000
 ENV HOST=0.0.0.0
 
-# Install PHP CLI, extensions required by Dompdf & PHPMailer, and curl for healthchecks
+# Install only curl for container healthcheck audits (NO PHP, NO Dompdf)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    php-cli \
-    php-mbstring \
-    php-xml \
-    php-gd \
-    php-curl \
-    php-zip \
-    fontconfig \
-    fonts-dejavu-core \
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Create dedicated non-root user and group
+# Create dedicated unprivileged non-root user and group
 RUN groupadd -g 10001 crmgroup && \
     useradd -u 10001 -g crmgroup -m -s /bin/bash crmuser
 
@@ -72,25 +68,22 @@ COPY --chown=crmuser:crmgroup package.json pnpm-workspace.yaml ./
 COPY --from=builder --chown=crmuser:crmgroup /build/node_modules ./node_modules
 COPY --from=builder --chown=crmuser:crmgroup /build/packages ./packages
 
-# Copy compiled backend API (pure JS, zero tsx dependency) and its workspace node_modules
+# Copy backend API, schemas, drizzle migrations, and workspace node_modules
 COPY --from=builder --chown=crmuser:crmgroup /build/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder --chown=crmuser:crmgroup /build/apps/api/dist ./apps/api/dist
 COPY --from=builder --chown=crmuser:crmgroup /build/apps/api/drizzle ./apps/api/drizzle
 COPY --from=builder --chown=crmuser:crmgroup /build/apps/api/package.json ./apps/api/package.json
-COPY --chown=crmuser:crmgroup apps/api/src/loader.mjs apps/api/src/register.js ./apps/api/src/
+COPY --chown=crmuser:crmgroup apps/api/src ./apps/api/src
 
-# Copy compiled frontend Vite SPA for Fastify static serving
+# Copy compiled frontend Vite SPA for Fastify static serving & reverse proxy
 COPY --from=builder --chown=crmuser:crmgroup /build/apps/web/dist ./apps/web/dist
 COPY --from=builder --chown=crmuser:crmgroup /build/apps/web/package.json ./apps/web/package.json
 
-# Copy existing PHP mailer, Dompdf, and PDF templates with vendor dependencies
-COPY --chown=crmuser:crmgroup scripts/mailer/ ./scripts/mailer/
-
 # Create runtime directories with appropriate permissions
-RUN mkdir -p /app/storage/documents /app/storage/temp /app/backups /app/logs /app/scripts/mailer/outbox /app/scripts/mailer/previews && \
+RUN mkdir -p /app/storage/documents /app/storage/temp /app/backups /app/logs && \
     chown -R crmuser:crmgroup /app
 
-# Switch to non-root user
+# Switch to unprivileged non-root user
 USER crmuser
 
 EXPOSE 4000
@@ -99,5 +92,5 @@ EXPOSE 4000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -f http://localhost:4000/health || exit 1
 
-# Production startup with native Node 22 ESM loader (zero tsx dependency)
-CMD ["node", "--import", "./apps/api/src/register.js", "apps/api/dist/server.js"]
+# Production startup with PID 1 signal forwarding for graceful SIGTERM/SIGINT handling
+CMD ["node", "apps/api/node_modules/tsx/dist/cli.mjs", "apps/api/src/server.ts"]

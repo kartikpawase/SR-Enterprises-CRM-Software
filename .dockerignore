@@ -1,0 +1,65 @@
+# ============================================================
+# SR ENTERPRISES CRM — DOCKER BUILD IGNORE
+# ============================================================
+
+# Dependencies & Package Managers (Fresh install in container)
+node_modules/
+**/node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Git & Version Control
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# Environment Secrets
+.env
+.env.*
+!.env.example
+
+# Build Artifacts & Caches
+dist/
+**/dist/
+build/
+**/build/
+out/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Testing & Code Quality
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+vitest.config.*
+
+# Logs, Backups & Local Data
+logs/
+*.log
+backups/
+*.sql.gz
+*.sql.gz.sha256
+.crm-data/
+scratch/
+storage/temp/
+cookies.txt
+scripts/mailer/outbox/
+scripts/mailer/previews/
+
+# IDE & OS Metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Documentation & Markdown
+*.md
+!packages/**/package.json

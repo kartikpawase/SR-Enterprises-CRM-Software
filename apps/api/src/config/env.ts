@@ -23,8 +23,8 @@ for (const p of envLocations) {
 }
 dotenv.config();
 
-export const SUPABASE_PRODUCTION_DB_URL =
-  'postgresql://postgres.swdrtbdpzjcxptszskll:Shreesha2026%40%21@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
+// Default development database URL for local fallback
+const DEFAULT_DEV_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/sr_enterprises_crm';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -37,14 +37,10 @@ const envSchema = z.object({
   WEB_URL: z.string().url().default('http://localhost:3000'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 
-  // Database
+  // Database (Direct PostgreSQL 18 on OCI)
   DATABASE_URL: z
     .string()
-    .default(
-      process.env.NODE_ENV === 'production' || process.env.RENDER
-        ? SUPABASE_PRODUCTION_DB_URL
-        : 'postgres://postgres:postgres@localhost:5432/sr_enterprises_crm'
-    ),
+    .default(DEFAULT_DEV_DATABASE_URL),
   DB_MAX_CONNECTIONS: z
     .string()
     .default(process.env.NODE_ENV === 'production' ? '5' : '10')
@@ -150,26 +146,20 @@ export function parseEnv(customEnv?: Record<string, string | undefined>): EnvCon
     Boolean(process.env.RENDER) ||
     Boolean(source.RENDER);
 
-  // Normalize or resolve DATABASE_URL for cloud deployments
+  // Normalize or resolve DATABASE_URL for direct PostgreSQL 18
   if (!source.DATABASE_URL) {
     if (source.POSTGRES_URL) {
       source.DATABASE_URL = source.POSTGRES_URL;
-    } else if (source.SUPABASE_DATABASE_URL) {
-      source.DATABASE_URL = source.SUPABASE_DATABASE_URL;
+    } else if (source.POSTGRES_USER && source.POSTGRES_PASSWORD) {
+      const dbHost = source.POSTGRES_HOST || (isProduction ? 'postgres' : 'localhost');
+      const dbPort = source.POSTGRES_PORT || '5432';
+      const dbName = source.POSTGRES_DB || 'sr_enterprises_crm';
+      source.DATABASE_URL = `postgres://${source.POSTGRES_USER}:${source.POSTGRES_PASSWORD}@${dbHost}:${dbPort}/${dbName}`;
     } else if (isProduction) {
-      source.DATABASE_URL = SUPABASE_PRODUCTION_DB_URL;
+      throw new Error(
+        'Critical Production Database Error: DATABASE_URL (or POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB) must be explicitly configured in production environment.'
+      );
     }
-  }
-
-  // Prevent cloud containers from attempting connection to local non-existent database
-  if (
-    isProduction &&
-    source.DATABASE_URL &&
-    (source.DATABASE_URL.includes('localhost') ||
-      source.DATABASE_URL.includes('127.0.0.1') ||
-      source.DATABASE_URL.includes('::1'))
-  ) {
-    source.DATABASE_URL = SUPABASE_PRODUCTION_DB_URL;
   }
 
   const result = envSchema.safeParse(source);
