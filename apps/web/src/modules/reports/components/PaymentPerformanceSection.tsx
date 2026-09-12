@@ -146,7 +146,12 @@ export const PaymentPerformanceSection: React.FC<PaymentPerformanceSectionProps>
           </div>
 
           <div className="pt-2 flex-1 flex items-center justify-center">
-            <InteractiveAreaLineChart data={trendData} metricMode="revenue" height={220} />
+            <InteractiveAreaLineChart
+              data={trendData}
+              metricMode="revenue"
+              height={220}
+              revenueLabel="Collected"
+            />
           </div>
 
           <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-center text-xs">

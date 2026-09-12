@@ -80,7 +80,13 @@ export const CustomerInsightsSection: React.FC<CustomerInsightsSectionProps> = (
           </div>
 
           <div className="pt-2 flex-1 flex items-center">
-            <InteractiveAreaLineChart data={growthTrend} metricMode="sales" height={190} />
+            <InteractiveAreaLineChart
+              data={growthTrend}
+              metricMode="sales"
+              height={190}
+              salesLabel="New Customers"
+              salesUnit="customers"
+            />
           </div>
         </div>
 

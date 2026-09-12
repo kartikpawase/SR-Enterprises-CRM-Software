@@ -55,6 +55,8 @@ export class AnalyticsRepository {
    */
   async getSalesMetrics(bounds: DateRangeBounds) {
     try {
+      const startIso = bounds.startDate instanceof Date ? bounds.startDate.toISOString() : String(bounds.startDate);
+      const endIso = bounds.endDate instanceof Date ? bounds.endDate.toISOString() : String(bounds.endDate);
       const saleDateCol = sql`COALESCE(${sales.saleDate}, ${sales.createdAt})`;
 
       const [summary] = await db
@@ -65,8 +67,8 @@ export class AnalyticsRepository {
         .from(sales)
         .where(
           and(
-            gte(saleDateCol, bounds.startDate),
-            lte(saleDateCol, bounds.endDate),
+            gte(saleDateCol, startIso),
+            lte(saleDateCol, endIso),
             eq(sales.status, 'COMPLETED')
           )
         );
@@ -80,8 +82,8 @@ export class AnalyticsRepository {
         .from(sales)
         .where(
           and(
-            gte(saleDateCol, bounds.startDate),
-            lte(saleDateCol, bounds.endDate),
+            gte(saleDateCol, startIso),
+            lte(saleDateCol, endIso),
             eq(sales.status, 'COMPLETED')
           )
         )
@@ -137,8 +139,8 @@ export class AnalyticsRepository {
         .innerJoin(sales, eq(saleItems.saleId, sales.id))
         .where(
           and(
-            gte(saleDateCol, bounds.startDate),
-            lte(saleDateCol, bounds.endDate),
+            gte(saleDateCol, startIso),
+            lte(saleDateCol, endIso),
             eq(sales.status, 'COMPLETED')
           )
         )
@@ -156,8 +158,8 @@ export class AnalyticsRepository {
         .innerJoin(customers, eq(sales.customerId, customers.id))
         .where(
           and(
-            gte(saleDateCol, bounds.startDate),
-            lte(saleDateCol, bounds.endDate),
+            gte(saleDateCol, startIso),
+            lte(saleDateCol, endIso),
             eq(sales.status, 'COMPLETED')
           )
         )
@@ -175,8 +177,8 @@ export class AnalyticsRepository {
         .innerJoin(products, eq(saleItems.productId, products.id))
         .where(
           and(
-            gte(saleDateCol, bounds.startDate),
-            lte(saleDateCol, bounds.endDate),
+            gte(saleDateCol, startIso),
+            lte(saleDateCol, endIso),
             eq(sales.status, 'COMPLETED')
           )
         )
@@ -249,6 +251,8 @@ export class AnalyticsRepository {
    */
   async getRevenueMetrics(bounds: DateRangeBounds) {
     try {
+      const startIso = bounds.startDate instanceof Date ? bounds.startDate.toISOString() : String(bounds.startDate);
+      const endIso = bounds.endDate instanceof Date ? bounds.endDate.toISOString() : String(bounds.endDate);
       const invoiceDateCol = sql`COALESCE(${invoices.invoiceDate}, ${invoices.createdAt})`;
       const paymentDateCol = sql`COALESCE(${payments.paymentDate}, ${payments.createdAt})`;
 
@@ -261,8 +265,8 @@ export class AnalyticsRepository {
         .from(invoices)
         .where(
           and(
-            gte(invoiceDateCol, bounds.startDate),
-            lte(invoiceDateCol, bounds.endDate),
+            gte(invoiceDateCol, startIso),
+            lte(invoiceDateCol, endIso),
             sql`${invoices.status} IN ('ISSUED', 'PAID', 'PARTIALLY_PAID', 'OVERDUE')`,
             sql`${invoices.cancelledAt} IS NULL`
           )
@@ -277,8 +281,8 @@ export class AnalyticsRepository {
         .from(payments)
         .where(
           and(
-            gte(paymentDateCol, bounds.startDate),
-            lte(paymentDateCol, bounds.endDate),
+            gte(paymentDateCol, startIso),
+            lte(paymentDateCol, endIso),
             eq(payments.status, 'COMPLETED')
           )
         );
@@ -339,8 +343,8 @@ export class AnalyticsRepository {
         .innerJoin(invoices, eq(invoiceItems.invoiceId, invoices.id))
         .where(
           and(
-            gte(invoiceDateCol, bounds.startDate),
-            lte(invoiceDateCol, bounds.endDate),
+            gte(invoiceDateCol, startIso),
+            lte(invoiceDateCol, endIso),
             sql`${invoices.status} IN ('ISSUED', 'PAID', 'PARTIALLY_PAID', 'OVERDUE')`,
             sql`${invoices.cancelledAt} IS NULL`,
             sql`(${invoices.jobCardId} IS NOT NULL OR ${invoices.serviceId} IS NOT NULL)`
@@ -356,8 +360,8 @@ export class AnalyticsRepository {
         .from(invoices)
         .where(
           and(
-            gte(invoiceDateCol, bounds.startDate),
-            lte(invoiceDateCol, bounds.endDate),
+            gte(invoiceDateCol, startIso),
+            lte(invoiceDateCol, endIso),
             sql`${invoices.cancelledAt} IS NULL`
           )
         )
@@ -376,8 +380,8 @@ export class AnalyticsRepository {
         .from(invoices)
         .where(
           and(
-            gte(invoiceDateCol, bounds.startDate),
-            lte(invoiceDateCol, bounds.endDate),
+            gte(invoiceDateCol, startIso),
+            lte(invoiceDateCol, endIso),
             sql`${invoices.status} IN ('ISSUED', 'PAID', 'PARTIALLY_PAID', 'OVERDUE')`,
             sql`${invoices.cancelledAt} IS NULL`
           )
@@ -392,8 +396,8 @@ export class AnalyticsRepository {
         .from(payments)
         .where(
           and(
-            gte(paymentDateCol, bounds.startDate),
-            lte(paymentDateCol, bounds.endDate),
+            gte(paymentDateCol, startIso),
+            lte(paymentDateCol, endIso),
             eq(payments.status, 'COMPLETED')
           )
         )
@@ -520,6 +524,8 @@ export class AnalyticsRepository {
    */
   async getPaymentMetrics(bounds: DateRangeBounds) {
     try {
+      const startIso = bounds.startDate instanceof Date ? bounds.startDate.toISOString() : String(bounds.startDate);
+      const endIso = bounds.endDate instanceof Date ? bounds.endDate.toISOString() : String(bounds.endDate);
       const paymentDateCol = sql`COALESCE(${payments.paymentDate}, ${payments.createdAt})`;
 
       const [summary] = await db
@@ -530,8 +536,8 @@ export class AnalyticsRepository {
         .from(payments)
         .where(
           and(
-            gte(paymentDateCol, bounds.startDate),
-            lte(paymentDateCol, bounds.endDate),
+            gte(paymentDateCol, startIso),
+            lte(paymentDateCol, endIso),
             eq(payments.status, 'COMPLETED')
           )
         );
@@ -548,8 +554,8 @@ export class AnalyticsRepository {
         .from(payments)
         .where(
           and(
-            gte(paymentDateCol, bounds.startDate),
-            lte(paymentDateCol, bounds.endDate),
+            gte(paymentDateCol, startIso),
+            lte(paymentDateCol, endIso),
             eq(payments.status, 'COMPLETED')
           )
         )
@@ -564,8 +570,8 @@ export class AnalyticsRepository {
         .from(payments)
         .where(
           and(
-            gte(paymentDateCol, bounds.startDate),
-            lte(paymentDateCol, bounds.endDate),
+            gte(paymentDateCol, startIso),
+            lte(paymentDateCol, endIso),
             eq(payments.status, 'COMPLETED')
           )
         )
@@ -614,8 +620,8 @@ export class AnalyticsRepository {
         .from(invoices)
         .where(
           and(
-            gte(invoiceDateCol, bounds.startDate),
-            lte(invoiceDateCol, bounds.endDate),
+            gte(invoiceDateCol, startIso),
+            lte(invoiceDateCol, endIso),
             eq(invoices.status, 'PARTIALLY_PAID'),
             sql`${invoices.cancelledAt} IS NULL`
           )
@@ -779,6 +785,10 @@ export class AnalyticsRepository {
    */
   async getProductMetrics(bounds: DateRangeBounds) {
     try {
+      const startIso = bounds.startDate instanceof Date ? bounds.startDate.toISOString() : String(bounds.startDate);
+      const endIso = bounds.endDate instanceof Date ? bounds.endDate.toISOString() : String(bounds.endDate);
+      const saleDateCol = sql`COALESCE(${sales.saleDate}, ${sales.createdAt})`;
+
       const topProductsRaw = await db
         .select({
           productId: saleItems.productId,
@@ -790,8 +800,8 @@ export class AnalyticsRepository {
         .innerJoin(sales, eq(saleItems.saleId, sales.id))
         .where(
           and(
-            gte(sales.createdAt, bounds.startDate),
-            lte(sales.createdAt, bounds.endDate),
+            gte(saleDateCol, startIso),
+            lte(saleDateCol, endIso),
             eq(sales.status, 'COMPLETED')
           )
         )

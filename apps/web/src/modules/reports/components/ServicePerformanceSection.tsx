@@ -117,7 +117,17 @@ export const ServicePerformanceSection: React.FC<ServicePerformanceSectionProps>
           </div>
 
           <div className="pt-2 flex-1 flex items-center">
-            <InteractiveAreaLineChart data={trendData} metricMode="both" height={200} />
+            <InteractiveAreaLineChart
+              data={trendData}
+              metricMode="both"
+              height={200}
+              isRevenueCurrency={false}
+              revenueLabel="Scheduled"
+              revenueUnit="jobs"
+              isSalesCurrency={false}
+              salesLabel="Completed"
+              salesUnit="jobs"
+            />
           </div>
         </div>
 

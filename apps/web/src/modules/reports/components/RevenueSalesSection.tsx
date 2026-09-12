@@ -121,7 +121,14 @@ export const RevenueSalesSection: React.FC<RevenueSalesSectionProps> = ({ overvi
 
         {/* Interactive SVG Trend Chart */}
         <div className="pt-4 flex-1 flex items-center justify-center">
-          <InteractiveAreaLineChart data={realChartData} metricMode={metricMode} height={250} />
+          <InteractiveAreaLineChart
+            data={realChartData}
+            metricMode={metricMode}
+            height={250}
+            isSalesCurrency={true}
+            revenueLabel="Billed"
+            salesLabel="Collected"
+          />
         </div>
 
         {/* Legend Footer */}

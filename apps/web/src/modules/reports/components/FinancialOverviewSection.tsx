@@ -35,7 +35,7 @@ export const FinancialOverviewSection: React.FC<FinancialOverviewSectionProps> =
     ? revenueData.revenueTrend.map((r: any) => ({
         date: r.date,
         revenue: r.collected ?? 0,
-        sales: r.outstanding ?? 0,
+        sales: Math.max(0, (r.billed ?? 0) - (r.collected ?? 0)),
       }))
     : [];
 
@@ -97,7 +97,14 @@ export const FinancialOverviewSection: React.FC<FinancialOverviewSectionProps> =
           </div>
 
           <div className="pt-2 flex-1 flex items-center">
-            <InteractiveAreaLineChart data={trendData} metricMode="revenue" height={200} />
+            <InteractiveAreaLineChart
+              data={trendData}
+              metricMode="both"
+              height={200}
+              isSalesCurrency={true}
+              revenueLabel="Realized"
+              salesLabel="Pending"
+            />
           </div>
 
           <div className="pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-xs">

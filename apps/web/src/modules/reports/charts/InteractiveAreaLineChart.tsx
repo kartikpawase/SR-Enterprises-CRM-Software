@@ -7,6 +7,12 @@ interface InteractiveAreaLineChartProps {
   metricMode: 'revenue' | 'sales' | 'both';
   height?: number;
   className?: string;
+  isRevenueCurrency?: boolean;
+  revenueLabel?: string;
+  revenueUnit?: string;
+  isSalesCurrency?: boolean;
+  salesLabel?: string;
+  salesUnit?: string;
 }
 
 export const InteractiveAreaLineChart: React.FC<InteractiveAreaLineChartProps> = ({
@@ -14,6 +20,12 @@ export const InteractiveAreaLineChart: React.FC<InteractiveAreaLineChartProps> =
   metricMode,
   height = 260,
   className = '',
+  isRevenueCurrency = true,
+  revenueLabel = 'Revenue',
+  revenueUnit = '',
+  isSalesCurrency = false,
+  salesLabel = 'Orders',
+  salesUnit = 'units',
 }) => {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -80,13 +92,22 @@ export const InteractiveAreaLineChart: React.FC<InteractiveAreaLineChartProps> =
 
   const formatRevenueAxis = (fraction: number) => {
     const val = maxRevenue * fraction;
+    if (isRevenueCurrency === false) {
+      return Math.round(val).toString();
+    }
     if (val >= 100000) return `₹ ${(val / 100000).toFixed(1)}L`;
     if (val >= 1000) return `₹ ${(val / 1000).toFixed(0)}k`;
     return `₹ ${val.toFixed(0)}`;
   };
 
   const formatSalesAxis = (fraction: number) => {
-    return Math.round(maxSales * fraction).toString();
+    const val = maxSales * fraction;
+    if (isSalesCurrency) {
+      if (val >= 100000) return `₹ ${(val / 100000).toFixed(1)}L`;
+      if (val >= 1000) return `₹ ${(val / 1000).toFixed(0)}k`;
+      return `₹ ${val.toFixed(0)}`;
+    }
+    return Math.round(val).toString();
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -288,14 +309,22 @@ export const InteractiveAreaLineChart: React.FC<InteractiveAreaLineChartProps> =
           </div>
           {(metricMode === 'revenue' || metricMode === 'both') && (
             <div className="flex items-center justify-between gap-3 text-blue-300">
-              <span>Revenue:</span>
-              <span className="font-bold font-mono">{formatCurrency(activePoint.revenue)}</span>
+              <span>{revenueLabel}:</span>
+              <span className="font-bold font-mono">
+                {isRevenueCurrency === false
+                  ? `${formatNumber(activePoint.revenue)} ${revenueUnit || ''}`.trim()
+                  : formatCurrency(activePoint.revenue)}
+              </span>
             </div>
           )}
           {(metricMode === 'sales' || metricMode === 'both') && (
             <div className="flex items-center justify-between gap-3 text-purple-300">
-              <span>Orders:</span>
-              <span className="font-bold font-mono">{formatNumber(activePoint.sales)} units</span>
+              <span>{salesLabel}:</span>
+              <span className="font-bold font-mono">
+                {isSalesCurrency
+                  ? formatCurrency(activePoint.sales)
+                  : `${formatNumber(activePoint.sales)} ${salesUnit || 'units'}`.trim()}
+              </span>
             </div>
           )}
         </div>
