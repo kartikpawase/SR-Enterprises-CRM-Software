@@ -15,6 +15,7 @@ import { DropdownMenu } from '../components/ui/DropdownMenu';
 import { CommandPalette } from '../components/search/CommandPalette';
 import { NotificationCenter } from '../components/notifications/NotificationCenter';
 import { GlobalSidebar } from '../components/navigation/GlobalSidebar';
+import { GlobalFooter } from '../components/navigation/GlobalFooter';
 import { ChatbotWidget } from '../components/chatbot/ChatbotWidget';
 import { useUnreadNotificationCountQuery } from '../modules/notifications/notifications.api';
 import { cn } from '../lib/utils';
@@ -207,9 +208,10 @@ export function AppShell({ children, activePath = '/dashboard', onNavigate }: Ap
         {/* Main Content Workspace (Clicks outside sidebar will collapse it) */}
         <main
           onClick={handleWorkspaceClick}
-          className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 print:p-0 print:m-0 print:overflow-visible"
+          className="flex-1 flex flex-col overflow-y-auto p-3 sm:p-6 lg:p-8 print:p-0 print:m-0 print:overflow-visible"
         >
-          <div className="max-w-7xl mx-auto print:max-w-none print:m-0 print:p-0">{children}</div>
+          <div className="flex-1 w-full max-w-7xl mx-auto print:max-w-none print:m-0 print:p-0">{children}</div>
+          <GlobalFooter />
         </main>
       </div>
 

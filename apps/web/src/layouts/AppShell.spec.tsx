@@ -49,6 +49,8 @@ describe('Phase 3 — UI Design System: AppShell Layout with Master GlobalSideba
     renderShell();
     expect(screen.getByText('SR ENTERPRISES CRM')).toBeInTheDocument();
     expect(screen.getByTestId('shell-child')).toHaveTextContent('Foundation Content');
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+    expect(screen.getByText(/Developed by/i)).toHaveTextContent('Developed by Kartik & Siddharth');
   });
 
   it('renders all 9 authoritative navigation items in the master sidebar', () => {
