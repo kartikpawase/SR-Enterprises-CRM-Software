@@ -43,7 +43,7 @@ export const LoginBrandPanel: React.FC = () => {
       </div>
 
       {/* Center Left Marketing Message */}
-      <div className="relative z-10 max-w-sm my-auto py-2 sm:py-6 hidden xs:block">
+      <div className="relative z-10 max-w-sm my-auto py-3 sm:py-6">
         <span className="block text-xs sm:text-sm font-semibold text-sky-300">Welcome to</span>
         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-display font-extrabold text-white tracking-tight mt-1 leading-tight drop-shadow-sm">
           SR Enterprises CRM
@@ -55,7 +55,7 @@ export const LoginBrandPanel: React.FC = () => {
       </div>
 
       {/* Bottom Feature Bar (4 Horizontally Arranged Items with Vertical Separators) */}
-      <div className="relative z-10 pt-3 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-3 items-start backdrop-blur-xs hidden sm:grid">
+      <div className="relative z-10 pt-3 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-3 items-start backdrop-blur-xs">
         {/* Feature 1: Manage Customers */}
         <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
           <div className="mb-1 p-1 rounded-lg bg-white/10 border border-white/15 text-white w-fit shadow-2xs">

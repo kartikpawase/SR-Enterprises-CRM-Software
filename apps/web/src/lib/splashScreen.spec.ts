@@ -4,6 +4,8 @@ import {
   executeSplashTransition,
   isSplashScreenDismissed,
   isCrmReadySignaled,
+  updateSplashProgress,
+  getSplashProgress,
   resetSplashScreenStateForTests,
 } from './splashScreen';
 
@@ -12,10 +14,18 @@ describe('Splash Screen Lifecycle & Timing Suite', () => {
     vi.useFakeTimers();
     resetSplashScreenStateForTests();
     document.body.innerHTML = `
-      <div id="crm-splash-screen">
-        <picture class="crm-splash-picture">
-          <img id="crm-splash-img" src="/splash-desktop.png" alt="SR Enterprises CRM" />
-        </picture>
+      <div id="crm-splash-screen" role="status">
+        <div class="crm-splash-container">
+          <div class="crm-splash-logo-wrapper">
+            <img id="crm-splash-logo" src="/crm-logo.png" alt="SR Enterprises CRM" />
+          </div>
+          <div class="crm-splash-tagline">Manage · Grow · Succeed Together</div>
+          <div class="crm-splash-loader-bar">
+            <div id="crm-splash-progress" class="crm-splash-progress-fill" style="width: 25%;"></div>
+          </div>
+          <div class="crm-splash-text">Loading your CRM...</div>
+          <div class="crm-splash-subtext">Building better business relationships</div>
+        </div>
         <div class="crm-splash-footer">Developed by Kartik & Siddharth</div>
       </div>
       <div id="root"></div>
@@ -27,12 +37,36 @@ describe('Splash Screen Lifecycle & Timing Suite', () => {
     document.body.innerHTML = '';
   });
 
-  it('immediately displays the splash screen in the DOM with developer branding', () => {
+  it('immediately displays the code-based loading screen with logo PNG, HTML text, and developer branding', () => {
     const splash = document.getElementById('crm-splash-screen');
+    const logo = document.getElementById('crm-splash-logo') as HTMLImageElement;
+    const progress = document.getElementById('crm-splash-progress');
+
     expect(splash).not.toBeNull();
+    expect(logo).not.toBeNull();
+    expect(logo.getAttribute('src')).toBe('/crm-logo.png');
+    expect(progress).not.toBeNull();
+    expect(splash?.textContent).toContain('Manage · Grow · Succeed Together');
+    expect(splash?.textContent).toContain('Loading your CRM...');
+    expect(splash?.textContent).toContain('Building better business relationships');
     expect(splash?.textContent).toContain('Developed by Kartik & Siddharth');
+
+    // Does NOT use full reference screenshots
+    expect(document.querySelector('img[src="/splash-desktop.png"]')).toBeNull();
+    expect(document.querySelector('img[src="/splash-mobile.png"]')).toBeNull();
+
     expect(isCrmReadySignaled()).toBe(false);
     expect(isSplashScreenDismissed()).toBe(false);
+  });
+
+  it('updates the real loading bar progress dynamically', () => {
+    updateSplashProgress(50);
+    expect(getSplashProgress()).toBe(50);
+    expect(document.getElementById('crm-splash-progress')?.style.width).toBe('50%');
+
+    updateSplashProgress(75);
+    expect(getSplashProgress()).toBe(75);
+    expect(document.getElementById('crm-splash-progress')?.style.width).toBe('75%');
   });
 
   it('keeps the splash screen visible while CRM is loading in background', () => {

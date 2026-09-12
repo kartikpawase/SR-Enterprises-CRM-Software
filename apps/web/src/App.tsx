@@ -13,7 +13,7 @@ import { StatusBadge } from './components/ui/StatusBadge';
 import { LoadingState } from './components/ui/LoadingState';
 import { Button } from './components/ui/Button';
 import { LoginPage } from './pages/LoginPage';
-import { notifyCrmReady } from './lib/splashScreen';
+import { notifyCrmReady, updateSplashProgress } from './lib/splashScreen';
 
 // Code-split route modules dynamically to optimize initial bundle size and processing speed
 const DashboardPage = React.lazy(() => import('./modules/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
@@ -421,12 +421,11 @@ export function SplashScreenCoordinator() {
   const { isInitialCheckDone, authStatus } = useAuth();
 
   React.useEffect(() => {
-    // When initial authentication/session verification completes
-    if (isInitialCheckDone && authStatus !== 'AUTH_CHECKING') {
-      const frame = requestAnimationFrame(() => {
-        notifyCrmReady();
-      });
-      return () => cancelAnimationFrame(frame);
+    // While initial authentication/session verification is running
+    if (!isInitialCheckDone) {
+      updateSplashProgress(65);
+    } else if (authStatus !== 'AUTH_CHECKING') {
+      notifyCrmReady();
     }
   }, [isInitialCheckDone, authStatus]);
 

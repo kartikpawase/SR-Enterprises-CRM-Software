@@ -13,19 +13,39 @@
 let isReadySignaled = false;
 let isDismissed = false;
 let readyTimestamp: number | null = null;
+let currentProgress = 25;
 let timerId: ReturnType<typeof setTimeout> | null = null;
 let safetyTimerId: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Updates the visual fill percentage of the real loading bar in the DOM.
+ */
+export function updateSplashProgress(percent: number): void {
+  currentProgress = Math.min(100, Math.max(0, percent));
+  if (typeof document === 'undefined') return;
+  const bar = document.getElementById('crm-splash-progress');
+  if (bar) {
+    bar.style.width = `${currentProgress}%`;
+  }
+}
+
+export function getSplashProgress(): number {
+  return currentProgress;
+}
 
 /**
  * Signals that the CRM application has completed its initial bootstrap,
  * authentication/session verification, and initial view rendering.
  *
- * Starts the EXACT 2-second additional display timer.
+ * Fills progress bar to 100% and starts the EXACT 2-second additional display timer.
  */
 export function notifyCrmReady(): void {
   if (isReadySignaled || isDismissed) return;
   isReadySignaled = true;
   readyTimestamp = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+
+  // Progress reaches 100% only when the application is actually ready
+  updateSplashProgress(100);
 
   if (safetyTimerId) {
     clearTimeout(safetyTimerId);
@@ -92,6 +112,7 @@ export function resetSplashScreenStateForTests(): void {
   isReadySignaled = false;
   isDismissed = false;
   readyTimestamp = null;
+  currentProgress = 25;
   if (timerId) {
     clearTimeout(timerId);
     timerId = null;

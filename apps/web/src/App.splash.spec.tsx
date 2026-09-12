@@ -22,10 +22,18 @@ describe('SplashScreenCoordinator React Integration Suite', () => {
     vi.useFakeTimers();
     resetSplashScreenStateForTests();
     document.body.innerHTML = `
-      <div id="crm-splash-screen">
-        <picture class="crm-splash-picture">
-          <img id="crm-splash-img" src="/splash-desktop.png" alt="SR Enterprises CRM" />
-        </picture>
+      <div id="crm-splash-screen" role="status">
+        <div class="crm-splash-container">
+          <div class="crm-splash-logo-wrapper">
+            <img id="crm-splash-logo" src="/crm-logo.png" alt="SR Enterprises CRM" />
+          </div>
+          <div class="crm-splash-tagline">Manage · Grow · Succeed Together</div>
+          <div class="crm-splash-loader-bar">
+            <div id="crm-splash-progress" class="crm-splash-progress-fill" style="width: 25%;"></div>
+          </div>
+          <div class="crm-splash-text">Loading your CRM...</div>
+          <div class="crm-splash-subtext">Building better business relationships</div>
+        </div>
         <div class="crm-splash-footer">Developed by Kartik & Siddharth</div>
       </div>
       <div id="root"></div>
