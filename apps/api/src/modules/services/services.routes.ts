@@ -92,13 +92,25 @@ export const servicesRoutes: FastifyPluginAsync = async (fastify) => {
    * List paginated services with multi-criteria filters
    */
   fastify.get('/', { preHandler: [requirePermission('services.view')] }, async (request, reply) => {
-    const query = ServiceQueryFilterSchema.parse(request.query);
-    const result = await servicesService.getServices(query);
-    return reply.send({
-      success: true,
-      data: result.data,
-      pagination: result.pagination,
-    });
+    try {
+      const query = ServiceQueryFilterSchema.parse(request.query);
+      const result = await servicesService.getServices(query);
+      return reply.send({
+        success: true,
+        data: result.data,
+        pagination: result.pagination,
+      });
+    } catch (err: any) {
+      console.error('[GET /api/v1/services] Handler error:', err);
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: 'SERVICES_QUERY_ERROR',
+          message: err?.message || String(err),
+          stack: err?.stack,
+        },
+      });
+    }
   });
 
   /**

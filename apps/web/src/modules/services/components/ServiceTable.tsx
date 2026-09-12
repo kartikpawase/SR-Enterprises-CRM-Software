@@ -180,13 +180,13 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
         <div>
           <div
             className="font-bold text-slate-900 hover:text-primary-600 cursor-pointer flex items-center gap-1 text-xs"
-            onClick={() => navigate(`/customers/${row.customerId}`)}
+            onClick={() => row.customerId && navigate(`/customers/${row.customerId}`)}
           >
             <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            {row.customerName}
+            {row.customerName || 'Customer'}
           </div>
           <div className="flex items-center justify-between gap-1 mt-0.5">
-            <span className="text-[11px] text-slate-500 font-mono">{row.customerPhone}</span>
+            <span className="text-[11px] text-slate-500 font-mono">{row.customerPhone || '—'}</span>
             {row.customerPhone && (
               <button
                 type="button"
@@ -196,7 +196,7 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
                 }}
                 disabled={notifyCustomerWhatsAppMutation.isPending}
                 className="p-1 text-emerald-700 hover:bg-emerald-50 bg-emerald-50/60 rounded-md border border-emerald-200 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-                title={`Send WhatsApp service details to client ${row.customerName}`}
+                title={`Send WhatsApp service details to client ${row.customerName || ''}`}
               >
                 <MessageSquare className="w-3 h-3 text-emerald-600" />
               </button>
@@ -212,7 +212,7 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
         <div>
           <div className="font-semibold text-slate-900 text-xs flex items-center gap-1">
             <Cpu className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            {row.productName}
+            {row.productName || 'RO Machine'}
           </div>
           <div className="text-[11px] text-slate-500 font-mono mt-0.5">
             {row.serialNumber ? (
@@ -266,7 +266,7 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
             ) : null}
 
             <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
-              {row.serviceType.replace(/_/g, ' ')}
+              {(row.serviceType || 'GENERAL').replace(/_/g, ' ')}
             </div>
           </div>
         );
@@ -304,7 +304,7 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] border border-slate-200 shrink-0">
-                  {row.technicianName.charAt(0)}
+                  {(row.technicianName || 'T').charAt(0)}
                 </div>
                 <div>
                   <div className="text-xs font-medium text-slate-900">{row.technicianName}</div>
@@ -368,7 +368,7 @@ export const ServiceTable: React.FC<ServiceTableProps> = ({
       render: (row: ServiceItem) => (
         <StatusBadge
           status={statusVariantMap[row.status] || 'active'}
-          label={row.status.replace(/_/g, ' ')}
+          label={(row.status || 'SCHEDULED').replace(/_/g, ' ')}
         />
       ),
     },

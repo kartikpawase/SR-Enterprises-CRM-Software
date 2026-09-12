@@ -45,8 +45,12 @@ export const ServicesDirectory: React.FC = () => {
   const { data: kpis, isLoading: isKpisLoading } = useServiceKPIsQuery();
   const { data: heatmapData, isLoading: isHeatmapLoading } = useServiceHeatmapQuery(heatmapPeriod);
 
-  const services = servicesData?.data || [];
-  const pagination = servicesData?.pagination || { page: 1, limit: 10, total: 0, totalPages: 1 };
+  const services = Array.isArray(servicesData?.data)
+    ? servicesData.data
+    : Array.isArray(servicesData)
+    ? (servicesData as any)
+    : [];
+  const pagination = servicesData?.pagination || { page: 1, limit: 10, total: services.length, totalPages: 1 };
 
   const handleFilterChange = (updates: Partial<ServiceQueryFilter>) => {
     setFilters((prev) => ({

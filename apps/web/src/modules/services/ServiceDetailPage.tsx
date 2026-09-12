@@ -229,7 +229,7 @@ export const ServiceDetailPage: React.FC = () => {
             </h1>
             <StatusBadge
               status={isCompleted ? 'active' : 'warning'}
-              label={service.status.replace(/_/g, ' ')}
+              label={(service.status || 'SCHEDULED').replace(/_/g, ' ')}
             />
             {service.serviceClassification === 'WARRANTY' ? (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
@@ -243,7 +243,7 @@ export const ServiceDetailPage: React.FC = () => {
             )}
           </div>
           <p className="text-xs text-slate-500">
-            {service.serviceType.replace(/_/g, ' ')} • {service.serviceLocation === 'DOORSTEP' ? 'Doorstep Visit' : 'In-Shop Repair'} • Scheduled for{' '}
+            {(service.serviceType || 'GENERAL').replace(/_/g, ' ')} • {service.serviceLocation === 'DOORSTEP' ? 'Doorstep Visit' : 'In-Shop Repair'} • Scheduled for{' '}
             {formatSystemDate(service.scheduledDate)}
             {service.scheduledTimeSlot ? ` (${service.scheduledTimeSlot})` : ''}
           </p>
@@ -401,7 +401,7 @@ export const ServiceDetailPage: React.FC = () => {
                 <>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-extrabold text-sm border border-blue-200 shrink-0">
-                      {service.technicianName.charAt(0)}
+                      {(service.technicianName || 'T').charAt(0)}
                     </div>
                     <div>
                       <div className="font-bold text-slate-900">{service.technicianName}</div>

@@ -155,6 +155,7 @@ export class ServicesRepository {
             jobCardId: jobCards.id,
             jobCardNumber: jobCards.jobCardNumber,
             jobCardStatus: jobCards.status,
+            totalCharges: jobCards.totalCharges,
           })
           .from(services)
           .leftJoin(customers, eq(services.customerId, customers.id))
@@ -289,6 +290,7 @@ export class ServicesRepository {
           ...row,
           technicianName: techName,
           technicianPhone: techPhone,
+          totalCharges: total.toFixed(2),
           invoice: inv,
           paidAmount: paid.toFixed(2),
           outstandingAmount: outstanding.toFixed(2),
@@ -305,7 +307,8 @@ export class ServicesRepository {
           totalPages: Math.ceil(total / limit) || 1,
         },
       };
-    } catch {
+    } catch (err: any) {
+      console.error('[ServicesRepository.findPaginated] Error caught in try block:', err?.message || err);
       let filtered = [...memoryServices];
       if (filters.status && filters.status !== 'ALL') {
         filtered = filtered.filter((s) => s.status === filters.status);

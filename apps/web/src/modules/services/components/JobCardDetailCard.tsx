@@ -10,7 +10,16 @@ export interface JobCardDetailCardProps {
 }
 
 export const JobCardDetailCard: React.FC<JobCardDetailCardProps> = ({ service }) => {
-  const parts = (service.partsReplaced as any[]) || [];
+  const rawParts = service.partsReplaced;
+  let parts: any[] = [];
+  if (Array.isArray(rawParts)) {
+    parts = rawParts;
+  } else if (typeof rawParts === 'string' && (rawParts as string).trim()) {
+    try {
+      const parsed = JSON.parse(rawParts);
+      if (Array.isArray(parsed)) parts = parsed;
+    } catch {}
+  }
 
   return (
     <Card className="rounded-2xl border-slate-200/90 shadow-xs overflow-hidden">
