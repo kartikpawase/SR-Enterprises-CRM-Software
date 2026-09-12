@@ -27,16 +27,12 @@ const InvoiceDetailPage = React.lazy(() => import('./modules/invoices/InvoiceDet
 const AssetsDirectory = React.lazy(() => import('./modules/assets/AssetsDirectory').then((m) => ({ default: m.AssetsDirectory })));
 const ServicesDirectory = React.lazy(() => import('./modules/services/ServicesDirectory').then((m) => ({ default: m.ServicesDirectory })));
 const ServiceDetailPage = React.lazy(() => import('./modules/services/ServiceDetailPage').then((m) => ({ default: m.ServiceDetailPage })));
-const WarrantyDirectory = React.lazy(() => import('./modules/warranties/WarrantyDirectory').then((m) => ({ default: m.WarrantyDirectory })));
 const JobCardDirectory = React.lazy(() => import('./modules/job-cards/JobCardDirectory').then((m) => ({ default: m.JobCardDirectory })));
 const JobCardDetailPage = React.lazy(() => import('./modules/job-cards/JobCardDetailPage').then((m) => ({ default: m.JobCardDetailPage })));
 const TechniciansDirectory = React.lazy(() => import('./modules/technicians/TechniciansDirectory').then((m) => ({ default: m.TechniciansDirectory })));
 const PaymentsDirectory = React.lazy(() => import('./modules/payments/PaymentsDirectory').then((m) => ({ default: m.PaymentsDirectory })));
 const RemindersDirectory = React.lazy(() => import('./modules/reminders/RemindersDirectory').then((m) => ({ default: m.RemindersDirectory })));
-const InquiriesDirectory = React.lazy(() => import('./modules/inquiries/InquiriesDirectory').then((m) => ({ default: m.InquiriesDirectory })));
-const InquiryDetailPage = React.lazy(() => import('./modules/inquiries/InquiryDetailPage').then((m) => ({ default: m.InquiryDetailPage })));
 const WhatsAppHub = React.lazy(() => import('./modules/whatsapp/WhatsAppHub').then((m) => ({ default: m.WhatsAppHub })));
-const AnalyticsPage = React.lazy(() => import('./modules/analytics/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
 const ReportsPage = React.lazy(() => import('./modules/reports/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const NotificationsPage = React.lazy(() => import('./modules/notifications/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 const SettingsPage = React.lazy(() => import('./modules/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })));
@@ -354,52 +350,10 @@ function MainAppShellRouter() {
             }
           />
           <Route
-            path="/inquiries"
-            element={
-              <PermissionGuard permission="inquiries.view" moduleName="Website Inquiries & Leads">
-                <InquiriesDirectory />
-              </PermissionGuard>
-            }
-          />
-          <Route
-            path="/inquiries/:id"
-            element={
-              <PermissionGuard permission="inquiries.view" moduleName="Inquiry Detail">
-                <InquiryDetailPage />
-              </PermissionGuard>
-            }
-          />
-          <Route
             path="/whatsapp"
             element={
               <PermissionGuard permission="whatsapp.view" moduleName="WhatsApp Business Hub">
                 <WhatsAppHub />
-              </PermissionGuard>
-            }
-          />
-          {/* Business Analytics & Intelligence (Phase 10 Live) */}
-          <Route
-            path="/analytics"
-            element={
-              <PermissionGuard permission="reports.view" moduleName="Business Analytics">
-                <AnalyticsPage />
-              </PermissionGuard>
-            }
-          />
-          {/* Warranty & AMC Domain Routes (Phase 6 Live) */}
-          <Route
-            path="/warranty"
-            element={
-              <PermissionGuard permission="assets.view" moduleName="Warranty Management">
-                <WarrantyDirectory />
-              </PermissionGuard>
-            }
-          />
-          <Route
-            path="/warranties"
-            element={
-              <PermissionGuard permission="assets.view" moduleName="Warranty Management">
-                <WarrantyDirectory />
               </PermissionGuard>
             }
           />

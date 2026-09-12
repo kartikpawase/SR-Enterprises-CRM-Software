@@ -45,9 +45,9 @@ describe('Phase 3 & Phase 25 — UI Design System & Global Search: CommandPalett
     renderWithClient(<CommandPalette onNavigate={vi.fn()} />);
     const input = screen.getByPlaceholderText('Search modules, pages, actions...');
 
-    await userEvent.type(input, 'Warranty');
+    await userEvent.type(input, 'Technician');
 
-    expect(screen.getByText('Warranty & Claims')).toBeInTheDocument();
+    expect(screen.getByText('Technician Roster')).toBeInTheDocument();
     expect(screen.queryByText('Customer Directory')).not.toBeInTheDocument();
   });
 
