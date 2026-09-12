@@ -44,7 +44,7 @@ export interface InventorySale {
   brand?: string | null;
   partNumber?: string | null;
   customerId?: string | null;
-  customerName: string;
+  customerName?: string | null;
   customerPhone?: string | null;
   saleDate: string;
   quantity: number;
@@ -118,7 +118,7 @@ export interface ProfitLedgerRow {
   category: string;
   brand?: string | null;
   partNumber?: string | null;
-  customerName: string;
+  customerName?: string | null;
   quantity: number;
   purchaseCostPerUnit: number;
   sellingPricePerUnit: number;
@@ -351,7 +351,7 @@ export function useCreateSaleMutation() {
     mutationFn: async (payload: {
       itemId: string;
       customerId?: string;
-      customerName: string;
+      customerName?: string;
       customerPhone?: string;
       saleDate: string;
       quantity: number;

@@ -112,6 +112,34 @@ describe('Inventory Management Module (Spare Parts, Purchases, Sales & Profit An
     expect(refreshed.currentStock).toBe(3);
   });
 
+  it('3b. Records an outward sale without customer details (optional customer)', async () => {
+    const item = await inventoryManagementService.createItem({
+      name: 'Sediment Filter Cartridge Direct',
+      category: 'Filter',
+      purchasePrice: 100,
+      sellingPrice: 250,
+      initialStock: 4,
+    });
+
+    // Record sale without customerName or customerPhone
+    const sale = await inventoryManagementService.createSale({
+      itemId: item.id,
+      saleDate: new Date().toISOString(),
+      quantity: 1,
+      sellingPricePerUnit: 250,
+    });
+
+    expect(sale).toBeDefined();
+    expect(sale.quantity).toBe(1);
+    expect(sale.customerName).toBeNull();
+    expect(sale.customerPhone).toBeNull();
+    expect(Number(sale.sellingPricePerUnit)).toBe(250);
+    expect(Number(sale.profit)).toBe(150);
+
+    const refreshed = await inventoryManagementService.getItemById(item.id);
+    expect(refreshed.currentStock).toBe(3);
+  });
+
   it('4. Rejects sale when requested quantity exceeds available stock', async () => {
     const item = await inventoryManagementService.createItem({
       name: 'SMPS Power Supply 24V Test',

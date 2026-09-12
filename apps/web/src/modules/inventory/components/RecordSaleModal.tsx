@@ -91,11 +91,6 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
       return;
     }
 
-    if (!customerName.trim()) {
-      setError('Customer name is required');
-      return;
-    }
-
     if (qtyNum <= 0) {
       setError('Quantity must be at least 1');
       return;
@@ -115,7 +110,7 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
       await onSubmit({
         itemId: selectedItemId,
         customerId: customerId || undefined,
-        customerName: customerName.trim(),
+        customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         saleDate: new Date(saleDate).toISOString(),
         quantity: qtyNum,
@@ -203,7 +198,7 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
           {/* Customer Selection (from existing CRM database or manual) */}
           <div className="space-y-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
             <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-              Customer Information
+              Customer Information <span className="text-gray-400 font-normal lowercase">(optional)</span>
             </label>
             {customerList && customerList.length > 0 && (
               <div>
@@ -212,7 +207,7 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
                   onChange={(e) => handleCustomerSelect(e.target.value)}
                   className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white mb-2"
                 >
-                  <option value="">-- Or Pick From Existing CRM Customers --</option>
+                  <option value="">-- Pick From Existing CRM Customers (Optional) --</option>
                   {customerList.map((c: any) => (
                     <option key={c.id} value={c.id}>
                       {c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim()} ({c.mobileNumber || c.phoneNumber || 'No phone'})
@@ -226,10 +221,9 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
               <div>
                 <input
                   type="text"
-                  required
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Customer Name *"
+                  placeholder="Customer Name (optional)"
                   className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
                 />
               </div>
@@ -238,7 +232,7 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
                   type="text"
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="Phone Number"
+                  placeholder="Phone Number (optional)"
                   className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
                 />
               </div>

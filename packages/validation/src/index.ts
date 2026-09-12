@@ -1316,7 +1316,7 @@ export type InventoryPurchaseQueryFilter = z.infer<typeof InventoryPurchaseQuery
 export const CreateInventorySaleSchema = z.object({
   itemId: z.string().uuid('Invalid inventory item ID'),
   customerId: z.string().uuid('Invalid customer ID').optional().nullable(),
-  customerName: z.string().min(1, 'Customer name is required'),
+  customerName: z.string().optional().nullable(),
   customerPhone: z.string().optional().nullable(),
   saleDate: z.string().min(1, 'Sale date is required'),
   quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),

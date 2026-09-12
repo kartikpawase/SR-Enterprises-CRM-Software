@@ -70,7 +70,7 @@ export const inventorySales = pgTable(
       .notNull()
       .references(() => inventoryItems.id, { onDelete: 'restrict' }),
     customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'set null' }),
-    customerName: text('customer_name').notNull(),
+    customerName: text('customer_name'),
     customerPhone: text('customer_phone'),
     saleDate: timestamp('sale_date', { withTimezone: true, mode: 'date' }).notNull(),
     quantity: integer('quantity').notNull(),

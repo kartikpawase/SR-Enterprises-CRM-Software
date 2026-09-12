@@ -864,7 +864,7 @@ export const InventoryPage: React.FC = () => {
                           )}
                         </td>
                         <td className="p-3.5">
-                          <div className="font-semibold text-gray-900">{s.customerName}</div>
+                          <div className="font-semibold text-gray-900">{s.customerName || 'Direct / Walk-in'}</div>
                           {s.customerPhone && (
                             <div className="text-[11px] text-gray-400 font-mono">{s.customerPhone}</div>
                           )}
@@ -959,7 +959,7 @@ export const InventoryPage: React.FC = () => {
                           <div className="font-bold text-gray-900">{row.itemName}</div>
                           <div className="text-[11px] text-gray-400">{row.category}</div>
                         </td>
-                        <td className="p-3.5 text-gray-800">{row.customerName}</td>
+                        <td className="p-3.5 text-gray-800">{row.customerName || 'Direct / Walk-in'}</td>
                         <td className="p-3.5 text-right font-bold text-gray-900">{row.quantity}</td>
                         <td className="p-3.5 text-right text-gray-500 font-mono">
                           ₹{row.purchaseCostPerUnit.toFixed(2)}

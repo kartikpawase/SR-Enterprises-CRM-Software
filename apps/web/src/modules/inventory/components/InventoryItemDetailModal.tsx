@@ -265,7 +265,7 @@ export const InventoryItemDetailModal: React.FC<InventoryItemDetailModalProps> =
                               {new Date(s.saleDate).toLocaleDateString('en-IN')}
                             </td>
                             <td className="p-2.5 font-medium text-emerald-700">{s.saleNumber}</td>
-                            <td className="p-2.5 text-gray-800 font-medium">{s.customerName}</td>
+                            <td className="p-2.5 text-gray-800 font-medium">{s.customerName || 'Direct / Walk-in'}</td>
                             <td className="p-2.5 text-right font-semibold">{s.quantity}</td>
                             <td className="p-2.5 text-right">₹{Number(s.sellingPricePerUnit).toFixed(2)}</td>
                             <td className="p-2.5 text-right text-gray-500">
