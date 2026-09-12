@@ -52,9 +52,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         </div>
 
         {/* Right: Operational Controls (Search, Date, Notifications, Profile) */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
           {/* Global Search Bar */}
-          <form onSubmit={handleSearchSubmit} className="relative min-w-[220px] sm:min-w-[280px]">
+          <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-auto min-w-0 sm:min-w-[280px] flex-1 sm:flex-initial">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
               <Search className="w-4 h-4" />
             </div>
@@ -68,7 +68,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           </form>
 
           {/* Date Selector Control */}
-          <div className="h-11 px-3.5 bg-white rounded-xl border border-slate-200/90 shadow-2xs flex items-center gap-2 text-slate-700 text-xs sm:text-sm font-semibold cursor-pointer hover:border-slate-300 transition-colors">
+          <div className="h-11 px-3 sm:px-3.5 bg-white rounded-xl border border-slate-200/90 shadow-2xs flex items-center gap-2 text-slate-700 text-xs sm:text-sm font-semibold cursor-pointer hover:border-slate-300 transition-colors">
             <Calendar className="w-4 h-4 text-slate-500" />
             <span className="font-mono text-xs sm:text-sm">{todayFormatted}</span>
           </div>

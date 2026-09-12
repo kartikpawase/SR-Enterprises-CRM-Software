@@ -72,7 +72,7 @@ export const Modal: React.FC<ModalProps> = ({
       aria-modal="true"
       aria-labelledby={title ? 'modal-title' : undefined}
       aria-describedby={description ? 'modal-description' : undefined}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-fast"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-6 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-fast"
       onClick={(e) => {
         if (closeOnBackdropClick && e.target === e.currentTarget) {
           onClose();
@@ -89,10 +89,10 @@ export const Modal: React.FC<ModalProps> = ({
       >
         {/* Header */}
         {(title || description) && (
-          <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
+          <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex items-start justify-between gap-3 sm:gap-4">
             <div className="space-y-1">
               {title && (
-                <h2 id="modal-title" className="text-lg font-display font-bold text-slate-900 tracking-tight">
+                <h2 id="modal-title" className="text-base sm:text-lg font-display font-bold text-slate-900 tracking-tight">
                   {title}
                 </h2>
               )}
@@ -107,7 +107,7 @@ export const Modal: React.FC<ModalProps> = ({
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-700 cursor-pointer"
+              className="text-slate-400 hover:text-slate-700 cursor-pointer shrink-0"
             >
               <X className="w-4 h-4" />
             </IconButton>
@@ -115,11 +115,11 @@ export const Modal: React.FC<ModalProps> = ({
         )}
 
         {/* Body Content */}
-        <div className="p-6 overflow-y-auto flex-1">{children}</div>
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1">{children}</div>
 
         {/* Footer */}
         {footer && (
-          <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-200/80 flex items-center justify-end gap-3">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 bg-slate-50/80 border-t border-slate-200/80 flex flex-wrap sm:flex-nowrap items-center justify-end gap-2 sm:gap-3">
             {footer}
           </div>
         )}

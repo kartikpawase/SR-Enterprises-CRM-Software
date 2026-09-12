@@ -51,7 +51,7 @@ export const SalesFilterBar: React.FC<SalesFilterBarProps> = ({
   return (
     <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
       {/* Dropdown Filters */}
-      <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+      <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0 sm:min-w-[280px]">
         {/* Customer Select */}
         <div className="relative">
           <select

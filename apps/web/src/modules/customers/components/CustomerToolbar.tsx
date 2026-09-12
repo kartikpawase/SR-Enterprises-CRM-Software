@@ -33,7 +33,7 @@ export const CustomerToolbar: React.FC<CustomerToolbarProps> = ({
   return (
     <div className="bg-white rounded-xl border border-slate-200/90 p-3 shadow-2xs flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 select-none">
       {/* Search Input Field */}
-      <div className="relative flex-1 min-w-[280px]">
+      <div className="relative flex-1 min-w-0 sm:min-w-[280px]">
         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
           <Search className="w-4 h-4" />
         </div>

@@ -131,18 +131,28 @@ export function AppShell({ children, activePath = '/dashboard', onNavigate }: Ap
             </button>
 
             {/* Breadcrumb / Section context */}
-            <div className="hidden sm:block">
-              <span className="font-display font-extrabold text-slate-900 text-sm tracking-tight block">
+            <div className="flex flex-col min-w-0">
+              <span className="font-display font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight block truncate max-w-[150px] xs:max-w-[200px] sm:max-w-none">
                 SR ENTERPRISES CRM
               </span>
-              <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider block">
+              <span className="text-[9px] sm:text-[10px] text-slate-500 font-semibold uppercase tracking-wider hidden xs:block">
                 Water Purifier &amp; RO Management
               </span>
             </div>
           </div>
 
           {/* Header Actions: Search, Connectivity, Notifications, User Profile */}
-          <div className="flex items-center gap-3 sm:gap-4" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 shrink-0" onClick={(e) => e.stopPropagation()}>
+            {/* Mobile Search Trigger */}
+            <button
+              type="button"
+              onClick={() => setCommandPaletteOpen(true)}
+              className="md:hidden p-2 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
+              aria-label="Open search dialog"
+            >
+              <Search className="w-4 h-4 text-slate-500" />
+            </button>
+
             {/* Global Search Trigger (Ctrl+K) */}
             <button
               type="button"
@@ -197,7 +207,7 @@ export function AppShell({ children, activePath = '/dashboard', onNavigate }: Ap
         {/* Main Content Workspace (Clicks outside sidebar will collapse it) */}
         <main
           onClick={handleWorkspaceClick}
-          className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 print:p-0 print:m-0 print:overflow-visible"
+          className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 print:p-0 print:m-0 print:overflow-visible"
         >
           <div className="max-w-7xl mx-auto print:max-w-none print:m-0 print:p-0">{children}</div>
         </main>

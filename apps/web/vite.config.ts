@@ -8,14 +8,21 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: [
+        'favicon.ico',
+        'apple-touch-icon.png',
+        'pwa-192x192.png',
+        'pwa-512x512.png',
+        'pwa-maskable-512x512.png',
+      ],
       manifest: {
         name: 'SR Enterprises CRM',
         short_name: 'SR CRM',
         description: 'Commercial-grade SaaS for RO sales, service, warranty & job card management',
-        theme_color: '#0f172a',
-        background_color: '#ffffff',
+        theme_color: '#0B132B',
+        background_color: '#0B132B',
         display: 'standalone',
+        orientation: 'any',
         scope: '/',
         start_url: '/',
         icons: [
@@ -23,18 +30,32 @@ export default defineConfig({
             src: '/pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png',
+            purpose: 'any',
           },
           {
             src: '/pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable',
+            purpose: 'any',
+          },
+          {
+            src: '/pwa-maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           },
         ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        navigateFallbackDenylist: [/^\/api\//, /^\/health/, /^\/ready/],
+        runtimeCaching: [
+          {
+            urlPattern: /^\/api\/.*$/,
+            handler: 'NetworkOnly',
+          },
+        ],
       },
     }),
   ],

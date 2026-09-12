@@ -114,10 +114,10 @@ export const GlobalSidebar: React.FC<GlobalSidebarProps> = ({
         'fixed top-0 bottom-0 left-0 h-screen z-40 bg-[#00152B] text-white flex flex-col justify-between py-4 select-none print:hidden',
         'border-r border-slate-800/80 rounded-r-2xl transition-all duration-200 ease-out shadow-2xl',
         // Desktop Widths: 136px expanded vs 68px collapsed
-        isExpandedView ? 'w-[136px]' : 'w-[68px]',
+        isExpandedView ? 'w-[160px] md:w-[136px]' : 'w-[68px]',
         // Responsive mobile slide-out drawer
         mobileNavOpen
-          ? 'translate-x-0 w-[136px]'
+          ? 'translate-x-0 w-[160px] md:w-[136px]'
           : '-translate-x-full md:translate-x-0'
       )}
       aria-label="Master Global Navigation Sidebar"

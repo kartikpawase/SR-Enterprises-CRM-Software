@@ -243,10 +243,11 @@ export const PublicInvoicePage: React.FC = () => {
         </div>
 
         {/* Printable SR ENTERPRISES Invoice / Bill of Supply */}
-        <div
-          id="printable-tax-invoice"
-          className="bg-white p-4 md:p-8 rounded-2xl border border-slate-200 shadow-sm text-black font-sans space-y-2 printable-tax-invoice print:border-none print:shadow-none print:p-0 print:m-0 print:space-y-0"
-        >
+        <div className="overflow-x-auto pb-2 -mx-1 sm:mx-0 print:overflow-visible print:m-0 print:p-0">
+          <div
+            id="printable-tax-invoice"
+            className="bg-white p-4 md:p-8 rounded-2xl border border-slate-200 shadow-sm text-black font-sans space-y-2 printable-tax-invoice print:border-none print:shadow-none print:p-0 print:m-0 print:space-y-0 min-w-[650px] sm:min-w-0"
+          >
           {/* Top INVOICE Label: Positioned Above Inner Invoice Rectangle */}
           <div className="mb-2 flex items-center justify-start">
             <span className="inline-block border border-black px-2.5 py-0.5 text-[9px] font-bold tracking-wider uppercase">
@@ -423,6 +424,7 @@ export const PublicInvoicePage: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
         </div>
 
         {/* Footer Support Info (Hidden on Print) */}

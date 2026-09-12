@@ -323,13 +323,14 @@ export const InvoiceDetailPage: React.FC = () => {
         const poNumber = invoice.poNumber || (invoice as any).po_number || '';
 
         return (
-          <div
-            id="printable-tax-invoice"
-            className={cn(
-              "bg-white p-4 md:p-8 rounded-xl border border-slate-200 shadow-sm text-black font-sans space-y-2 printable-tax-invoice print:border-none print:shadow-none print:p-0 print:m-0 print:space-y-0",
-              receiptTarget && "print:hidden"
-            )}
-          >
+          <div className="overflow-x-auto pb-2 -mx-1 sm:mx-0 print:overflow-visible print:m-0 print:p-0">
+            <div
+              id="printable-tax-invoice"
+              className={cn(
+                "bg-white p-4 md:p-8 rounded-xl border border-slate-200 shadow-sm text-black font-sans space-y-2 printable-tax-invoice print:border-none print:shadow-none print:p-0 print:m-0 print:space-y-0 min-w-[650px] sm:min-w-0",
+                receiptTarget && "print:hidden"
+              )}
+            >
             {/* Top INVOICE Label: Positioned Above Inner Invoice Rectangle (Left-Aligned) */}
             <div className="mb-2 flex items-center justify-start">
               <span className="inline-block border border-black px-2.5 py-0.5 text-[9px] font-bold tracking-wider uppercase">
@@ -508,6 +509,7 @@ export const InvoiceDetailPage: React.FC = () => {
               </div>
             </div>
           </div>
+          </div>
         );
       })()}
 
@@ -540,7 +542,7 @@ export const InvoiceDetailPage: React.FC = () => {
             No payments have been recorded for this invoice yet.
           </div>
         ) : (
-          <div className="border border-slate-200 rounded-lg overflow-hidden">
+          <div className="border border-slate-200 rounded-lg overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-semibold border-b border-slate-200">
                 <tr>

@@ -28,11 +28,11 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       {/* Breadcrumb Navigation */}
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav aria-label="Breadcrumb" className="mb-2">
-          <ol className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+          <ol className="flex items-center gap-1.5 text-xs text-slate-500 font-medium overflow-x-auto no-scrollbar whitespace-nowrap py-0.5">
             {breadcrumbs.map((crumb, idx) => {
               const isLast = idx === breadcrumbs.length - 1;
               return (
-                <li key={crumb.label} className="flex items-center gap-1.5">
+                <li key={crumb.label} className="flex items-center gap-1.5 shrink-0">
                   {idx > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
                   {isLast ? (
                     <span className="font-bold text-slate-900" aria-current="page">
@@ -59,11 +59,11 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       {/* Main Title & Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-display font-extrabold text-slate-900 tracking-tight">{title}</h1>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-display font-extrabold text-slate-900 tracking-tight">{title}</h1>
           {description && <p className="text-xs lg:text-sm text-slate-500 font-medium mt-1">{description}</p>}
         </div>
 
-        {actions && <div className="flex items-center gap-3 shrink-0">{actions}</div>}
+        {actions && <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">{actions}</div>}
       </div>
     </div>
   );

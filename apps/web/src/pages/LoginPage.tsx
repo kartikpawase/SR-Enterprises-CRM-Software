@@ -8,9 +8,9 @@ export interface LoginPageProps {
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   return (
-    <div className="h-screen h-[100dvh] w-screen w-[100dvw] bg-[#F4F6F8] flex items-center justify-center p-3 sm:p-4 lg:p-6 select-none overflow-hidden fixed inset-0">
-      {/* Main Centered 2-Panel Auth Card with Fixed Viewport Fitting (Zero Page Scroll) */}
-      <div className="w-full max-w-[1360px] max-h-[94vh] lg:max-h-[90vh] bg-white rounded-2xl shadow-elevated border border-slate-200/90 overflow-hidden flex flex-col lg:flex-row my-auto">
+    <div className="min-h-screen min-h-[100dvh] w-full bg-[#F4F6F8] flex items-center justify-center p-3 sm:p-4 lg:p-6 select-none overflow-y-auto">
+      {/* Main Centered 2-Panel Auth Card with Responsive Viewport Fitting */}
+      <div className="w-full max-w-[1360px] my-auto bg-white rounded-2xl shadow-elevated border border-slate-200/90 overflow-hidden flex flex-col lg:flex-row lg:max-h-[90vh]">
         {/* Left Visual Identity Panel (54% Width) */}
         <LoginBrandPanel />
 
