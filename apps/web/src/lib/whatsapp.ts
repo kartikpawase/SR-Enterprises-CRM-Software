@@ -43,9 +43,7 @@ export function sendInvoiceViaWhatsApp({
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const viewUrl = publicUrl || (origin && invoiceKey ? `${origin}/invoice/view/${encodeURIComponent(invoiceKey)}` : '');
 
-  let message = customerName
-    ? `Dear ${customerName},\nThanks for choosing ${company}. Here is your invoice for order ${orderId},\nInvoice No: ${invNumber}`
-    : `Thanks for shopping with ${company}. Here is your invoice for your order ${orderId},\nInvoice No: ${invNumber}`;
+  let message = `Hello Customer,\nThanks for choosing ${company}. Here is your invoice for order ${orderId},\nInvoice No: ${invNumber}`;
 
   if (totalAmount && Number(totalAmount) > 0) {
     message += `\nTotal Amount: ₹ ${Number(totalAmount).toLocaleString('en-IN')}`;
