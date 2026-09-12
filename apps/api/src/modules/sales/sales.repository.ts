@@ -20,6 +20,8 @@ import {
 import { generateBusinessNumber } from '../../database/sequences';
 import { generateInvoiceNumber } from '../invoices/invoices.numbering';
 import { withTransaction } from '../../database/transactions';
+import { configService } from '../system/configuration.service';
+import type { SalesSettings } from '@crm/types';
 import { calculateSaleTotals } from './sales.calculator';
 import { inventoryRepository } from '../inventory/inventory.repository';
 import { productRepository } from '../products/product.repository';
@@ -984,7 +986,10 @@ export class SalesRepository {
           const { sequenceNumber: saleNumber } = await generateBusinessNumber(tx, 'SALE', 'SALE');
           console.log('[STEP_5_COMPLETE] Generated sale number:', saleNumber);
 
-          const isCompleted = data.status === 'COMPLETED';
+          const salesConfig = await configService.get<SalesSettings>('SALES');
+          const defaultStatus = salesConfig?.defaultSalesStatus || 'DRAFT';
+          const saleStatus = data.status || defaultStatus;
+          const isCompleted = saleStatus === 'COMPLETED';
 
           console.log('[STEP_ACTOR_START] Resolving actor ID...');
           const safeActorId = await this.resolveActorUserId(tx, actorId);
@@ -998,7 +1003,7 @@ export class SalesRepository {
               saleNumber,
               customerId: customer.id,
               saleDate: data.saleDate ? new Date(data.saleDate) : new Date(),
-              status: data.status || 'DRAFT',
+              status: saleStatus,
               subtotal: calcResult.subtotal,
               discountAmount: calcResult.discountAmount,
               taxAmount: calcResult.taxAmount,

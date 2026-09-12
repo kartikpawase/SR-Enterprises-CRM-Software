@@ -1,4 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { eq, desc } from 'drizzle-orm';
+import { db } from '../../database/client';
+import { auditLogs } from '../../database/schema/audit';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
 import { configService } from './configuration.service';
@@ -75,6 +78,34 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
           success: false,
           error: { code: 'SETTINGS_HEALTH_ERROR', message: err.message },
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/v1/settings/audit-logs
+   * Retrieve recent configuration change audit trail records
+   */
+  fastify.get(
+    '/audit-logs',
+    { preHandler: [authenticate, requirePermission('settings.view')] },
+    async (_request, reply) => {
+      try {
+        const logs = await db
+          .select()
+          .from(auditLogs)
+          .where(eq(auditLogs.entityType, 'SETTINGS'))
+          .orderBy(desc(auditLogs.timestamp))
+          .limit(50);
+        return reply.status(HTTP_STATUS.OK).send({
+          success: true,
+          data: logs,
+        });
+      } catch (err: any) {
+        return reply.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
+          success: false,
+          error: { code: 'SETTINGS_AUDIT_LOGS_ERROR', message: err.message },
         });
       }
     }

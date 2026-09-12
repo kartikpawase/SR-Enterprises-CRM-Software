@@ -1,6 +1,8 @@
 import { eq, and, gte, lte, desc, asc, sql, ilike, count } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { db } from '../../database/client';
+import { configService } from '../system/configuration.service';
+import type { InventorySettings } from '@crm/types';
 import {
   inventoryItems,
   inventoryPurchases,
@@ -43,6 +45,10 @@ export class InventoryManagementRepository {
     const seenIds = new Set<string>();
     const allItems: any[] = [];
 
+    // Dynamically resolve lowStockThreshold from configuration
+    const invConfig = await configService.get<InventorySettings>('INVENTORY');
+    const threshold = invConfig?.lowStockThreshold ?? 5;
+
     try {
       const conditions: any[] = [];
 
@@ -62,7 +68,9 @@ export class InventoryManagementRepository {
       }
 
       if (filters.lowStockOnly) {
-        conditions.push(sql`${inventoryItems.currentStock} <= ${inventoryItems.minStockLevel}`);
+        conditions.push(
+          sql`${inventoryItems.currentStock} <= CASE WHEN ${inventoryItems.minStockLevel} > 0 THEN ${inventoryItems.minStockLevel} ELSE ${threshold} END`
+        );
       }
 
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -87,7 +95,8 @@ export class InventoryManagementRepository {
       if (m && m.id && !seenIds.has(m.id)) {
         if (filters.status && filters.status !== 'ALL' && m.status !== filters.status) continue;
         if (filters.category && filters.category !== 'ALL' && m.category !== filters.category) continue;
-        if (filters.lowStockOnly && m.currentStock > m.minStockLevel) continue;
+        const itemThreshold = Number(m.minStockLevel) > 0 ? Number(m.minStockLevel) : threshold;
+        if (filters.lowStockOnly && Number(m.currentStock) > itemThreshold) continue;
         if (filters.search && filters.search.trim()) {
           const s = filters.search.toLowerCase();
           const match =
@@ -162,7 +171,9 @@ export class InventoryManagementRepository {
     const initialStock = Number(input.initialStock) || 0;
     const purchasePrice = Number(input.purchasePrice) || 0;
     const sellingPrice = Number(input.sellingPrice) || 0;
-    const minStockLevel = Number(input.minStockLevel) || 0;
+    const invConfig = await configService.get<InventorySettings>('INVENTORY');
+    const defaultLowStock = invConfig?.lowStockThreshold ?? 5;
+    const minStockLevel = input.minStockLevel !== undefined && input.minStockLevel !== null ? Number(input.minStockLevel) : defaultLowStock;
     const itemId = randomUUID();
     const now = new Date();
 
@@ -776,6 +787,8 @@ export class InventoryManagementRepository {
 
   async getAnalytics(filter: InventoryAnalyticsFilter) {
     const { start, end } = this.resolveDateRange(filter);
+    const invConfig = await configService.get<InventorySettings>('INVENTORY');
+    const threshold = invConfig?.lowStockThreshold ?? 5;
 
     try {
       const [salesSummary] = await db
@@ -815,7 +828,7 @@ export class InventoryManagementRepository {
         .where(
           and(
             eq(inventoryItems.status, 'ACTIVE'),
-            sql`${inventoryItems.currentStock} <= ${inventoryItems.minStockLevel}`
+            sql`${inventoryItems.currentStock} <= CASE WHEN ${inventoryItems.minStockLevel} > 0 THEN ${inventoryItems.minStockLevel} ELSE ${threshold} END`
           )
         );
 
@@ -864,7 +877,7 @@ export class InventoryManagementRepository {
         .where(
           and(
             eq(inventoryItems.status, 'ACTIVE'),
-            sql`${inventoryItems.currentStock} <= ${inventoryItems.minStockLevel}`
+            sql`${inventoryItems.currentStock} <= CASE WHEN ${inventoryItems.minStockLevel} > 0 THEN ${inventoryItems.minStockLevel} ELSE ${threshold} END`
           )
         )
         .orderBy(asc(inventoryItems.currentStock))
@@ -945,7 +958,8 @@ export class InventoryManagementRepository {
         const cost = parseFloat(i.purchasePrice || '0');
         totalStockQuantity += stk;
         currentStockValuation += stk * cost;
-        if (stk <= Number(i.minStockLevel || 0)) lowStockItemsCount++;
+        const itemThreshold = Number(i.minStockLevel) > 0 ? Number(i.minStockLevel) : threshold;
+        if (stk <= itemThreshold) lowStockItemsCount++;
       }
 
       return {
@@ -969,7 +983,10 @@ export class InventoryManagementRepository {
         },
         topSellingItems: [],
         topProfitableItems: [],
-        lowStockAlerts: memoryInventoryItems.filter((i) => i.currentStock <= i.minStockLevel),
+        lowStockAlerts: memoryInventoryItems.filter((i) => {
+          const itemThreshold = Number(i.minStockLevel) > 0 ? Number(i.minStockLevel) : threshold;
+          return Number(i.currentStock || 0) <= itemThreshold;
+        }),
         dailySeries: [],
       };
     }

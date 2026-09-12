@@ -3,6 +3,8 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
+import { configService } from '../system/configuration.service';
+import type { BusinessSettings } from '@crm/types';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -104,9 +106,17 @@ export class PhpMailerService {
     const smtpPass = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || process.env.MAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
     const smtpSecure = (process.env.SMTP_SECURE || process.env.MAIL_ENCRYPTION || '').toLowerCase() === 'ssl' || smtpPort === 465;
 
+    let configuredBizName = 'SR Enterprises';
+    let configuredBizEmail = 'srenterprises02015@gmail.com';
+    try {
+      const bizConfig = await configService.get<BusinessSettings>('BUSINESS');
+      if (bizConfig?.businessName) configuredBizName = bizConfig.businessName;
+      if (bizConfig?.email) configuredBizEmail = bizConfig.email;
+    } catch {}
+
     const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_FROM || process.env.MAIL_FROM_ADDRESS || 'no-reply@srenterprises.com';
-    const fromName = process.env.SMTP_FROM_NAME || process.env.MAIL_FROM_NAME || 'SR Enterprises';
-    const supportEmail = process.env.SUPPORT_EMAIL || 'srenterprises02015@gmail.com';
+    const fromName = process.env.SMTP_FROM_NAME || process.env.MAIL_FROM_NAME || configuredBizName;
+    const supportEmail = process.env.SUPPORT_EMAIL || configuredBizEmail;
 
     const mailDriver = (process.env.MAIL_DRIVER || '').toLowerCase();
     const isMock = mailDriver === 'log' || mailDriver === 'mock' || process.env.MOCK_MAIL === 'true' || Boolean(payload.mock);

@@ -100,8 +100,10 @@ export async function generateBusinessNumber(
   prefix: string,
   options?: SequenceOptions
 ): Promise<GeneratedSequenceResult> {
-  const padding = options?.padding ?? 4;
-  const yearReset = options?.yearReset ?? true;
+  const resolved = await resolveConfiguredSequenceOptions(sequenceName, prefix);
+  const effectivePrefix = options?.useConfiguredPrefix === false ? prefix : (resolved.prefix || prefix);
+  const padding = options?.padding ?? resolved.padding ?? 4;
+  const yearReset = options?.yearReset ?? resolved.yearReset ?? true;
   const currentYear = options?.forceYear ?? new Date().getFullYear();
 
   try {
@@ -121,7 +123,7 @@ export async function generateBusinessNumber(
             .update(businessSequences)
             .set({
               currentVal: counter,
-              prefix,
+              prefix: effectivePrefix,
               currentYear,
               updatedAt: new Date(),
             })
@@ -129,7 +131,7 @@ export async function generateBusinessNumber(
         } else {
           await db.insert(businessSequences).values({
             name: sequenceName,
-            prefix,
+            prefix: effectivePrefix,
             currentVal: 1,
             padding,
             yearReset,
@@ -139,10 +141,10 @@ export async function generateBusinessNumber(
           counter = 1;
         }
 
-        const formatted = formatSequenceNumber(prefix, currentYear, counter, padding);
+        const formatted = formatSequenceNumber(effectivePrefix, currentYear, counter, padding);
         return {
           sequenceNumber: formatted,
-          prefix,
+          prefix: effectivePrefix,
           year: currentYear,
           counter,
         };
@@ -162,10 +164,10 @@ export async function generateBusinessNumber(
         };
       }
 
-      const formatted = formatSequenceNumber(prefix, currentYear, 1, padding);
+      const formatted = formatSequenceNumber(effectivePrefix, currentYear, 1, padding);
       return {
         sequenceNumber: formatted,
-        prefix,
+        prefix: effectivePrefix,
         year: currentYear,
         counter: 1,
       };
@@ -183,10 +185,10 @@ export async function generateBusinessNumber(
     }
   } catch {
     const rand = Math.floor(1000 + Math.random() * 9000);
-    const formatted = formatSequenceNumber(prefix, currentYear, rand, padding);
+    const formatted = formatSequenceNumber(effectivePrefix, currentYear, rand, padding);
     return {
       sequenceNumber: formatted,
-      prefix,
+      prefix: effectivePrefix,
       year: currentYear,
       counter: rand,
     };

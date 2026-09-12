@@ -5,6 +5,10 @@ import { OperationalCardsRow } from './components/OperationalCardsRow';
 import { TodaysOverviewCard } from './components/TodaysOverviewCard';
 import { TodaysScheduleCard } from './components/TodaysScheduleCard';
 import { PaymentRemindersSection } from './components/PaymentRemindersSection';
+import {
+  getStoredDashboardPreferences,
+  type DashboardWidgetPreferences,
+} from '../settings/components/DashboardSettingsSection';
 import type { DashboardData } from './types';
 
 // Clean initial operational state with strictly no seeded dummy data
@@ -42,6 +46,17 @@ export const resetDashboardCache = () => {
 
 export const DashboardPage: React.FC = () => {
   const [data, setData] = useState<DashboardData>(cachedDashboardData);
+  const [prefs, setPrefs] = useState<DashboardWidgetPreferences>(getStoredDashboardPreferences);
+
+  useEffect(() => {
+    const handlePrefsUpdated = () => {
+      setPrefs(getStoredDashboardPreferences());
+    };
+    window.addEventListener('crm_dashboard_preferences_updated', handlePrefsUpdated);
+    return () => {
+      window.removeEventListener('crm_dashboard_preferences_updated', handlePrefsUpdated);
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -72,6 +87,8 @@ export const DashboardPage: React.FC = () => {
     };
   }, []);
 
+  const hasMiddleRow = prefs.showTodaysOverview || prefs.showTodaysSchedule;
+
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-150">
       {/* 1. Header (Greeting + Search + Date + Notifications + Profile) */}
@@ -80,23 +97,29 @@ export const DashboardPage: React.FC = () => {
       />
 
       {/* 2. Five Primary Operational Cards (Horizontal Row) */}
-      <OperationalCardsRow data={data.cards} />
+      {prefs.showOperationalCards && <OperationalCardsRow data={data.cards} />}
 
       {/* 3. Main Two-Column Operational Layout (~56% Left / ~44% Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-        {/* Left (~58%): Today's Overview */}
-        <div className="lg:col-span-7 flex flex-col">
-          <TodaysOverviewCard data={data.overview} />
-        </div>
+      {hasMiddleRow && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          {/* Left (~58%): Today's Overview */}
+          {prefs.showTodaysOverview && (
+            <div className={prefs.showTodaysSchedule ? 'lg:col-span-7 flex flex-col' : 'lg:col-span-12 flex flex-col'}>
+              <TodaysOverviewCard data={data.overview} />
+            </div>
+          )}
 
-        {/* Right (~42%): Today's Schedule */}
-        <div className="lg:col-span-5 flex flex-col">
-          <TodaysScheduleCard schedule={data.schedule} />
+          {/* Right (~42%): Today's Schedule */}
+          {prefs.showTodaysSchedule && (
+            <div className={prefs.showTodaysOverview ? 'lg:col-span-5 flex flex-col' : 'lg:col-span-12 flex flex-col'}>
+              <TodaysScheduleCard schedule={data.schedule} />
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* 4. Full-Width Payment Reminders Section */}
-      <PaymentRemindersSection reminders={data.paymentReminders} />
+      {prefs.showPaymentReminders && <PaymentRemindersSection reminders={data.paymentReminders} />}
     </div>
   );
 };

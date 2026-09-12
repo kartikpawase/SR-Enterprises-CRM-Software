@@ -15,6 +15,8 @@ import {
 } from '../../database/schema/index';
 import { withTransaction } from '../../database/transactions';
 import { generateBusinessNumber } from '../../database/sequences';
+import { configService } from '../system/configuration.service';
+import type { InvoiceSettings } from '@crm/types';
 import { calculateInvoiceTotals } from './invoices.calculator';
 import { generateInvoiceNumber } from './invoices.numbering';
 import { customerRepository } from '../customers/customer.repository';
@@ -601,10 +603,13 @@ export class InvoicesRepository {
       return cached.result;
     }
 
+    const invConfig = await configService.get<InvoiceSettings>('INVOICE');
+    const paymentTermsDays = invConfig?.paymentTermsDays ?? 15;
+
     const invoiceDate = data.invoiceDate ? new Date(data.invoiceDate) : new Date();
     const dueDate = data.dueDate
       ? new Date(data.dueDate)
-      : new Date(invoiceDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+      : new Date(invoiceDate.getTime() + paymentTermsDays * 24 * 60 * 60 * 1000);
 
     // Validate Due Date cannot be earlier than Invoice Date
     if (new Date(dueDate).setHours(0, 0, 0, 0) < new Date(invoiceDate).setHours(0, 0, 0, 0)) {
@@ -659,10 +664,11 @@ export class InvoicesRepository {
           taxAmount: calcResult.taxAmount,
           totalAmount: calcResult.totalAmount,
           status,
-          notes: data.notes ? data.notes.trim() : null,
+          notes: data.notes ? data.notes.trim() : (invConfig?.defaultNotes || null),
           termsAndConditions:
             data.termsAndConditions ||
             data.terms ||
+            invConfig?.defaultTermsAndConditions ||
             'Payment due within 15 days of invoice date. 1 year standard warranty on RO machines.',
           createdBy: validActorId,
         })
@@ -782,10 +788,12 @@ export class InvoicesRepository {
       }
 
       // 4. Generate sequential business invoice number in MMYY+serial format (starts from 251)
+      const invConfig = await configService.get<InvoiceSettings>('INVOICE');
+      const paymentTermsDays = invConfig?.paymentTermsDays ?? 15;
       const invoiceDate = sale.saleDate || new Date();
       const dueDate = options.dueDate
         ? new Date(options.dueDate)
-        : new Date(invoiceDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+        : new Date(invoiceDate.getTime() + paymentTermsDays * 24 * 60 * 60 * 1000);
 
       const invoiceNumber = await generateInvoiceNumber(tx, invoiceDate);
 
@@ -804,9 +812,10 @@ export class InvoicesRepository {
           taxAmount: sale.taxAmount,
           totalAmount: sale.totalAmount,
           status: 'ISSUED',
-          notes: options.notes || sale.notes,
+          notes: options.notes || sale.notes || invConfig?.defaultNotes || null,
           termsAndConditions:
             options.termsAndConditions ||
+            invConfig?.defaultTermsAndConditions ||
             'Payment due within 15 days of invoice date. 1 year standard warranty on RO machines.',
           createdBy: validActorId,
         })

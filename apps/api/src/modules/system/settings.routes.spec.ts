@@ -69,6 +69,15 @@ vi.mock('../../database/client', () => ({
         findFirst: vi.fn().mockResolvedValue(null),
       },
     },
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          orderBy: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue([]),
+          })),
+        })),
+      })),
+    })),
     transaction: vi.fn(async (cb) => {
       const mockTx = {
         insert: vi.fn(() => ({
@@ -221,7 +230,7 @@ describe('Phase 27: Settings & Business Configuration API Routes — Integration
     });
   });
 
-  describe('5. Health Check Endpoint', () => {
+  describe('5. Health & Audit Endpoints', () => {
     it('GET /health should return 200 with configuration status', async () => {
       const response = await app.inject({
         method: 'GET',
@@ -233,6 +242,19 @@ describe('Phase 27: Settings & Business Configuration API Routes — Integration
       const json = JSON.parse(response.body);
       expect(json.success).toBe(true);
       expect(json.data.healthy).toBe(true);
+    });
+
+    it('GET /audit-logs should return settings audit trail', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/audit-logs',
+        headers: { authorization: 'Bearer superadmin-token' },
+      });
+
+      expect(response.statusCode).toBe(HTTP_STATUS.OK);
+      const json = JSON.parse(response.body);
+      expect(json.success).toBe(true);
+      expect(Array.isArray(json.data)).toBe(true);
     });
   });
 });
