@@ -28,6 +28,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   authStatus: AuthStatus;
+  isInitialCheckDone: boolean;
   hasPermission: (permission: PermissionKey | string) => boolean;
   hasRole: (...roles: UserRole[]) => boolean;
   login: (username: string, password: string, challengeId: string, captcha: string) => Promise<LoginResult>;
@@ -42,6 +43,7 @@ const AuthContext = createContext<AuthContextValue>({
   isAuthenticated: false,
   isLoading: true,
   authStatus: 'AUTH_CHECKING',
+  isInitialCheckDone: false,
   hasPermission: () => false,
   hasRole: () => false,
   login: async () => ({ success: false, error: 'Auth not initialized' }),
@@ -86,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {}
     return 'AUTH_CHECKING';
   });
+
+  const [isInitialCheckDone, setIsInitialCheckDone] = useState(false);
 
   /**
    * Strictly verifies authenticated session with the backend server (/api/v1/auth/me).
@@ -137,6 +141,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAuthStatus('UNAUTHENTICATED');
         }
       }
+    } finally {
+      setIsInitialCheckDone(true);
     }
   }, []);
 
@@ -285,6 +291,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated,
         isLoading,
         authStatus,
+        isInitialCheckDone,
         hasPermission,
         hasRole,
         login,

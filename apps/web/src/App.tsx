@@ -13,6 +13,7 @@ import { StatusBadge } from './components/ui/StatusBadge';
 import { LoadingState } from './components/ui/LoadingState';
 import { Button } from './components/ui/Button';
 import { LoginPage } from './pages/LoginPage';
+import { notifyCrmReady } from './lib/splashScreen';
 
 // Code-split route modules dynamically to optimize initial bundle size and processing speed
 const DashboardPage = React.lazy(() => import('./modules/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
@@ -416,12 +417,29 @@ function AppRoutes() {
   );
 }
 
+export function SplashScreenCoordinator() {
+  const { isInitialCheckDone, authStatus } = useAuth();
+
+  React.useEffect(() => {
+    // When initial authentication/session verification completes
+    if (isInitialCheckDone && authStatus !== 'AUTH_CHECKING') {
+      const frame = requestAnimationFrame(() => {
+        notifyCrmReady();
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [isInitialCheckDone, authStatus]);
+
+  return null;
+}
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <NetworkStatusProvider>
           <AuthProvider>
+            <SplashScreenCoordinator />
             <ErrorBoundary>
               <BrowserRouter>
                 <AppRoutes />

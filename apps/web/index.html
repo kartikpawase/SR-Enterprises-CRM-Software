@@ -41,8 +41,106 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>SR Enterprises CRM</title>
+
+    <!-- Immediate Application Splash / Loading Screen Preloads & Styles -->
+    <link rel="preload" as="image" href="/splash-desktop.png" media="(min-width: 769px), (orientation: landscape)" />
+    <link rel="preload" as="image" href="/splash-mobile.png" media="(max-width: 768px) and (orientation: portrait), (max-width: 500px)" />
+    <style>
+      #crm-splash-screen {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        background-color: #00091b;
+        background: radial-gradient(circle at 50% 40%, #0a2345 0%, #010c20 65%, #000717 100%);
+        z-index: 9999999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        transition: opacity 600ms cubic-bezier(0.16, 1, 0.3, 1), visibility 600ms cubic-bezier(0.16, 1, 0.3, 1);
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #crm-splash-screen.crm-splash-fade-out {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      #crm-splash-screen.crm-splash-hidden {
+        display: none !important;
+      }
+      .crm-splash-picture {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .crm-splash-img {
+        width: 100%;
+        height: 100%;
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        display: block;
+        image-rendering: -webkit-optimize-contrast;
+      }
+      .crm-splash-footer {
+        position: absolute;
+        bottom: max(20px, env(safe-area-inset-bottom, 20px));
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.05em;
+        color: rgba(255, 255, 255, 0.65);
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+        pointer-events: none;
+        z-index: 10;
+      }
+    </style>
   </head>
   <body class="bg-[#F4F6F8] text-slate-900 antialiased selection:bg-sky-600 selection:text-white font-sans">
+    <!-- Immediate Application Splash / Loading Screen (Desktop + Mobile) -->
+    <div id="crm-splash-screen" aria-hidden="false">
+      <picture class="crm-splash-picture">
+        <!-- Mobile Viewport / Portrait Screen -->
+        <source
+          media="(max-width: 768px) and (orientation: portrait), (max-width: 500px)"
+          srcset="/splash-mobile.png"
+        />
+        <!-- Desktop / Wide Screen / Landscape -->
+        <source
+          media="(min-width: 769px), (orientation: landscape)"
+          srcset="/splash-desktop.png"
+        />
+        <img
+          id="crm-splash-img"
+          src="/splash-desktop.png"
+          alt="SR Enterprises CRM"
+          class="crm-splash-img"
+          loading="eager"
+          decoding="async"
+        />
+      </picture>
+      <div class="crm-splash-footer">
+        Developed by Kartik & Siddharth
+      </div>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
